@@ -3,19 +3,101 @@
 from ply import lex
 from ply.lex import TOKEN
 
-tokens = [
-    "COMMENT",
-    "IMAG",
-    "FLOAT",
-    "INT",
-    "KEYWORD",
-    "ID",
-    "RUNE",
-    "STRING",
-    "OP",
-    "NEWLINES",
-    "WHITESPACE",
+operators = {
+    "+=": (r"\+=", "PLUSEQ"),
+    "++": (r"\+\+", "INCR"),
+    "+": (r"\+", "PLUS"),
+    "-=": (r"-=", "MINUSEQ"),
+    "--": (r"--", "DECR"),
+    "-": (r"-", "MINUS"),
+    "&=": (r"&=", "BITANDEQ"),
+    "&&": (r"&&", "LOGAND"),
+    "&": (r"&", "BITAND"),
+    "<<=": (r"<<=", "LSHIFTEQ"),
+    "<=": (r"<=", "LESSEQ"),
+    "<<": (r"<<", "LSHIFT"),
+    "<-": (r"<-", "REC"),
+    "<": (r"<", "LESS"),
+    ">>=": (r">>=", "RSHIFTEQ"),
+    ">=": (r">=", "GREATEQ"),
+    ">>": (r">>", "RSHIFT"),
+    ">": (r">", "GREAT"),
+    "%=": (r"%=", "MODEQ"),
+    "%": (r"%", "MODULO"),
+    "==": (r"==", "EQUALS"),
+    "!=": (r"!=", "NOTEQ"),
+    "(": (r"\(", "LBRACK"),
+    ")": (r"\)", "RBRACK"),
+    "|=": (r"\|=", "BITOREQ"),
+    "||": (r"\|\|", "LOGOR"),
+    "|": (r"\|", "BITOR"),    
+    "[": (r"\[", "LSQBRACK"),
+    "]": (r"\]", "RSQBRACK"),
+    "*=": (r"\*=", "MULTEQ"),
+    "^=": (r"\^=", "BITXOREQ"),
+    "*": (r"\*", "MULT"),
+    "^": (r"\^", "BITXOR"),
+    "{": (r"\{", "LCURLBR"),
+    "}": (r"\}", "RCURLBR"),
+    "/=": (r"/=", "DIVEQ"),
+    "/": (r"/", "DIV"),
+    "=": (r"=", "ASSIGN"),
+    ":=": (r":=", "SHDECL"),
+    ",": (r",", "COMMA"),
+    ";": (r";", "SEMICOLON"),
+    "!": (r"!", "LOGNOT"),
+    "...": (r"\.\.\.", "TRIDOT"),
+    ".": (r"\.", "DOT"),
+    ":": (r":", "COLON"),
+    "&^=": (r"&\^=", "BITCLREQ"),
+    "&^": (r"&\^", "BITCLR"), 
+}
+
+reserved = [
+    "break",
+    "default",
+    "func",
+    "interface",
+    "select",
+    "case",
+    "defer",
+    "go",
+    "map",
+    "struct",
+    "chan",
+    "else",
+    "goto",
+    "package",
+    "switch",
+    "const",
+    "fallthrough",
+    "if",
+    "range",
+    "type",
+    "continue",
+    "for",
+    "import",
+    "return",
+    "var",
 ]
+
+tokens = (
+    [
+        "COMMENT",
+        "IMAG",
+        "FLOAT",
+        "INT",
+        "KEYWORD",
+        "ID",
+        "RUNE",
+        "STRING",
+        "OP",
+        "NEWLINES",
+        "WHITESPACE",
+    ]
+    + [keyword.upper() for keyword in reserved]
+    + [value[1] for value in operators.values()]
+)
 
 octal_byte_value = r"\\[0-7]{3}"
 hex_byte_value = r"\\x[0-9a-fA-F]{2}"
@@ -28,56 +110,7 @@ unicode_value = (
 )
 rune_regex = r"'(" + unicode_value + r"|" + byte_value + r")'"
 
-operators = [
-    r"\+=",
-    r"\+\+",
-    r"\+",
-    r"-=",
-    r"--",
-    r"-",
-    r"&=",
-    r"&&",
-    r"&",
-    r"\|=",
-    r"\|\|",
-    r"\|",
-    r"<<=",
-    r"<=",
-    r"<-",
-    r"<<",
-    r"<",
-    r">>=",
-    r">=",
-    r">>",
-    r">",
-    r"==",
-    r"=",
-    r"!=",
-    r"!",
-    r"\(",
-    r"\)",    
-    r"\[",
-    r"\]",
-    r"\{",
-    r"\}",
-    r"/=",
-    r"/",
-    r"\*=",
-    r"\*",
-    r"\^=",
-    r"\^",
-    r"%=",
-    r"%",
-    r":=",
-    r":",
-    r",",
-    r";",
-    r"\.\.\.",
-    r"\.",
-    r"&\^",
-    r"&\^=",
-]
-op_regex = r"(" + r"|".join(operators) + r")"
+op_regex = r"(" + r"|".join([value[0] for value in operators.values()]) + r")"
 
 decimal_lit = r"[1-9][0-9]*"
 octal_lit = r"0[0-7]*"
@@ -118,35 +151,8 @@ def t_INT(t):
 
 def t_ID(t):
     r"[a-zA-Z_][a-zA-Z_0-9]*"
-    reserved = [
-        "break",
-        "default",
-        "func",
-        "interface",
-        "select",
-        "case",
-        "defer",
-        "go",
-        "map",
-        "struct",
-        "chan",
-        "else",
-        "goto",
-        "package",
-        "switch",
-        "const",
-        "fallthrough",
-        "if",
-        "range",
-        "type",
-        "continue",
-        "for",
-        "import",
-        "return",
-        "var",
-    ]
     if t.value in reserved:
-        t.type = "KEYWORD"
+        t.type = t.value.upper()
     return t
 
 
@@ -162,6 +168,7 @@ def t_STRING(t):
 
 @TOKEN(op_regex)
 def t_OP(t):
+    t.type = operators[t.value][1]
     return t
 
 
@@ -169,7 +176,7 @@ t_NEWLINES = r"\n+"
 t_WHITESPACE = r"[ \t]+"
 
 lexer = lex.lex()
-with open("../1.go", "r") as go:
+with open("/home/rharish/Programs/Go/hello.go", "r") as go:
     lexer.input(go.read())
 
 output = ""

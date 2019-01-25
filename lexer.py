@@ -33,7 +33,7 @@ reserved = [
 tokens = [
     "COMMENT",
     "STRING",
-    # "RUNE",
+    "RUNE",
     "ID",
     "KEYWORD",
     "OP",
@@ -43,8 +43,18 @@ tokens = [
     "NEWLINE",
 ]
 t_COMMENT = r"(//.*|/\*[\s\S]*\*/)"
-t_STRING = r"\"[^\"\n]+\""
-# t_RUNE = r""
+t_STRING = r"(\"[^\"\n]+\"|`[^`\n]+`)"
+
+octal_byte_value = r"\\[0-7]{3}"
+hex_byte_value = r"\\x[0-9a-fA-F]{2}"
+byte_value = r"(" + octal_byte_value + r"|" + hex_byte_value + r")"
+little_u_value = r"\\u[0-9a-fA-F]{4}"
+big_u_value = r"\\U[0-9a-fA-F]{8}"
+escaped_char = r"\\(a|b|f|n|r|t|v|\\|'|\")"
+unicode_value = (
+    r"(.|" + little_u_value + r"|" + big_u_value + r"|" + escaped_char + ")"
+)
+t_RUNE = r"'(" + unicode_value + r"|" + byte_value + r")'"
 
 operators = [
     r"\+",

@@ -150,7 +150,7 @@ def t_INT(t):
 
 
 def t_ID(t):
-    r"[a-zA-Z][a-zA-Z_0-9]*"
+    r"[a-zA-Z_][a-zA-Z_0-9]*"
     if t.value in reserved:
         t.type = t.value.upper()
     return t

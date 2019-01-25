@@ -1,34 +1,7 @@
 #!/usr/bin/env python3
 """Lexer for Go."""
 from ply import lex
-
-reserved = [
-    "break",
-    "default",
-    "func",
-    "interface",
-    "select",
-    "case",
-    "defer",
-    "go",
-    "map",
-    "struct",
-    "chan",
-    "else",
-    "goto",
-    "package",
-    "switch",
-    "const",
-    "fallthrough",
-    "if",
-    "range",
-    "type",
-    "continue",
-    "for",
-    "import",
-    "return",
-    "var",
-]
+from ply.lex import TOKEN
 
 tokens = [
     "COMMENT",
@@ -42,8 +15,51 @@ tokens = [
     "IMAG",
     "NEWLINE",
 ]
-t_COMMENT = r"(//.*|/\*[\s\S]*\*/)"
-t_STRING = r"(\"[^\"\n]+\"|`[^`\n]+`)"
+
+
+def t_COMMENT(t):
+    r"(//.*|/\*(\*(?!/)|[^*])*\*/)"
+    return t
+
+
+def t_ID(t):
+    r"[a-zA-Z][a-zA-Z_0-9]*"
+    reserved = [
+        "break",
+        "default",
+        "func",
+        "interface",
+        "select",
+        "case",
+        "defer",
+        "go",
+        "map",
+        "struct",
+        "chan",
+        "else",
+        "goto",
+        "package",
+        "switch",
+        "const",
+        "fallthrough",
+        "if",
+        "range",
+        "type",
+        "continue",
+        "for",
+        "import",
+        "return",
+        "var",
+    ]
+    if t.value in reserved:
+        t.type = "KEYWORD"
+    return t
+
+
+def t_STRING(t):
+    r"(\"[^\"\n]+\"|`[^`\n]+`)"
+    return t
+
 
 octal_byte_value = r"\\[0-7]{3}"
 hex_byte_value = r"\\x[0-9a-fA-F]{2}"
@@ -54,7 +70,13 @@ escaped_char = r"\\(a|b|f|n|r|t|v|\\|'|\")"
 unicode_value = (
     r"(.|" + little_u_value + r"|" + big_u_value + r"|" + escaped_char + ")"
 )
-t_RUNE = r"'(" + unicode_value + r"|" + byte_value + r")'"
+rune_regex = r"'(" + unicode_value + r"|" + byte_value + r")'"
+
+
+@TOKEN(rune_regex)
+def t_RUNE(t):
+    return t
+
 
 operators = [
     r"\+",
@@ -105,31 +127,47 @@ operators = [
     r"&\^",
     r"&\^=",
 ]
-t_OP = r"(" + r"|".join(operators) + r")"
+op_regex = r"(" + r"|".join(operators) + r")"
+
+
+@TOKEN(op_regex)
+def t_OP(t):
+    return t
+
 
 decimal_lit = r"[1-9][0-9]*"
 octal_lit = r"0[0-7]*"
 hex_lit = r"0[xX][0-9a-fA-F]+"
-t_INT = r"(" + decimal_lit + "|" + octal_lit + "|" + hex_lit + ")"
+int_regex = r"(" + decimal_lit + "|" + octal_lit + "|" + hex_lit + ")"
+
+
+@TOKEN(int_regex)
+def t_INT(t):
+    return t
+
 
 decimals = r"[0-9]+"
 exponent = r"(e|E)[\+-]?" + decimals
 float_lit_1 = decimals + r"\." + r"(" + decimals + r")?(" + exponent + r")?"
 float_lit_2 = decimals + exponent
 float_lit_3 = r"\." + decimals + r"(" + exponent + r")?"
-t_FLOAT = r"(" + float_lit_1 + r"|" + float_lit_2 + r"|" + float_lit_3 + r")"
-
-t_IMAG = r"(" + decimals + r"|" + t_FLOAT + ")i"
-t_NEWLINE = r"\n"
-t_ignore = " \t"
+float_regex = (
+    r"(" + float_lit_1 + r"|" + float_lit_2 + r"|" + float_lit_3 + r")"
+)
 
 
-def t_ID(t):
-    r"[a-zA-Z][a-zA-Z_0-9]*"
-    if t.value in reserved:
-        t.type = "KEYWORD"
+@TOKEN(float_regex)
+def t_FLOAT(t):
     return t
 
+
+@TOKEN(r"(" + decimals + r"|" + float_regex + ")i")
+def t_IMAG(t):
+    return t
+
+
+t_NEWLINE = r"\n"
+t_ignore = " \t"
 
 lexer = lex.lex()
 with open("/home/rharish/Programs/Go/hello.go", "r") as go:

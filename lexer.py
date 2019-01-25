@@ -5,61 +5,17 @@ from ply.lex import TOKEN
 
 tokens = [
     "COMMENT",
-    "STRING",
-    "RUNE",
-    "ID",
-    "KEYWORD",
-    "OP",
-    "INT",
-    "FLOAT",
     "IMAG",
-    "NEWLINE",
+    "FLOAT",
+    "INT",
+    "KEYWORD",
+    "ID",
+    "RUNE",
+    "STRING",
+    "OP",
+    "NEWLINES",
+    "WHITESPACE",
 ]
-
-
-def t_COMMENT(t):
-    r"(//.*|/\*(\*(?!/)|[^*])*\*/)"
-    return t
-
-
-def t_ID(t):
-    r"[a-zA-Z][a-zA-Z_0-9]*"
-    reserved = [
-        "break",
-        "default",
-        "func",
-        "interface",
-        "select",
-        "case",
-        "defer",
-        "go",
-        "map",
-        "struct",
-        "chan",
-        "else",
-        "goto",
-        "package",
-        "switch",
-        "const",
-        "fallthrough",
-        "if",
-        "range",
-        "type",
-        "continue",
-        "for",
-        "import",
-        "return",
-        "var",
-    ]
-    if t.value in reserved:
-        t.type = "KEYWORD"
-    return t
-
-
-def t_STRING(t):
-    r"(\"[^\"\n]+\"|`[^`\n]+`)"
-    return t
-
 
 octal_byte_value = r"\\[0-7]{3}"
 hex_byte_value = r"\\x[0-9a-fA-F]{2}"
@@ -71,12 +27,6 @@ unicode_value = (
     r"(.|" + little_u_value + r"|" + big_u_value + r"|" + escaped_char + ")"
 )
 rune_regex = r"'(" + unicode_value + r"|" + byte_value + r")'"
-
-
-@TOKEN(rune_regex)
-def t_RUNE(t):
-    return t
-
 
 operators = [
     r"\+",
@@ -129,22 +79,10 @@ operators = [
 ]
 op_regex = r"(" + r"|".join(operators) + r")"
 
-
-@TOKEN(op_regex)
-def t_OP(t):
-    return t
-
-
 decimal_lit = r"[1-9][0-9]*"
 octal_lit = r"0[0-7]*"
 hex_lit = r"0[xX][0-9a-fA-F]+"
 int_regex = r"(" + decimal_lit + "|" + octal_lit + "|" + hex_lit + ")"
-
-
-@TOKEN(int_regex)
-def t_INT(t):
-    return t
-
 
 decimals = r"[0-9]+"
 exponent = r"(e|E)[\+-]?" + decimals
@@ -155,25 +93,91 @@ float_regex = (
     r"(" + float_lit_1 + r"|" + float_lit_2 + r"|" + float_lit_3 + r")"
 )
 
+imag_regex = r"(" + decimals + r"|" + float_regex + ")i"
+
+
+def t_COMMENT(t):
+    r"(//.*|/\*(\*(?!/)|[^*])*\*/)"
+    return t
+
+
+@TOKEN(imag_regex)
+def t_IMAG(t):
+    return t
+
 
 @TOKEN(float_regex)
 def t_FLOAT(t):
     return t
 
 
-@TOKEN(r"(" + decimals + r"|" + float_regex + ")i")
-def t_IMAG(t):
+@TOKEN(int_regex)
+def t_INT(t):
     return t
 
 
-t_NEWLINE = r"\n"
-t_ignore = " \t"
+def t_ID(t):
+    r"[a-zA-Z][a-zA-Z_0-9]*"
+    reserved = [
+        "break",
+        "default",
+        "func",
+        "interface",
+        "select",
+        "case",
+        "defer",
+        "go",
+        "map",
+        "struct",
+        "chan",
+        "else",
+        "goto",
+        "package",
+        "switch",
+        "const",
+        "fallthrough",
+        "if",
+        "range",
+        "type",
+        "continue",
+        "for",
+        "import",
+        "return",
+        "var",
+    ]
+    if t.value in reserved:
+        t.type = "KEYWORD"
+    return t
+
+
+@TOKEN(rune_regex)
+def t_RUNE(t):
+    return t
+
+
+def t_STRING(t):
+    r"(\"[^\"\n]+\"|`[^`\n]+`)"
+    return t
+
+
+@TOKEN(op_regex)
+def t_OP(t):
+    return t
+
+
+t_NEWLINES = r"\n+"
+t_WHITESPACE = r"[ \t]+"
 
 lexer = lex.lex()
 with open("/home/rharish/Programs/Go/hello.go", "r") as go:
     lexer.input(go.read())
+
+output = ""
 while True:
     token = lexer.token()
     if not token:
         break
     print(token)
+    output += str(token.value)
+print("=" * 10 + "OUTPUT" + "=" * 10)
+print(output)

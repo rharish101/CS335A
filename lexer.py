@@ -116,7 +116,7 @@ op_regex = r"(" + r"|".join([value[0] for value in operators.values()]) + r")"
 decimal_lit = r"[1-9][0-9]*"
 octal_lit = r"0[0-7]*"
 hex_lit = r"0[xX][0-9a-fA-F]+"
-int_regex = r"(" + decimal_lit + "|" + octal_lit + "|" + hex_lit + ")"
+int_regex = r"(" + hex_lit + "|" + octal_lit + "|" + decimal_lit + ")"
 
 decimals = r"[0-9]+"
 exponent = r"(e|E)[\+-]?" + decimals

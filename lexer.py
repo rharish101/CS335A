@@ -181,6 +181,9 @@ parser.add_argument("file", type=str, help="input file")
 parser.add_argument(
     "-c", "--config", type=str, default="config.json", help="config file"
 )
+parser.add_argument(
+    "-v", "--verbose", action="store_true", help="enable debug output"
+)
 args = parser.parse_args()
 
 lexer = lex.lex()
@@ -246,7 +249,8 @@ while True:
     token = lexer.token()
     if not token:
         break
-    print(token)
+    if args.verbose:
+        print(token)
     output += colorify(token)
 
 output += """</body>
@@ -255,3 +259,4 @@ output += """</body>
 
 with open(args.file.split("/")[-1] + ".html", "w") as outf:
     outf.write(output)
+print('Output file "{}" generated'.format(args.file.split("/")[-1] + ".html"))

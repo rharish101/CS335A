@@ -220,9 +220,24 @@ def colorify(token):
 
 output = (
     """<html>
-    <title>"""
+    <head>
+        <title>"""
     + args.file.split("/")[-1]
     + """</title>
+        <style>
+            body
+            {
+                color: #cccccc;
+                background-color: #2b2b2b;
+                padding: 2em;
+                font-family: monospace;
+                font-size: 1.1em;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+                line-height: 1.5em;
+            }
+        </style>
+    </head>
     <body>
 """
 )

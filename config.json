@@ -1,11 +1,11 @@
 {
-    "comment": "#808080",
-    "imaginary": "#aa0000",
-    "float": "#aa0000",
-    "integer": "#aa0000",
-    "identifier": "#00aaaa",
-    "keyword": "#0000aa",
-    "rune": "#aa00aa",
-    "string": "#00aa00",
-    "operator": "#000000"
+  "comment": "#666666",
+  "imaginary": "#ff8800",
+  "float": "#ff0000",
+  "integer": "#aa0000",
+  "identifier": "#00aabb",
+  "keyword": "#0077aa",
+  "rune": "#aa00aa",
+  "string": "#00aa00",
+  "operator": "#808080"
 }

@@ -184,6 +184,12 @@ parser.add_argument(
 parser.add_argument(
     "-v", "--verbose", action="store_true", help="enable debug output"
 )
+parser.add_argument(
+    "-l",
+    "--light-mode",
+    action="store_true",
+    help="use light mode for the HTML instead of dark mode",
+)
 args = parser.parse_args()
 
 lexer = lex.lex()
@@ -221,6 +227,10 @@ def colorify(token):
     return content
 
 
+fg_color = "#cccccc"
+bg_color = "#2b2b2b"
+if args.light_mode:
+    fg_color, bg_color = bg_color, fg_color
 output = (
     """<html>
     <head>
@@ -230,8 +240,12 @@ output = (
         <style>
             body
             {
-                color: #cccccc;
-                background-color: #2b2b2b;
+                color: """
+    + fg_color
+    + """;
+                background-color: """
+    + bg_color
+    + """;
                 padding: 2em;
                 font-family: monospace;
                 font-size: 1.1em;

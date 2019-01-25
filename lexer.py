@@ -3,19 +3,101 @@
 from ply import lex
 from ply.lex import TOKEN
 
-tokens = [
-    "COMMENT",
-    "IMAG",
-    "FLOAT",
-    "INT",
-    "KEYWORD",
-    "ID",
-    "RUNE",
-    "STRING",
-    "OP",
-    "NEWLINES",
-    "WHITESPACE",
+operators = {
+    "+": (r"\+", "PLUS"),
+    "&": (r"&", "BITAND"),
+    "+=": (r"\+=", "PLUSEQ"),
+    "&=": (r"&=", "BITANDEQ"),
+    "&&": (r"&&", "LOGAND"),
+    "==": (r"==", "EQUALS"),
+    "!=": (r"!=", "NOTEQ"),
+    "(": (r"\(", "LBRACK"),
+    ")": (r"\)", "RBRACK"),
+    "-": (r"-", "MINUS"),
+    "|": (r"\|", "BITOR"),
+    "-=": (r"-=", "MINUSEQ"),
+    "|=": (r"\|=", "BITOREQ"),
+    "||": (r"\|\|", "LOGOR"),
+    "<": (r"<", "LESS"),
+    "<=": (r"<=", "LESSEQ"),
+    "[": (r"\[", "LSQBRACK"),
+    "]": (r"\]", "RSQBRACK"),
+    "*": (r"\*", "MULT"),
+    "^": (r"\^", "BITXOR"),
+    "*=": (r"\*=", "MULTEQ"),
+    "^=": (r"\^=", "BITXOREQ"),
+    "<-": (r"<-", "REC"),
+    ">": (r">", "GREAT"),
+    ">=": (r">=", "GREATEQ"),
+    "{": (r"\{", "LCURLBR"),
+    "}": (r"\}", "RCURLBR"),
+    "/": (r"/", "DIV"),
+    "<<": (r"<<", "LSHIFT"),
+    "/=": (r"/=", "DIVEQ"),
+    "<<=": (r"<<=", "LSHIFTEQ"),
+    "++": (r"\+\+", "INCR"),
+    "=": (r"=", "ASSIGN"),
+    ":=": (r":=", "SHDECL"),
+    ",": (r",", "COMMA"),
+    ";": (r";", "SEMICOLON"),
+    "%": (r"%", "MODULO"),
+    ">>": (r">>", "RSHIFT"),
+    "%=": (r"%=", "MODEQ"),
+    ">>=": (r">>=", "RSHIFTEQ"),
+    "--": (r"--", "DECR"),
+    "!": (r"!", "LOGNOT"),
+    "...": (r"\.\.\.", "TRIDOT"),
+    ".": (r"\.", "DOT"),
+    ":": (r":", "COLON"),
+    "&^": (r"&\^", "BITCLR"),
+    "&^=": (r"&\^=", "BITCLREQ"),
+}
+
+reserved = [
+    "break",
+    "default",
+    "func",
+    "interface",
+    "select",
+    "case",
+    "defer",
+    "go",
+    "map",
+    "struct",
+    "chan",
+    "else",
+    "goto",
+    "package",
+    "switch",
+    "const",
+    "fallthrough",
+    "if",
+    "range",
+    "type",
+    "continue",
+    "for",
+    "import",
+    "return",
+    "var",
 ]
+
+tokens = (
+    [
+        "COMMENT",
+        "IMAG",
+        "FLOAT",
+        "INT",
+        "KEYWORD",
+        "ID",
+        "RUNE",
+        "STRING",
+        "OP",
+        "NEWLINES",
+        "WHITESPACE",
+    ]
+    + [keyword.upper() for keyword in reserved]
+    + [value[1] for value in operators.values()]
+)
 
 octal_byte_value = r"\\[0-7]{3}"
 hex_byte_value = r"\\x[0-9a-fA-F]{2}"
@@ -28,56 +110,7 @@ unicode_value = (
 )
 rune_regex = r"'(" + unicode_value + r"|" + byte_value + r")'"
 
-operators = [
-    r"\+",
-    r"&",
-    r"\+=",
-    r"&=",
-    r"&&",
-    r"==",
-    r"!=",
-    r"\(",
-    r"\)",
-    r"-",
-    r"\|",
-    r"-=",
-    r"\|=",
-    r"\|\|",
-    r"<",
-    r"<=",
-    r"\[",
-    r"\]",
-    r"\*",
-    r"\^",
-    r"\*=",
-    r"\^=",
-    r"<-",
-    r">",
-    r">=",
-    r"\{",
-    r"\}",
-    r"/",
-    r"<<",
-    r"/=",
-    r"<<=",
-    r"\+\+",
-    r"=",
-    r":=",
-    r",",
-    r";",
-    r"%",
-    r">>",
-    r"%=",
-    r">>=",
-    r"--",
-    r"!",
-    r"\.\.\.",
-    r"\.",
-    r":",
-    r"&\^",
-    r"&\^=",
-]
-op_regex = r"(" + r"|".join(operators) + r")"
+op_regex = r"(" + r"|".join([value[0] for value in operators.values()]) + r")"
 
 decimal_lit = r"[1-9][0-9]*"
 octal_lit = r"0[0-7]*"
@@ -118,35 +151,8 @@ def t_INT(t):
 
 def t_ID(t):
     r"[a-zA-Z][a-zA-Z_0-9]*"
-    reserved = [
-        "break",
-        "default",
-        "func",
-        "interface",
-        "select",
-        "case",
-        "defer",
-        "go",
-        "map",
-        "struct",
-        "chan",
-        "else",
-        "goto",
-        "package",
-        "switch",
-        "const",
-        "fallthrough",
-        "if",
-        "range",
-        "type",
-        "continue",
-        "for",
-        "import",
-        "return",
-        "var",
-    ]
     if t.value in reserved:
-        t.type = "KEYWORD"
+        t.type = t.value.upper()
     return t
 
 
@@ -162,6 +168,7 @@ def t_STRING(t):
 
 @TOKEN(op_regex)
 def t_OP(t):
+    t.type = operators[t.value][1]
     return t
 
 

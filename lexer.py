@@ -2,6 +2,8 @@
 """Lexer for Go."""
 from ply import lex
 from ply.lex import TOKEN
+from argparse import ArgumentParser
+import json
 
 operators = {
     "+": (r"\+", "PLUS"),
@@ -87,7 +89,6 @@ tokens = (
         "IMAG",
         "FLOAT",
         "INT",
-        "KEYWORD",
         "ID",
         "RUNE",
         "STRING",
@@ -175,16 +176,67 @@ def t_OP(t):
 t_NEWLINES = r"\n+"
 t_WHITESPACE = r"[ \t]+"
 
+parser = ArgumentParser(description="Lexer for Go")
+parser.add_argument("file", type=str, help="input file")
+parser.add_argument(
+    "-c", "--config", type=str, default="config.json", help="config file"
+)
+args = parser.parse_args()
+
 lexer = lex.lex()
-with open("/home/rharish/Programs/Go/hello.go", "r") as go:
+with open(args.file, "r") as go:
     lexer.input(go.read())
 
-output = ""
+with open(args.config, "r") as config_file:
+    config = json.load(config_file)
+
+
+def colorify(token):
+    """Make coloured HTML content from token."""
+    content = (
+        str(token.value)
+        .replace("\n", "<br>")
+        .replace(" ", "&nbsp;")
+        .replace("\t", "&nbsp;" * 4)
+    )
+    try:
+        if token.type.lower() in reserved:
+            color = config["keyword"]
+        elif token.type in [value[1] for value in operators.values()]:
+            color = config["operator"]
+        elif token.type == "IMAG":
+            color = config["imaginary"]
+        elif token.type == "INT":
+            color = config["integer"]
+        elif token.type == "ID":
+            color = config["identifier"]
+        else:
+            color = config[token.type.lower()]
+        content = '<span style="color:' + color + ';">' + content + "</span>"
+    except KeyError:
+        pass
+    return content
+
+
+output = (
+    """<html>
+    <title>"""
+    + args.file.split("/")[-1]
+    + """</title>
+    <body>
+"""
+)
+
 while True:
     token = lexer.token()
     if not token:
         break
     print(token)
-    output += str(token.value)
-print("=" * 10 + "OUTPUT" + "=" * 10)
-print(output)
+    output += colorify(token)
+
+output += """</body>
+</html>
+"""
+
+with open(args.file.split("/")[-1] + ".html", "w") as outf:
+    outf.write(output)

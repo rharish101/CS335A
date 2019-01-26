@@ -3,7 +3,6 @@
 from ply import lex
 from ply.lex import TOKEN
 from argparse import ArgumentParser
-import json
 
 operators = {
     "+=": (r"\+=", "PLUSEQ"),
@@ -90,6 +89,7 @@ tokens = (
         "FLOAT",
         "INT",
         "ID",
+        "KEYWORD",
         "RUNE",
         "STRING",
         "OP",
@@ -177,9 +177,16 @@ t_NEWLINES = r"\n+"
 t_WHITESPACE = r"[ \t]+"
 
 parser = ArgumentParser(description="Lexer for Go")
-parser.add_argument("file", type=str, nargs="+", help="input file")
+parser.add_argument("input", type=str, help="input file")
 parser.add_argument(
-    "-c", "--config", type=str, default="config.json", help="config file"
+    "-c",
+    "--cfg",
+    type=str,
+    default="../tests/cfg1/colors1.cfg",
+    help="config file",
+)
+parser.add_argument(
+    "-o", "--output", type=str, default=None, help="output file name"
 )
 parser.add_argument(
     "-v", "--verbose", action="store_true", help="enable debug output"
@@ -191,11 +198,19 @@ parser.add_argument(
     help="use light mode for the HTML instead of dark mode",
 )
 args = parser.parse_args()
+if args.output is None:
+    args.output = args.input.split("/")[-1] + ".html"
 
 lexer = lex.lex()
 
-with open(args.config, "r") as config_file:
-    config = json.load(config_file)
+with open(args.cfg, "r") as config_file:
+    cfg_txt = config_file.read()
+    if cfg_txt[-1] == "\n":
+        cfg_txt = cfg_txt[:-1]
+    config = {
+        line.split(",")[0].strip(): line.split(",")[1].strip()
+        for line in cfg_txt.split("\n")
+    }
 
 
 def colorify(token):
@@ -210,18 +225,15 @@ def colorify(token):
         .replace("\t", "&nbsp;" * 4)
     )
     try:
-        if token.type.lower() in reserved:
-            color = config["keyword"]
-        elif token.type in [value[1] for value in operators.values()]:
-            color = config["operator"]
-        elif token.type == "IMAG":
-            color = config["imaginary"]
-        elif token.type == "INT":
-            color = config["integer"]
-        elif token.type == "ID":
-            color = config["identifier"]
-        else:
-            color = config[token.type.lower()]
+        try:
+            color = config[token.type]
+        except KeyError:
+            if token.type.lower() in reserved:
+                color = config["KEYWORD"]
+            elif token.type in [value[1] for value in operators.values()]:
+                color = config["OP"]
+            else:
+                raise KeyError
         content = '<span style="color:' + color + ';">' + content + "</span>"
     except KeyError:
         pass
@@ -235,6 +247,7 @@ if args.light_mode:
 
 
 def complete_html(html, file_name):
+    """Add html to complete the webpage."""
     before = (
         """<html>
         <head>
@@ -268,21 +281,18 @@ def complete_html(html, file_name):
     return before + html + after
 
 
-for curr_file in args.file:
-    with open(curr_file, "r") as go:
-        lexer.input(go.read())
+with open(args.input, "r") as go:
+    lexer.input(go.read())
 
-    output = ""
-    while True:
-        token = lexer.token()
-        if not token:
-            break
-        if args.verbose:
-            print(token)
-        output += colorify(token)
+output = ""
+while True:
+    token = lexer.token()
+    if not token:
+        break
+    if args.verbose:
+        print(token)
+    output += colorify(token)
 
-    with open(curr_file.split("/")[-1] + ".html", "w") as outf:
-        outf.write(complete_html(output, curr_file))
-    print(
-        'Output file "{}" generated'.format(curr_file.split("/")[-1] + ".html")
-    )
+with open(args.output, "w") as outf:
+    outf.write(complete_html(output, args.input))
+print('Output file "{}" generated'.format(args.output))

@@ -163,7 +163,7 @@ def t_RUNE(t):
 
 
 def t_STRING(t):
-    r"(\"[^\"\n]+\"|`[^`\n]+`)"
+    r"(\"[^\"\n]*\"|`[^`]*`)"
     return t
 
 
@@ -204,6 +204,9 @@ def colorify(token):
     """Make coloured HTML content from token."""
     content = (
         str(token.value)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
         .replace("\n", "<br>")
         .replace(" ", "&nbsp;")
         .replace("\t", "&nbsp;" * 4)

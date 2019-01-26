@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Lexer for Go."""
+from __future__ import print_function
 from ply import lex
 from ply.lex import TOKEN
 from argparse import ArgumentParser
@@ -11,6 +12,8 @@ operators = {
     "-=": (r"-=", "MINUSEQ"),
     "--": (r"--", "DECR"),
     "-": (r"-", "MINUS"),
+    "&^=": (r"&\^=", "BITCLREQ"),
+    "&^": (r"&\^", "BITCLR"),
     "&=": (r"&=", "BITANDEQ"),
     "&&": (r"&&", "LOGAND"),
     "&": (r"&", "BITAND"),
@@ -50,8 +53,6 @@ operators = {
     "...": (r"\.\.\.", "TRIDOT"),
     ".": (r"\.", "DOT"),
     ":": (r":", "COLON"),
-    "&^=": (r"&\^=", "BITCLREQ"),
-    "&^": (r"&\^", "BITCLR"),
 }
 
 reserved = [
@@ -176,44 +177,10 @@ def t_OP(t):
 t_NEWLINES = r"\n+"
 t_WHITESPACE = r"[ \t]+"
 
-parser = ArgumentParser(description="Lexer for Go")
-parser.add_argument("input", type=str, help="input file")
-parser.add_argument(
-    "-c",
-    "--cfg",
-    type=str,
-    default="../tests/cfg1/colors1.cfg",
-    help="config file",
-)
-parser.add_argument(
-    "-o", "--output", type=str, default=None, help="output file name"
-)
-parser.add_argument(
-    "-v", "--verbose", action="store_true", help="enable debug output"
-)
-parser.add_argument(
-    "-l",
-    "--light-mode",
-    action="store_true",
-    help="use light mode for the HTML instead of dark mode",
-)
-args = parser.parse_args()
-if args.output is None:
-    args.output = args.input.split("/")[-1] + ".html"
-
 lexer = lex.lex()
 
-with open(args.cfg, "r") as config_file:
-    cfg_txt = config_file.read()
-    if cfg_txt[-1] == "\n":
-        cfg_txt = cfg_txt[:-1]
-    config = {
-        line.split(",")[0].strip(): line.split(",")[1].strip()
-        for line in cfg_txt.split("\n")
-    }
 
-
-def colorify(token):
+def colorify(token, config):
     """Make coloured HTML content from token."""
     content = (
         str(token.value)
@@ -240,14 +207,12 @@ def colorify(token):
     return content
 
 
-fg_color = "#cccccc"
-bg_color = "#2b2b2b"
-if args.light_mode:
-    fg_color, bg_color = bg_color, fg_color
-
-
-def complete_html(html, file_name):
+def complete_html(html, file_name, light_mode=False):
     """Add html to complete the webpage."""
+    fg_color = "#cccccc"
+    bg_color = "#2b2b2b"
+    if light_mode:
+        fg_color, bg_color = bg_color, fg_color
     before = (
         """<html>
         <head>
@@ -281,18 +246,53 @@ def complete_html(html, file_name):
     return before + html + after
 
 
-with open(args.input, "r") as go:
-    lexer.input(go.read())
+if __name__ == "__main__":
+    parser = ArgumentParser(description="Lexer for Go")
+    parser.add_argument("input", type=str, help="input file")
+    parser.add_argument(
+        "-c",
+        "--cfg",
+        type=str,
+        default="../tests/cfg1/colors1.cfg",
+        help="config file",
+    )
+    parser.add_argument(
+        "-o", "--output", type=str, default=None, help="output file name"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="enable debug output"
+    )
+    parser.add_argument(
+        "-l",
+        "--light-mode",
+        action="store_true",
+        help="use light mode for the HTML instead of dark mode",
+    )
+    args = parser.parse_args()
+    if args.output is None:
+        args.output = args.input.split("/")[-1] + ".html"
 
-output = ""
-while True:
-    token = lexer.token()
-    if not token:
-        break
-    if args.verbose:
-        print(token)
-    output += colorify(token)
+    with open(args.input, "r") as go:
+        lexer.input(go.read())
 
-with open(args.output, "w") as outf:
-    outf.write(complete_html(output, args.input))
-print('Output file "{}" generated'.format(args.output))
+    with open(args.cfg, "r") as config_file:
+        cfg_txt = config_file.read()
+    if cfg_txt[-1] == "\n":
+        cfg_txt = cfg_txt[:-1]
+    config = {
+        line.split(",")[0].strip(): line.split(",")[1].strip()
+        for line in cfg_txt.split("\n")
+    }
+
+    output = ""
+    while True:
+        token = lexer.token()
+        if not token:
+            break
+        if args.verbose:
+            print(token)
+        output += colorify(token, config)
+
+    with open(args.output, "w") as outf:
+        outf.write(complete_html(output, args.input, args.light_mode))
+    print('Output file "{}" generated'.format(args.output))

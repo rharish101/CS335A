@@ -177,7 +177,7 @@ t_NEWLINES = r"\n+"
 t_WHITESPACE = r"[ \t]+"
 
 parser = ArgumentParser(description="Lexer for Go")
-parser.add_argument("file", type=str, help="input file")
+parser.add_argument("file", type=str, nargs="+", help="input file")
 parser.add_argument(
     "-c", "--config", type=str, default="config.json", help="config file"
 )
@@ -193,8 +193,6 @@ parser.add_argument(
 args = parser.parse_args()
 
 lexer = lex.lex()
-with open(args.file, "r") as go:
-    lexer.input(go.read())
 
 with open(args.config, "r") as config_file:
     config = json.load(config_file)
@@ -234,46 +232,57 @@ fg_color = "#cccccc"
 bg_color = "#2b2b2b"
 if args.light_mode:
     fg_color, bg_color = bg_color, fg_color
-output = (
-    """<html>
-    <head>
-        <title>"""
-    + args.file.split("/")[-1]
-    + """</title>
-        <style>
-            body
-            {
-                color: """
-    + fg_color
-    + """;
-                background-color: """
-    + bg_color
-    + """;
-                padding: 2em;
-                font-family: monospace;
-                font-size: 1.1em;
-                font-weight: 600;
-                letter-spacing: 0.5px;
-                line-height: 1.5em;
-            }
-        </style>
-    </head>
-    <body>
-"""
-)
 
-while True:
-    token = lexer.token()
-    if not token:
-        break
-    if args.verbose:
-        print(token)
-    output += colorify(token)
 
-output += """</body>
-</html>
-"""
+def complete_html(html, file_name):
+    before = (
+        """<html>
+        <head>
+            <title>"""
+        + file_name.split("/")[-1]
+        + """</title>
+            <style>
+                body
+                {
+                    color: """
+        + fg_color
+        + """;
+                    background-color: """
+        + bg_color
+        + """;
+                    padding: 2em;
+                    font-family: monospace;
+                    font-size: 1.1em;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                    line-height: 1.5em;
+                }
+            </style>
+        </head>
+        <body>
+    """
+    )
+    after = """</body>
+    </html>
+    """
+    return before + html + after
 
-with open(args.file.split("/")[-1] + ".html", "w") as outf:
-    outf.write(output)
-print('Output file "{}" generated'.format(args.file.split("/")[-1] + ".html"))
+
+for curr_file in args.file:
+    with open(curr_file, "r") as go:
+        lexer.input(go.read())
+
+    output = ""
+    while True:
+        token = lexer.token()
+        if not token:
+            break
+        if args.verbose:
+            print(token)
+        output += colorify(token)
+
+    with open(curr_file.split("/")[-1] + ".html", "w") as outf:
+        outf.write(complete_html(output, curr_file))
+    print(
+        'Output file "{}" generated'.format(curr_file.split("/")[-1] + ".html")
+    )

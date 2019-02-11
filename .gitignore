@@ -8,4 +8,6 @@ assign_1/doc/report.log
 assign_1/doc/report.aux
 assign_1/src/*.html
 
-milestone_1/get_golang_bnf.ipynb
+milestone_1/src/get_golang_bnf.ipynb
+milestone_1/src/parser.out
+milestone_1/src/parsetab.py

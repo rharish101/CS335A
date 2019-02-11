@@ -1,7 +1,11 @@
+*.tgz
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
 assign_1/doc/report.pdf
 assign_1/doc/report.log
 assign_1/doc/report.aux
 assign_1/src/*.html
-*.tgz
-__pycache__/
-*.pyc
+
+milestone_1/get_golang_bnf.ipynb

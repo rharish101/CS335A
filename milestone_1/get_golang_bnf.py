@@ -179,5 +179,5 @@ for item in text.split("\n"):
 
 output_file = "bnf.txt"
 with open(output_file, "w") as outf:
-    outf.write("\n".join(grammar))
+    outf.write("\n\n".join(grammar))
 print("Output written to " + output_file)

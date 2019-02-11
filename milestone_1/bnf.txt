@@ -1,13 +1,18 @@
 SourceFile : PackageClause SEMICOLON SourceFileRepOne SourceFileRepTwo
+
 SourceFileRepOne : SourceFileRepOne ImportDecl SEMICOLON
                  |
+
 SourceFileRepTwo : SourceFileRepTwo TopLevelDecl SEMICOLON
                  |
+
 Type : TypeName
      | TypeLit
      | LBRACK Type RBRACK
+
 TypeName : ID
          | QualifiedIdent
+
 TypeLit : ArrayType
         | StructType
         | PointerType
@@ -16,150 +21,239 @@ TypeLit : ArrayType
         | SliceType
         | MapType
         | ChannelType
+
 ArrayType : LSQBRACK ArrayLength RSQBRACK ElementType
+
 ArrayLength : Expression
+
 ElementType : Type
+
 SliceType : LSQBRACK RSQBRACK ElementType
+
 StructType : STRUCT LCURLBR StructTypeRepOne RCURLBR
+
 StructTypeRepOne : StructTypeRepOne FieldDecl SEMICOLON
                  |
+
 FieldDecl : FieldDeclGroupOne FieldDeclOptOne
+
 FieldDeclGroupOne : IdentifierList Type
                   | EmbeddedField
+
 FieldDeclOptOne : Tag
                 |
+
 EmbeddedField : EmbeddedFieldOptOne TypeName
+
 EmbeddedFieldOptOne : MULT
                     |
+
 Tag : STRING
+
 PointerType : MULT BaseType
+
 BaseType : Type
+
 FunctionType : FUNC Signature
+
 Signature : Parameters SignatureOptOne
+
 SignatureOptOne : Result
                 |
+
 Result : Parameters
        | Type
+
 Parameters : LBRACK ParametersOptOne RBRACK
+
 ParametersOptOne : ParameterList ParametersOptOneOptOne
                  |
+
 ParametersOptOneOptOne : COMMA
                        |
+
 ParameterList : ParameterDecl ParameterListRepOne
+
 ParameterListRepOne : ParameterListRepOne COMMA ParameterDecl
                     |
+
 ParameterDecl : ParameterDeclOptOne ParameterDeclOptTwo Type
+
 ParameterDeclOptOne : IdentifierList
                     |
+
 ParameterDeclOptTwo : TRIDOT
                     |
+
 InterfaceType : INTERFACE LCURLBR InterfaceTypeRepOne RCURLBR
+
 InterfaceTypeRepOne : InterfaceTypeRepOne MethodSpec SEMICOLON
                     |
+
 MethodSpec : MethodName Signature
            | InterfaceTypeName
+
 MethodName : ID
+
 InterfaceTypeName : TypeName
+
 MapType : MAP LSQBRACK KeyType RSQBRACK ElementType
+
 KeyType : Type
+
 ChannelType : ChannelTypeGroupOne ElementType
+
 ChannelTypeGroupOne : CHAN
                     | CHAN REC
                     | REC CHAN
+
 Block : LCURLBR StatementList RCURLBR
+
 StatementList : StatementListRepOne
+
 StatementListRepOne : StatementListRepOne Statement SEMICOLON
                     |
+
 Declaration : ConstDecl
             | TypeDecl
             | VarDecl
+
 TopLevelDecl : Declaration
              | FunctionDecl
              | MethodDecl
+
 ConstDecl : CONST ConstDeclGroupOne
+
 ConstDeclGroupOne : ConstSpec
                   | LBRACK ConstDeclGroupOneRepOne RBRACK
+
 ConstDeclGroupOneRepOne : ConstDeclGroupOneRepOne ConstSpec SEMICOLON
                         |
+
 ConstSpec : IdentifierList ConstSpecOptOne
+
 ConstSpecOptOne : ConstSpecOptOneOptOne ASSIGN ExpressionList
                 |
+
 ConstSpecOptOneOptOne : Type
                       |
+
 IdentifierList : ID IdentifierListRepOne
+
 IdentifierListRepOne : IdentifierListRepOne COMMA ID
                      |
+
 ExpressionList : Expression ExpressionListRepOne
+
 ExpressionListRepOne : ExpressionListRepOne COMMA Expression
                      |
+
 TypeDecl : TYPE TypeDeclGroupOne
+
 TypeDeclGroupOne : TypeSpec
                  | LBRACK TypeDeclGroupOneRepOne RBRACK
+
 TypeDeclGroupOneRepOne : TypeDeclGroupOneRepOne TypeSpec SEMICOLON
                        |
+
 TypeSpec : AliasDecl
          | TypeDef
+
 AliasDecl : ID ASSIGN Type
+
 TypeDef : ID Type
+
 VarDecl : VAR VarDeclGroupOne
+
 VarDeclGroupOne : VarSpec
                 | LBRACK VarDeclGroupOneRepOne RBRACK
+
 VarDeclGroupOneRepOne : VarDeclGroupOneRepOne VarSpec SEMICOLON
                       |
+
 VarSpec : IdentifierList VarSpecGroupOne
+
 VarSpecGroupOne : Type VarSpecGroupOneOptOne
                 | ASSIGN ExpressionList
+
 VarSpecGroupOneOptOne : ASSIGN ExpressionList
                       |
+
 ShortVarDecl : IdentifierList SHDECL ExpressionList
+
 FunctionDecl : FUNC FunctionName Signature FunctionDeclOptOne
+
 FunctionDeclOptOne : FunctionBody
                    |
+
 FunctionName : ID
+
 FunctionBody : Block
+
 MethodDecl : FUNC Receiver MethodName Signature MethodDeclOptOne
+
 MethodDeclOptOne : FunctionBody
                  |
+
 Receiver : Parameters
+
 Operand : Literal
         | OperandName
         | LBRACK Expression RBRACK
+
 Literal : BasicLit
         | CompositeLit
         | FunctionLit
+
 BasicLit : INT
          | FLOAT
          | IMAG
          | RUNE
          | STRING
+
 OperandName : ID
             | QualifiedIdent
+
 QualifiedIdent : PackageName DOT ID
+
 CompositeLit : LiteralType LiteralValue
+
 LiteralType : StructType
             | ArrayType
             | LSQBRACK TRIDOT RSQBRACK ElementType
             | SliceType
             | MapType
             | TypeName
+
 LiteralValue : LCURLBR LiteralValueOptOne RCURLBR
+
 LiteralValueOptOne : ElementList LiteralValueOptOneOptOne
                    |
+
 LiteralValueOptOneOptOne : COMMA
                          |
+
 ElementList : KeyedElement ElementListRepOne
+
 ElementListRepOne : ElementListRepOne COMMA KeyedElement
                   |
+
 KeyedElement : KeyedElementOptOne Element
+
 KeyedElementOptOne : Key COLON
                    |
+
 Key : FieldName
     | Expression
     | LiteralValue
+
 FieldName : ID
+
 Element : Expression
         | LiteralValue
+
 FunctionLit : FUNC Signature FunctionBody
+
 PrimaryExpr : Operand
             | Conversion
             | MethodExpr
@@ -168,49 +262,70 @@ PrimaryExpr : Operand
             | PrimaryExpr Slice
             | PrimaryExpr TypeAssertion
             | PrimaryExpr Arguments
+
 Selector : DOT ID
+
 Index : LSQBRACK Expression RSQBRACK
+
 Slice : LSQBRACK SliceOptOne COLON SliceOptTwo RSQBRACK
       | LSQBRACK SliceOptThree COLON Expression COLON Expression RSQBRACK
+
 SliceOptOne : Expression
             |
+
 SliceOptTwo : Expression
             |
+
 SliceOptThree : Expression
               |
+
 TypeAssertion : DOT LBRACK Type RBRACK
+
 Arguments : LBRACK ArgumentsOptOne RBRACK
+
 ArgumentsOptOne : ArgumentsOptOneGroupOne ArgumentsOptOneOptOne ArgumentsOptOneOptTwo
                 |
+
 ArgumentsOptOneGroupOne : ExpressionList
                         | Type ArgumentsOptOneGroupOneOptOne
+
 ArgumentsOptOneGroupOneOptOne : COMMA ExpressionList
                               |
+
 ArgumentsOptOneOptOne : TRIDOT
                       |
+
 ArgumentsOptOneOptTwo : COMMA
                       |
+
 MethodExpr : ReceiverType DOT MethodName
+
 ReceiverType : Type
+
 Expression : UnaryExpr
            | Expression binaryop Expression
+
 UnaryExpr : PrimaryExpr
           | unaryop UnaryExpr
+
 binaryop : LOGOR
          | LOGAND
          | relop
          | addop
          | mulop
+
 relop : EQUALS
       | NOTEQ
       | LESS
       | LESSEQ
       | GREAT
       | GREATEQ
+
 addop : PLUS
       | MINUS
       | BITOR
       | BITXOR
+
 mulop : MULT
       | DIV
       | MODULO
@@ -218,6 +333,7 @@ mulop : MULT
       | RSHIFT
       | BITAND
       | BITCLR
+
 unaryop : PLUS
         | MINUS
         | LOGNOT
@@ -225,9 +341,12 @@ unaryop : PLUS
         | MULT
         | BITAND
         | REC
+
 Conversion : Type LBRACK Expression ConversionOptOne RBRACK
+
 ConversionOptOne : COMMA
                  |
+
 Statement : Declaration
           | LabeledStmt
           | SimpleStmt
@@ -243,113 +362,182 @@ Statement : Declaration
           | SelectStmt
           | ForStmt
           | DeferStmt
+
 SimpleStmt : EmptyStmt
            | ExpressionStmt
            | SendStmt
            | IncDecStmt
            | Assignment
            | ShortVarDecl
+
 EmptyStmt :
+
 LabeledStmt : Label COLON Statement
+
 Label : ID
+
 ExpressionStmt : Expression
+
 SendStmt : Channel REC Expression
+
 Channel : Expression
+
 IncDecStmt : Expression IncDecStmtGroupOne
+
 IncDecStmtGroupOne : INCR
                    | DECR
+
 Assignment : ExpressionList assignop ExpressionList
+
 assignop : assignopOptOne ASSIGN
+
 assignopOptOne : addop
                | mulop
                |
+
 IfStmt : IF IfStmtOptOne Expression Block IfStmtOptTwo
+
 IfStmtOptOne : SimpleStmt SEMICOLON
              |
+
 IfStmtOptTwo : ELSE IfStmtOptTwoGroupOne
              |
+
 IfStmtOptTwoGroupOne : IfStmt
                      | Block
+
 SwitchStmt : ExprSwitchStmt
            | TypeSwitchStmt
+
 ExprSwitchStmt : SWITCH ExprSwitchStmtOptOne ExprSwitchStmtOptTwo LCURLBR ExprSwitchStmtRepOne RCURLBR
+
 ExprSwitchStmtOptOne : SimpleStmt SEMICOLON
                      |
+
 ExprSwitchStmtOptTwo : Expression
                      |
+
 ExprSwitchStmtRepOne : ExprSwitchStmtRepOne ExprCaseClause
                      |
+
 ExprCaseClause : ExprSwitchCase COLON StatementList
+
 ExprSwitchCase : CASE ExpressionList
                | DEFAULT
+
 TypeSwitchStmt : SWITCH TypeSwitchStmtOptOne TypeSwitchGuard LCURLBR TypeSwitchStmtRepOne RCURLBR
+
 TypeSwitchStmtOptOne : SimpleStmt SEMICOLON
                      |
+
 TypeSwitchStmtRepOne : TypeSwitchStmtRepOne TypeCaseClause
                      |
+
 TypeSwitchGuard : TypeSwitchGuardOptOne PrimaryExpr DOT LBRACK TYPE RBRACK
+
 TypeSwitchGuardOptOne : ID SHDECL
                       |
+
 TypeCaseClause : TypeSwitchCase COLON StatementList
+
 TypeSwitchCase : CASE TypeList
                | DEFAULT
+
 TypeList : Type TypeListRepOne
+
 TypeListRepOne : TypeListRepOne COMMA Type
                |
+
 ForStmt : FOR ForStmtOptOne Block
+
 ForStmtOptOne : Condition
               | ForClause
               | RangeClause
               |
+
 Condition : Expression
+
 ForClause : ForClauseOptOne SEMICOLON ForClauseOptTwo SEMICOLON ForClauseOptThree
+
 ForClauseOptOne : InitStmt
                 |
+
 ForClauseOptTwo : Condition
                 |
+
 ForClauseOptThree : PostStmt
                   |
+
 InitStmt : SimpleStmt
+
 PostStmt : SimpleStmt
+
 RangeClause : RangeClauseOptOne RANGE Expression
+
 RangeClauseOptOne : ExpressionList ASSIGN
                   | IdentifierList SHDECL
                   |
+
 GoStmt : GO Expression
+
 SelectStmt : SELECT LCURLBR SelectStmtRepOne RCURLBR
+
 SelectStmtRepOne : SelectStmtRepOne CommClause
                  |
+
 CommClause : CommCase COLON StatementList
+
 CommCase : CASE CommCaseGroupOne
          | DEFAULT
+
 CommCaseGroupOne : SendStmt
                  | RecvStmt
+
 RecvStmt : RecvStmtOptOne RecvExpr
+
 RecvStmtOptOne : ExpressionList ASSIGN
                | IdentifierList SHDECL
                |
+
 RecvExpr : Expression
+
 ReturnStmt : RETURN ReturnStmtOptOne
+
 ReturnStmtOptOne : ExpressionList
                  |
+
 BreakStmt : BREAK BreakStmtOptOne
+
 BreakStmtOptOne : Label
                 |
+
 ContinueStmt : CONTINUE ContinueStmtOptOne
+
 ContinueStmtOptOne : Label
                    |
+
 GotoStmt : GOTO Label
+
 FallthroughStmt : FALLTHROUGH
+
 DeferStmt : DEFER Expression
+
 PackageClause : PACKAGE PackageName
+
 PackageName : ID
+
 ImportDecl : IMPORT ImportDeclGroupOne
+
 ImportDeclGroupOne : ImportSpec
                    | LBRACK ImportDeclGroupOneRepOne RBRACK
+
 ImportDeclGroupOneRepOne : ImportDeclGroupOneRepOne ImportSpec SEMICOLON
                          |
+
 ImportSpec : ImportSpecOptOne ImportPath
+
 ImportSpecOptOne : DOT
                  | PackageName
                  |
+
 ImportPath : STRING

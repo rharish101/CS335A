@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Parser for Go."""
 from ply import yacc
+from argparse import ArgumentParser
 from lexer import *
 
 
@@ -928,6 +929,26 @@ def p_ImportPath(p):
 
 
 parser = yacc.yacc()
-with open("/mnt/Data/Programs/Go/hello.go", "r") as inputf:
-    result = parser.parse(inputf.read())
-    print(result)
+
+if __name__ == "__main__":
+    parser = ArgumentParser(description="Parser for Go")
+    parser.add_argument("input", type=str, help="input file")
+    parser.add_argument(
+        "-o", "--output", type=str, default=None, help="output file name"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="enable debug output"
+    )
+    args = parser.parse_args()
+    if args.output is None:
+        args.output = args.input.split("/")[-1] + ".dot"
+
+    with open(args.input, "r") as go:
+        result = parser.parse(go.read())
+
+    if args.verbose:
+        print(result)
+
+    with open(args.output, "w") as outf:
+        outf.write(result)
+    print('Output file "{}" generated'.format(args.output))

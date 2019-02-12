@@ -188,12 +188,13 @@ def t_OP(t):
 def t_NEWLINES(t):
     r"\n+"
     # Check last token for semicolon insertion
-    t.lexer.last = False
     if t.lexer.last:
         t.type = "SEMICOLON"
+        t.lexer.last = False
         return t
 
 
 t_ignore = " \t"
 
 lexer = lex.lex()
+lexer.last = False

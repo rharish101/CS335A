@@ -4,776 +4,883 @@ from ply import yacc
 from argparse import ArgumentParser
 from lexer import *
 
+parsed = []
+
 precedence = (
-    ("right", "ASSIGN", "LOGNOT"),
+    ("left", "ID"),
+    ("left", "SHDECL"),
+    ("left", "COMMA"),
+    ("left", "LSQBRACK"),
+    ("left", "RSQBRACK"),
+    ("left", "LCURLBR"),
+    ("left", "RCURLBR"),
+    ("left", "TRIDOT"),
+    ("left", "DOT"),
+    ("left", "SEMICOLON"),
+    ("left", "COLON"),
+    ("left", "FLOAT"),
+    ("left", "STRING"),
+    ("left", "NEWLINES"),
+    ("left", "BREAK"),
+    ("left", "CONTINUE"),
+    ("left", "RETURN"),
+    ("left", "RBRACK"),
+    ("left", "LBRACK"),
     ("left", "LOGOR"),
     ("left", "LOGAND"),
-    ("left", "BITOR"),
-    ("left", "BITXOR"),
-    ("left", "BITAND"),
-    ("left", "EQUALS", "NOTEQ"),
-    ("left", "LESS", "GREAT", "LESSEQ", "GREATEQ"),
-    ("left", "LSHIFT", "RSHIFT"),
-    ("left", "PLUS", "MINUS"),
-    ("left", "MULT", "DIV", "MODULO"),
+    ("left", "EQUALS", "NOTEQ", "LESS", "LESSEQ", "GREAT", "GREATEQ"),
+    ("left", "PLUS", "MINUS", "BITOR", "BITXOR"),
+    ("left", "MULT", "DIV", "MODULO", "BITAND", "BITCLR", "LSHIFT", "RSHIFT"),
 )
 
 
-# =============================================================================
-# Start
-# =============================================================================
-
-
-def p_Start(p):
-    """Start : SourceFile"""
-
-
-# =============================================================================
-# Types
-# =============================================================================
-
-
-def p_Type(p):
-    """Type : TypeName
-            | TypeLit
-            | LBRACK Type RBRACK"""
-
-
-def p_TypeName(p):
-    """TypeName : ID
-                | QualifiedIdent"""
-
-
-def p_TypeLit(p):
-    """TypeLit : ArrayType
-               | StructType
-               | PointerType
-               | FunctionType
-               | InterfaceType
-               | SliceType
-               | MapType
-               | ChannelType"""
-
-
-def p_ArrayType(p):
-    """ArrayType : LSQBRACK ArrayLength RSQBRACK ElementType"""
-
-
-def p_ArrayLength(p):
-    """ArrayLength : Expression"""
-
-
-def p_ElementType(p):
-    """ElementType : Type"""
-
-
-def p_SliceType(p):
-    """SliceType : LSQBRACK RSQBRACK ElementType"""
-
-
-def p_StructType(p):
-    """StructType     : STRUCT LCURLBR StructTypeRepOne RCURLBR
-    StructTypeRepOne  : StructTypeRepOne FieldDecl SEMICOLON
-                      | """
-
-
-def p_FieldDecl(p):
-    """FieldDecl       : FieldDeclGroupOne FieldDeclOptOne
-    FieldDeclGroupOne  : IdentifierList Type
-                       | EmbeddedField
-    FieldDeclOptOne    : Tag
-                       | """
-
-
-def p_EmbeddedField(p):
-    """EmbeddedField     : EmbeddedFieldOptOne TypeName
-    EmbeddedFieldOptOne  : MULT
-                         | """
-
-
-def p_Tag(p):
-    """Tag : STRING"""
-
-
-def p_PointerType(p):
-    """PointerType : MULT BaseType"""
-
-
-def p_BaseType(p):
-    """BaseType : Type"""
-
-
-def p_FunctionType(p):
-    """FunctionType : FUNC Signature"""
-
-
-def p_Signature(p):
-    """Signature     : Parameters SignatureOptOne
-    SignatureOptOne  : Result
-                     | """
-
-
-def p_Result(p):
-    """Result : Parameters
-              | Type"""
-
-
-def p_Parameters(p):
-    """Parameters           : LBRACK ParametersOptOne RBRACK
-    ParametersOptOne        : ParameterList ParametersOptOneOptOne
-                            |
-    ParametersOptOneOptOne  : COMMA
-                            | """
-
-
-def p_ParameterList(p):
-    """ParameterList     : ParameterDecl ParameterListRepOne
-    ParameterListRepOne  : ParameterListRepOne COMMA ParameterDecl
-                         | """
-
-
-def p_ParameterDecl(p):
-    """ParameterDecl     : ParameterDeclOptOne ParameterDeclOptTwo Type
-    ParameterDeclOptOne  : IdentifierList
-                         |
-    ParameterDeclOptTwo  : TRIDOT
-                         | """
-
-
-def p_InterfaceType(p):
-    """InterfaceType     : INTERFACE LCURLBR InterfaceTypeRepOne RCURLBR
-    InterfaceTypeRepOne  : InterfaceTypeRepOne MethodSpec SEMICOLON
-                         | """
-
-
-def p_MethodSpec(p):
-    """MethodSpec : MethodName Signature
-                  | InterfaceTypeName"""
-
-
-def p_MethodName(p):
-    """MethodName : ID"""
-
-
-def p_InterfaceTypeName(p):
-    """InterfaceTypeName : TypeName"""
-
-
-def p_MapType(p):
-    """MapType : MAP LSQBRACK KeyType RSQBRACK ElementType"""
-
-
-def p_KeyType(p):
-    """KeyType : Type"""
-
-
-def p_ChannelType(p):
-    """ChannelType       : ChannelTypeGroupOne ElementType
-    ChannelTypeGroupOne  : CHAN
-                         | CHAN REC
-                         | REC CHAN"""
-
-
-# =============================================================================
-# Blocks
-# =============================================================================
-
-
-def p_Block(p):
-    """Block : LCURLBR StatementList RCURLBR"""
-
-
-def p_StatementList(p):
-    """StatementList     : StatementListRepOne
-    StatementListRepOne  : StatementListRepOne Statement SEMICOLON
-                         | """
-
-
-# =============================================================================
-# Declarations and Scope
-# =============================================================================
-
-
-def p_Declaration(p):
-    """Declaration : ConstDecl
-                   | TypeDecl
-                   | VarDecl"""
+def p_SourceFile(p):
+    """SourceFile : PACKAGE ID SEMICOLON ImportDeclList TopLevelDeclList
+    """
+    parsed.append(p.slice)
+
+
+def p_ImportDeclList(p):
+    """ImportDeclList : ImportDecl SEMICOLON ImportDeclList
+                      | empty
+    """
+    parsed.append(p.slice)
+
+
+def p_TopLevelDeclList(p):
+    """TopLevelDeclList : TopLevelDecl SEMICOLON TopLevelDeclList
+                        | empty
+    """
+    parsed.append(p.slice)
 
 
 def p_TopLevelDecl(p):
     """TopLevelDecl : Declaration
                     | FunctionDecl
-                    | MethodDecl"""
+                    | MethodDecl
+    """
+    parsed.append(p.slice)
 
 
-def p_ConstDecl(p):
-    """ConstDecl             : CONST ConstDeclGroupOne
-    ConstDeclGroupOne        : ConstSpec
-                             | LBRACK ConstDeclGroupOneRepOne RBRACK
-    ConstDeclGroupOneRepOne  : ConstDeclGroupOneRepOne ConstSpec SEMICOLON
-                             | """
+def p_ImportDecl(p):
+    """ImportDecl : IMPORT LBRACK ImportSpecList RBRACK
+                  | IMPORT ImportSpec
+    """
+    parsed.append(p.slice)
 
 
-def p_ConstSpec(p):
-    """ConstSpec           : IdentifierList ConstSpecOptOne
-    ConstSpecOptOne        : ConstSpecOptOneOptOne ASSIGN ExpressionList
-                           |
-    ConstSpecOptOneOptOne  : Type
-                           | """
+def p_ImportSpecList(p):
+    """ImportSpecList : ImportSpec SEMICOLON ImportSpecList
+                      | empty
+    """
+    parsed.append(p.slice)
 
 
-def p_IdentifierList(p):
-    """IdentifierList     : ID IdentifierListRepOne
-    IdentifierListRepOne  : IdentifierListRepOne COMMA ID
-                          | """
+def p_ImportSpec(p):
+    """ImportSpec : DOT string_lit
+                  | ID string_lit
+                  | empty string_lit
+    """
+    parsed.append(p.slice)
 
 
-def p_ExpressionList(p):
-    """ExpressionList     : Expression ExpressionListRepOne
-    ExpressionListRepOne  : ExpressionListRepOne COMMA Expression
-                          | """
+def p_Block(p):
+    """Block : LCURLBR StatementList RCURLBR
+    """
+    parsed.append(p.slice)
 
 
-def p_TypeDecl(p):
-    """TypeDecl             : TYPE TypeDeclGroupOne
-    TypeDeclGroupOne        : TypeSpec
-                            | LBRACK TypeDeclGroupOneRepOne RBRACK
-    TypeDeclGroupOneRepOne  : TypeDeclGroupOneRepOne TypeSpec SEMICOLON
-                            | """
-
-
-def p_TypeSpec(p):
-    """TypeSpec : AliasDecl
-                | TypeDef"""
-
-
-def p_AliasDecl(p):
-    """AliasDecl : ID ASSIGN Type"""
-
-
-def p_TypeDef(p):
-    """TypeDef : ID Type"""
-
-
-def p_VarDecl(p):
-    """VarDecl             : VAR VarDeclGroupOne
-    VarDeclGroupOne        : VarSpec
-                           | LBRACK VarDeclGroupOneRepOne RBRACK
-    VarDeclGroupOneRepOne  : VarDeclGroupOneRepOne VarSpec SEMICOLON
-                           | """
-
-
-def p_VarSpec(p):
-    """VarSpec             : IdentifierList VarSpecGroupOne
-    VarSpecGroupOne        : Type VarSpecGroupOneOptOne
-                           | ASSIGN ExpressionList
-    VarSpecGroupOneOptOne  : ASSIGN ExpressionList
-                           | """
-
-
-def p_ShortVarDecl(p):
-    """ShortVarDecl : IdentifierList SHDECL ExpressionList"""
-
-
-def p_FunctionDecl(p):
-    """FunctionDecl     : FUNC FunctionName Signature FunctionDeclOptOne
-    FunctionDeclOptOne  : FunctionBody
-                        | """
-
-
-def p_FunctionName(p):
-    """FunctionName : ID"""
-
-
-def p_FunctionBody(p):
-    """FunctionBody : Block"""
-
-
-def p_MethodDecl(p):
-    """MethodDecl     : FUNC Receiver MethodName Signature MethodDeclOptOne
-    MethodDeclOptOne  : FunctionBody
-                      | """
-
-
-def p_Receiver(p):
-    """Receiver : Parameters"""
-
-
-# =============================================================================
-# Expressions
-# =============================================================================
-
-
-def p_Operand(p):
-    """Operand : Literal
-               | OperandName
-               | LBRACK Expression RBRACK"""
-
-
-def p_Literal(p):
-    """Literal : BasicLit
-               | CompositeLit
-               | FunctionLit"""
-
-
-def p_BasicLit(p):
-    """BasicLit : INT
-                | FLOAT
-                | IMAG
-                | RUNE
-                | STRING"""
-
-
-def p_OperandName(p):
-    """OperandName : ID
-                   | QualifiedIdent"""
-
-
-def p_QualifiedIdent(p):
-    """QualifiedIdent : PackageName DOT ID"""
-
-
-def p_CompositeLit(p):
-    """CompositeLit : LiteralType LiteralValue"""
-
-
-def p_LiteralType(p):
-    """LiteralType : StructType
-                   | ArrayType
-                   | LSQBRACK TRIDOT RSQBRACK ElementType
-                   | SliceType
-                   | MapType
-                   | TypeName"""
-
-
-def p_LiteralValue(p):
-    """LiteralValue           : LCURLBR LiteralValueOptOne RCURLBR
-    LiteralValueOptOne        : ElementList LiteralValueOptOneOptOne
-                              |
-    LiteralValueOptOneOptOne  : COMMA
-                              | """
-
-
-def p_ElementList(p):
-    """ElementList     : KeyedElement ElementListRepOne
-    ElementListRepOne  : ElementListRepOne COMMA KeyedElement
-                       | """
-
-
-def p_KeyedElement(p):
-    """KeyedElement     : KeyedElementOptOne Element
-    KeyedElementOptOne  : Key COLON
-                        | """
-
-
-def p_Key(p):
-    """Key : FieldName
-           | Expression
-           | LiteralValue"""
-
-
-def p_FieldName(p):
-    """FieldName : ID"""
-
-
-def p_Element(p):
-    """Element : Expression
-               | LiteralValue"""
-
-
-def p_FunctionLit(p):
-    """FunctionLit : FUNC Signature FunctionBody"""
-
-
-def p_PrimaryExpr(p):
-    """PrimaryExpr : Operand
-                   | Conversion
-                   | MethodExpr
-                   | PrimaryExpr Selector
-                   | PrimaryExpr Index
-                   | PrimaryExpr Slice
-                   | PrimaryExpr TypeAssertion
-                   | PrimaryExpr Arguments"""
-
-
-def p_Selector(p):
-    """Selector : DOT ID"""
-
-
-def p_Index(p):
-    """Index : LSQBRACK Expression RSQBRACK"""
-
-
-def p_Slice(p):
-    """Slice       : LSQBRACK SliceOptOne COLON SliceOptTwo RSQBRACK
-                   | LSQBRACK SliceOptThree COLON Expression COLON Expression RSQBRACK
-    SliceOptOne    : Expression
-                   |
-    SliceOptTwo    : Expression
-                   |
-    SliceOptThree  : Expression
-                   | """
-
-
-def p_TypeAssertion(p):
-    """TypeAssertion : DOT LBRACK Type RBRACK"""
-
-
-def p_Arguments(p):
-    """Arguments                   : LBRACK ArgumentsOptOne RBRACK
-    ArgumentsOptOne                : ArgumentsOptOneGroupOne ArgumentsOptOneOptOne ArgumentsOptOneOptTwo
-                                   |
-    ArgumentsOptOneGroupOne        : ExpressionList
-                                   | Type ArgumentsOptOneGroupOneOptOne
-    ArgumentsOptOneGroupOneOptOne  : COMMA ExpressionList
-                                   |
-    ArgumentsOptOneOptOne          : TRIDOT
-                                   |
-    ArgumentsOptOneOptTwo          : COMMA
-                                   | """
-
-
-def p_MethodExpr(p):
-    """MethodExpr : ReceiverType DOT MethodName"""
-
-
-def p_ReceiverType(p):
-    """ReceiverType : Type"""
-
-
-def p_Expression(p):
-    """Expression : UnaryExpr
-                  | Expression binaryop Expression"""
-
-
-def p_UnaryExpr(p):
-    """UnaryExpr : PrimaryExpr
-                 | unaryop UnaryExpr"""
-
-
-def p_binaryop(p):
-    """binaryop : LOGOR
-                | LOGAND
-                | relop
-                | addop
-                | mulop"""
-
-
-def p_relop(p):
-    """relop : EQUALS
-             | NOTEQ
-             | LESS
-             | LESSEQ
-             | GREAT
-             | GREATEQ"""
-
-
-def p_addop(p):
-    """addop : PLUS
-             | MINUS
-             | BITOR
-             | BITXOR"""
-
-
-def p_mulop(p):
-    """mulop : MULT
-             | DIV
-             | MODULO
-             | LSHIFT
-             | RSHIFT
-             | BITAND
-             | BITCLR"""
-
-
-def p_unaryop(p):
-    """unaryop : PLUS
-               | MINUS
-               | LOGNOT
-               | BITXOR
-               | MULT
-               | BITAND
-               | REC"""
-
-
-def p_Conversion(p):
-    """Conversion     : Type LBRACK Expression ConversionOptOne RBRACK
-    ConversionOptOne  : COMMA
-                      | """
-
-
-# =============================================================================
-# Statements
-# =============================================================================
+def p_StatementList(p):
+    """StatementList : Statement SEMICOLON StatementList
+                     | empty
+    """
+    parsed.append(p.slice)
 
 
 def p_Statement(p):
     """Statement : Declaration
-                 | LabeledStmt
                  | SimpleStmt
-                 | GoStmt
                  | ReturnStmt
+                 | Block
+                 | IfStmt
+                 | SwitchStmt
+                 | ForStmt
                  | BreakStmt
                  | ContinueStmt
                  | GotoStmt
                  | FallthroughStmt
-                 | Block
-                 | IfStmt
-                 | SwitchStmt
-                 | SelectStmt
-                 | ForStmt
-                 | DeferStmt"""
+    """
+    parsed.append(p.slice)
+
+
+def p_Declaration(p):
+    """Declaration : ConstDecl
+                   | TypeDecl
+                   | VarDecl
+    """
+    parsed.append(p.slice)
+
+
+def p_ConstDecl(p):
+    """ConstDecl  : CONST LBRACK ConstSpecList RBRACK
+                  | CONST ConstSpec
+                  | CONST ID
+    """
+    parsed.append(p.slice)
+
+
+def p_ConstSpecList(p):
+    """ConstSpecList : empty
+                     | ConstSpecList ConstSpec SEMICOLON
+                     | ConstSpecList ID SEMICOLON
+    """
+    parsed.append(p.slice)
+
+
+def p_ConstSpec(p):
+    """ConstSpec : IdentifierList
+                 | IdentifierList Type ASSIGN Expression
+                 | ID Type ASSIGN Expression
+                 | IdentifierList Type ASSIGN ExpressionList
+                 | ID Type ASSIGN ExpressionList
+                 | IdentifierList ID DOT ID ASSIGN Expression
+                 | ID ID DOT ID ASSIGN Expression
+                 | IdentifierList ID DOT ID ASSIGN ExpressionList
+                 | ID ID DOT ID ASSIGN ExpressionList
+                 | IdentifierList ID ASSIGN Expression
+                 | ID ID ASSIGN Expression
+                 | IdentifierList ID ASSIGN ExpressionList
+                 | ID ID ASSIGN ExpressionList
+                 | IdentifierList ASSIGN Expression
+                 | ID ASSIGN Expression
+                 | IdentifierList ASSIGN ExpressionList
+                 | ID ASSIGN ExpressionList
+    """
+    parsed.append(p.slice)
+
+
+def p_IdentifierList(p):
+    """IdentifierList : ID IdentifierBotList
+    """
+    parsed.append(p.slice)
+
+
+def p_IdentifierBotList(p):
+    """IdentifierBotList : COMMA ID
+                         | IdentifierBotList COMMA ID
+    """
+    parsed.append(p.slice)
+
+
+def p_ExpressionList(p):
+    """ExpressionList : Expression ExpressionBotList
+    """
+    parsed.append(p.slice)
+
+
+def p_ExpressionBotList(p):
+    """ExpressionBotList : COMMA Expression
+                         | COMMA Expression ExpressionBotList
+    """
+    parsed.append(p.slice)
+
+
+def p_TypeDecl(p):
+    """TypeDecl : TYPE TypeSpecTopList
+    """
+    parsed.append(p.slice)
+
+
+def p_TypeSpecTopList(p):
+    """TypeSpecTopList : TypeSpec
+                       | LBRACK TypeSpecList  RBRACK
+    """
+    parsed.append(p.slice)
+
+
+def p_TypeSpecList(p):
+    """TypeSpecList : empty
+                    | TypeSpecList TypeSpec SEMICOLON
+    """
+    parsed.append(p.slice)
+
+
+def p_TypeSpec(p):
+    """TypeSpec : AliasDecl
+                | TypeDef
+    """
+    parsed.append(p.slice)
+
+
+def p_AliasDecl(p):
+    """AliasDecl : ID ASSIGN Type
+                 | ID ASSIGN ID DOT ID
+                 | ID ASSIGN ID
+    """
+    parsed.append(p.slice)
+
+
+def p_TypeDef(p):
+    """TypeDef : ID Type
+               | ID ID
+               | ID ID DOT ID
+    """
+    parsed.append(p.slice)
+
+
+def p_Type(p):
+    """Type : TypeLit
+            | LBRACK ID RBRACK
+            | LBRACK Type RBRACK
+            | LBRACK ID DOT ID RBRACK
+    """
+    parsed.append(p.slice)
+
+
+# def p_TypeName(p):
+#     '''TypeName  : ID DOT ID
+#     '''
+#     parsed.append(p.slice)
+
+# def p_QualifiedIdent(p):
+#     '''QualifiedIdent : ID DOT ID
+#     '''
+#     parsed.append(p.slice)
+
+
+def p_TypeLit(p):
+    """TypeLit : ArrayType
+               | StructType
+               | InterfaceType
+               | FunctionType
+    """
+    parsed.append(p.slice)
+
+
+def p_ArrayType(p):
+    """ArrayType : LSQBRACK ArrayLength RSQBRACK Type
+                 | LSQBRACK ArrayLength RSQBRACK ID
+                 | LSQBRACK ArrayLength RSQBRACK ID DOT ID
+    """
+    parsed.append(p.slice)
+
+
+def p_ArrayLength(p):
+    """ArrayLength : Expression
+    """
+    parsed.append(p.slice)
+
+
+def p_StructType(p):
+    """StructType : STRUCT LCURLBR FieldDeclList RCURLBR
+    """
+    parsed.append(p.slice)
+
+
+def p_FieldDeclList(p):
+    """FieldDeclList : empty
+                 | FieldDeclList FieldDecl SEMICOLON
+    """
+    parsed.append(p.slice)
+
+
+def p_FieldDecl(p):
+    """FieldDecl : IdentifierList Type TagTop
+                 | IdentifierList ID TagTop
+                 | IdentifierList ID DOT ID TagTop
+                 | MULT ID DOT ID TagTop
+                 | ID DOT ID TagTop
+                 | MULT ID TagTop
+                 | ID TagTop
+    """
+    parsed.append(p.slice)
+
+
+def p_TagTop(p):
+    """TagTop : empty
+              | Tag
+    """
+    parsed.append(p.slice)
+
+
+def p_Tag(p):
+    """Tag : string_lit
+    """
+    parsed.append(p.slice)
+
+
+def p_FunctionType(p):
+    """FunctionType : FUNC Signature
+    """
+    parsed.append(p.slice)
+
+
+def p_InterfaceType(p):
+    """InterfaceType : INTERFACE LCURLBR MethodSpecList RCURLBR
+    """
+    parsed.append(p.slice)
+
+
+def p_MethodSpecList(p):
+    """MethodSpecList : empty
+                 | MethodSpecList MethodSpec SEMICOLON
+    """
+    parsed.append(p.slice)
+
+
+def p_MethodSpec(p):
+    """MethodSpec : ID Signature
+                  | ID DOT ID
+                  | ID
+    """
+
+
+# Signature      = Parameters [ Result ] .
+# Result         = Parameters | Type .
+# Parameters     = "(" [ ParameterList [ "," ] ] ")" .
+# ParameterList  = ParameterDecl { "," ParameterDecl } .
+# ParameterDecl  = [ IdentifierList ] [ "..." ] Type .
+
+
+def p_Signature(p):
+    """Signature : Parameters
+                 | Parameters Result
+    """
+    parsed.append(p.slice)
+
+
+def p_Result(p):
+    """Result : Parameters
+              | Type
+              | ID
+              | ID DOT ID
+    """
+    parsed.append(p.slice)
+
+
+def p_Parameters(p):
+    """Parameters : LBRACK RBRACK
+                  | LBRACK ParameterList RBRACK
+                  | LBRACK ParameterList COMMA RBRACK
+
+    """
+    parsed.append(p.slice)
+
+
+def p_ParameterList(p):
+    """ParameterList : ParameterDecl
+                     | ParameterDecl ParameterDeclBot
+    """
+    parsed.append(p.slice)
+
+
+def p_ParameterDeclBot(p):
+    """ParameterDeclBot : COMMA ParameterDecl
+                        | COMMA ParameterDecl ParameterDeclBot
+    """
+    parsed.append(p.slice)
+
+
+def p_ParameterDecl(p):
+    """ParameterDecl : TRIDOT Type
+                     | IdentifierList Type
+                     | IdentifierList TRIDOT Type
+                     | ID Type
+                     | ID TRIDOT Type
+                     | TRIDOT ID
+                     | IdentifierList ID
+                     | IdentifierList TRIDOT ID
+                     | ID ID
+                     | ID TRIDOT ID
+                     | TRIDOT ID DOT ID
+                     | IdentifierList ID DOT ID
+                     | IdentifierList TRIDOT ID DOT ID
+                     | ID ID DOT ID
+                     | ID TRIDOT ID DOT ID
+    """
+    parsed.append(p.slice)
+
+
+def p_VarDecl(p):
+    """VarDecl : VAR VarSpecTopList
+    """
+    parsed.append(p.slice)
+
+
+def p_VarSpecTopList(p):
+    """VarSpecTopList : VarSpec
+                      | LBRACK VarSpecList RBRACK
+    """
+    parsed.append(p.slice)
+
+
+def p_VarSpecList(p):
+    """VarSpecList : empty
+                   | VarSpecList VarSpec SEMICOLON
+    """
+    parsed.append(p.slice)
+
+
+def p_VarSpec(p):
+    """VarSpec : IdentifierList Type VarSpecMid
+               | ID Type VarSpecMid
+               | IdentifierList ID VarSpecMid
+               | ID ID VarSpecMid
+               | IdentifierList ID DOT ID VarSpecMid
+               | ID ID DOT ID VarSpecMid
+               | IdentifierList ASSIGN ExpressionList
+               | ID ASSIGN ExpressionList
+               | IdentifierList ASSIGN Expression
+               | ID ASSIGN Expression
+    """
+    parsed.append(p.slice)
+
+
+def p_VarSpecMid(p):
+    """VarSpecMid : empty
+                  | ASSIGN ExpressionList
+                  | ASSIGN Expression
+    """
+    parsed.append(p.slice)
+
+
+def p_FunctionDecl(p):
+    """FunctionDecl : FUNC FunctionName FunctionDeclTail
+    """
+    parsed.append(p.slice)
+
+
+def p_FunctionDeclTail(p):
+    """FunctionDeclTail : Function
+                        | Signature
+    """
+    parsed.append(p.slice)
+
+
+def p_FunctionName(p):
+    """FunctionName : ID
+    """
+    parsed.append(p.slice)
+
+
+def p_Function(p):
+    """Function : Signature FunctionBody
+    """
+    parsed.append(p.slice)
+
+
+def p_FunctionBody(p):
+    """FunctionBody : Block
+    """
+    parsed.append(p.slice)
+
+
+def p_MethodDecl(p):
+    """MethodDecl : FUNC Receiver ID FunctionDeclTail
+    """
+    parsed.append(p.slice)
+
+
+def p_Receiver(p):
+    """Receiver : Parameters
+    """
+    parsed.append(p.slice)
 
 
 def p_SimpleStmt(p):
-    """SimpleStmt : EmptyStmt
-                  | ExpressionStmt
-                  | SendStmt
-                  | IncDecStmt
+    """SimpleStmt : Expression
                   | Assignment
-                  | ShortVarDecl"""
+                  | ShortVarDecl
+    """
+    parsed.append(p.slice)
 
 
-def p_EmptyStmt(p):
-    """EmptyStmt : """
+# def p_ExpressionStmt(p):
+#     '''ExpressionStmt : Expression
+#     '''
+#     parsed.append(p.slice)
 
 
-def p_LabeledStmt(p):
-    """LabeledStmt : Label COLON Statement"""
-
-
-def p_Label(p):
-    """Label : ID"""
-
-
-def p_ExpressionStmt(p):
-    """ExpressionStmt : Expression"""
-
-
-def p_SendStmt(p):
-    """SendStmt : Channel REC Expression"""
-
-
-def p_Channel(p):
-    """Channel : Expression"""
-
-
-def p_IncDecStmt(p):
-    """IncDecStmt       : Expression IncDecStmtGroupOne
-    IncDecStmtGroupOne  : INCR
-                        | DECR"""
+def p_ShortVarDecl(p):
+    """ShortVarDecl : IdentifierList SHDECL ExpressionList
+                    | IdentifierList SHDECL Expression
+                    | ID SHDECL ExpressionList
+                    | ID SHDECL Expression
+    """
+    parsed.append(p.slice)
 
 
 def p_Assignment(p):
-    """Assignment : ExpressionList assignop ExpressionList"""
+    """Assignment : Expression assign_op Expression
+                  | ExpressionList assign_op Expression
+                  | Expression assign_op ExpressionList
+                  | ExpressionList assign_op ExpressionList
+    """
+    parsed.append(p.slice)
 
 
-def p_assignop(p):
-    """assignop     : assignopOptOne ASSIGN
-    assignopOptOne  : addop
-                    | mulop
-                    | """
+def p_assign_op(p):
+    """assign_op : addmul_op ASSIGN
+    """
+    parsed.append(p.slice)
+
+
+def p_addmul_op(p):
+    """addmul_op : empty
+                 | add_op
+                 | mul_op
+    """
+    parsed.append(p.slice)
 
 
 def p_IfStmt(p):
-    """IfStmt             : IF IfStmtOptOne Expression Block IfStmtOptTwo
-    IfStmtOptOne          : SimpleStmt SEMICOLON
-                          |
-    IfStmtOptTwo          : ELSE IfStmtOptTwoGroupOne
-                          |
-    IfStmtOptTwoGroupOne  : IfStmt
-                          | Block"""
+    """IfStmt : IF Expression Block elseBot
+              | IF SimpleStmt SEMICOLON  Expression Block elseBot
+    """
+    parsed.append(p.slice)
+
+
+def p_elseBot(p):
+    """elseBot : empty
+               | ELSE elseTail
+    """
+    parsed.append(p.slice)
+
+
+def p_elseTail(p):
+    """elseTail : IfStmt
+                | Block
+    """
+    parsed.append(p.slice)
 
 
 def p_SwitchStmt(p):
     """SwitchStmt : ExprSwitchStmt
-                  | TypeSwitchStmt"""
+    """
+    parsed.append(p.slice)
 
 
 def p_ExprSwitchStmt(p):
-    """ExprSwitchStmt     : SWITCH ExprSwitchStmtOptOne ExprSwitchStmtOptTwo LCURLBR ExprSwitchStmtRepOne RCURLBR
-    ExprSwitchStmtOptOne  : SimpleStmt SEMICOLON
-                          |
-    ExprSwitchStmtOptTwo  : Expression
-                          |
-    ExprSwitchStmtRepOne  : ExprSwitchStmtRepOne ExprCaseClause
-                          | """
+    """ExprSwitchStmt : SWITCH SimpleStmt SEMICOLON  ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
+                      | SWITCH ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
+    """
+    parsed.append(p.slice)
+
+
+def p_ExprCaseClauseList(p):
+    """ExprCaseClauseList : empty
+                          | ExprCaseClauseList ExprCaseClause
+    """
+    parsed.append(p.slice)
 
 
 def p_ExprCaseClause(p):
-    """ExprCaseClause : ExprSwitchCase COLON StatementList"""
+    """ExprCaseClause : ExprSwitchCase COLON StatementList
+    """
+    parsed.append(p.slice)
 
 
 def p_ExprSwitchCase(p):
     """ExprSwitchCase : CASE ExpressionList
-                      | DEFAULT"""
-
-
-def p_TypeSwitchStmt(p):
-    """TypeSwitchStmt     : SWITCH TypeSwitchStmtOptOne TypeSwitchGuard LCURLBR TypeSwitchStmtRepOne RCURLBR
-    TypeSwitchStmtOptOne  : SimpleStmt SEMICOLON
-                          |
-    TypeSwitchStmtRepOne  : TypeSwitchStmtRepOne TypeCaseClause
-                          | """
-
-
-def p_TypeSwitchGuard(p):
-    """TypeSwitchGuard     : TypeSwitchGuardOptOne PrimaryExpr DOT LBRACK TYPE RBRACK
-    TypeSwitchGuardOptOne  : ID SHDECL
-                           | """
-
-
-def p_TypeCaseClause(p):
-    """TypeCaseClause : TypeSwitchCase COLON StatementList"""
-
-
-def p_TypeSwitchCase(p):
-    """TypeSwitchCase : CASE TypeList
-                      | DEFAULT"""
-
-
-def p_TypeList(p):
-    """TypeList     : Type TypeListRepOne
-    TypeListRepOne  : TypeListRepOne COMMA Type
-                    | """
+                      | DEFAULT
+                      | CASE Expression
+    """
+    parsed.append(p.slice)
 
 
 def p_ForStmt(p):
-    """ForStmt     : FOR ForStmtOptOne Block
-    ForStmtOptOne  : Condition
-                   | ForClause
-                   | RangeClause
-                   | """
+    """ForStmt : FOR ExpressionBot Block
+    """
+    parsed.append(p.slice)
 
 
-def p_Condition(p):
-    """Condition : Expression"""
-
-
-def p_ForClause(p):
-    """ForClause       : ForClauseOptOne SEMICOLON ForClauseOptTwo SEMICOLON ForClauseOptThree
-    ForClauseOptOne    : InitStmt
-                       |
-    ForClauseOptTwo    : Condition
-                       |
-    ForClauseOptThree  : PostStmt
-                       | """
-
-
-def p_InitStmt(p):
-    """InitStmt : SimpleStmt"""
-
-
-def p_PostStmt(p):
-    """PostStmt : SimpleStmt"""
-
-
-def p_RangeClause(p):
-    """RangeClause     : RangeClauseOptOne RANGE Expression
-    RangeClauseOptOne  : ExpressionList ASSIGN
-                       | IdentifierList SHDECL
-                       | """
-
-
-def p_GoStmt(p):
-    """GoStmt : GO Expression"""
-
-
-def p_SelectStmt(p):
-    """SelectStmt     : SELECT LCURLBR SelectStmtRepOne RCURLBR
-    SelectStmtRepOne  : SelectStmtRepOne CommClause
-                      | """
-
-
-def p_CommClause(p):
-    """CommClause : CommCase COLON StatementList"""
-
-
-def p_CommCase(p):
-    """CommCase       : CASE CommCaseGroupOne
-                      | DEFAULT
-    CommCaseGroupOne  : SendStmt
-                      | RecvStmt"""
-
-
-def p_RecvStmt(p):
-    """RecvStmt     : RecvStmtOptOne RecvExpr
-    RecvStmtOptOne  : ExpressionList ASSIGN
-                    | IdentifierList SHDECL
-                    | """
-
-
-def p_RecvExpr(p):
-    """RecvExpr : Expression"""
+def p_ExpressionBot(p):
+    """ExpressionBot : empty
+                     | Expression
+    """
+    parsed.append(p.slice)
 
 
 def p_ReturnStmt(p):
-    """ReturnStmt     : RETURN ReturnStmtOptOne
-    ReturnStmtOptOne  : ExpressionList
-                      | """
+    """ReturnStmt : RETURN ExpressionListBot
+                  | RETURN Expression
+    """
+    parsed.append(p.slice)
+
+
+def p_ExpressionListBot(p):
+    """ExpressionListBot : empty
+                         | ExpressionList
+    """
+    parsed.append(p.slice)
 
 
 def p_BreakStmt(p):
-    """BreakStmt     : BREAK BreakStmtOptOne
-    BreakStmtOptOne  : Label
-                     | """
+    """BreakStmt : BREAK ID
+    """
+    parsed.append(p.slice)
 
 
 def p_ContinueStmt(p):
-    """ContinueStmt     : CONTINUE ContinueStmtOptOne
-    ContinueStmtOptOne  : Label
-                        | """
+    """ContinueStmt : CONTINUE ID
+    """
+    parsed.append(p.slice)
 
 
 def p_GotoStmt(p):
-    """GotoStmt : GOTO Label"""
+    """GotoStmt : GOTO ID
+    """
+    parsed.append(p.slice)
 
 
 def p_FallthroughStmt(p):
-    """FallthroughStmt : FALLTHROUGH"""
+    """FallthroughStmt : FALLTHROUGH
+    """
+    parsed.append(p.slice)
 
 
-def p_DeferStmt(p):
-    """DeferStmt : DEFER Expression"""
+def p_Expression(p):
+    """Expression : UnaryExpr
+                  | Expression LOGOR Expression
+                  | Expression LOGAND Expression
+                  | Expression EQUALS Expression
+                  | Expression NOTEQ Expression
+                  | Expression LESS Expression
+                  | Expression LESSEQ Expression
+                  | Expression GREAT Expression
+                  | Expression GREATEQ Expression
+                  | Expression PLUS Expression
+                  | Expression MINUS Expression
+                  | Expression BITOR Expression
+                  | Expression BITXOR Expression
+                  | Expression MULT Expression
+                  | Expression DIV Expression
+                  | Expression MODULO Expression
+                  | Expression LSHIFT Expression
+                  | Expression RSHIFT Expression
+                  | Expression BITAND Expression
+                  | Expression BITCLR Expression
+
+    """
+    parsed.append(p.slice)
 
 
-# =============================================================================
-# Packages
-# =============================================================================
+def p_UnaryExpr(p):
+    """UnaryExpr : PrimaryExpr
+                 | unary_op UnaryExpr
+    """
+    parsed.append(p.slice)
 
 
-def p_SourceFile(p):
-    """SourceFile     : PackageClause SEMICOLON SourceFileRepOne SourceFileRepTwo
-    SourceFileRepOne  : SourceFileRepOne ImportDecl SEMICOLON
-                      |
-    SourceFileRepTwo  : SourceFileRepTwo TopLevelDecl SEMICOLON
-                      | """
+# def p_binary_op(p):
+#     '''binary_op  : LOGOR
+#                  | LOGAND
+#                  | rel_op
+#                  | add_op
+#                  | mul_op
+#     '''
+#     parsed.append(p.slice)
+
+# def p_rel_op(p):
+#     '''rel_op : EQUALS
+#                  | NOTEQ
+#                  | LESS
+#                  | LESSEQ
+#                  | GREAT
+#                  | GREATEQ
+#     '''
+#     parsed.append(p.slice)
 
 
-def p_PackageClause(p):
-    """PackageClause : PACKAGE PackageName"""
+def p_add_op(p):
+    """add_op : PLUS
+              | MINUS
+              | BITOR
+              | BITXOR
+    """
+    parsed.append(p.slice)
 
 
-def p_PackageName(p):
-    """PackageName : ID"""
+def p_mul_op(p):
+    """mul_op  : MULT
+               | DIV
+               | MODULO
+               | LSHIFT
+               | RSHIFT
+               | BITAND
+               | BITCLR
+    """
+    parsed.append(p.slice)
 
 
-def p_ImportDecl(p):
-    """ImportDecl             : IMPORT ImportDeclGroupOne
-    ImportDeclGroupOne        : ImportSpec
-                              | LBRACK ImportDeclGroupOneRepOne RBRACK
-    ImportDeclGroupOneRepOne  : ImportDeclGroupOneRepOne ImportSpec SEMICOLON
-                              | """
+def p_unary_op(p):
+    """unary_op   : PLUS
+                  | MINUS
+                  | LOGNOT
+                  | BITXOR
+                  | MULT
+                  | BITAND
+                  | REC
+                  | DECR
+                  | INCR
+    """
+    parsed.append(p.slice)
 
 
-def p_ImportSpec(p):
-    """ImportSpec     : ImportSpecOptOne ImportPath
-    ImportSpecOptOne  : DOT
-                      | PackageName
-                      | """
+def p_PrimaryExpr(p):
+    """PrimaryExpr : Operand
+                   | ID
+                   | PrimaryExpr Selector
+                   | PrimaryExpr Index
+                   | PrimaryExpr Arguments
+    """
+    parsed.append(p.slice)
 
 
-def p_ImportPath(p):
-    """ImportPath : STRING"""
+def p_Operand(p):
+    """Operand  : Literal
+                | MethodExpr
+                | LBRACK Expression RBRACK
+    """
+    parsed.append(p.slice)
+
+
+def p_Literal(p):
+    """Literal  : BasicLit
+                | FunctionLit
+    """
+    parsed.append(p.slice)
+
+
+def p_BasicLit(p):
+    """BasicLit : int_lit
+                | float_lit
+                | imag_lit
+                | string_lit
+                | rune_lit
+    """
+    parsed.append(p.slice)
+
+
+def p_int_lit(p):
+    """int_lit : INT"""
+    parsed.append(p.slice)
+
+
+def p_float_lit(p):
+    """float_lit : FLOAT
+    """
+    parsed.append(p.slice)
+
+
+def p_imag_lit(p):
+    """imag_lit : IMAG"""
+    parsed.append(p.slice)
+
+
+##########################################
+###################################
+
+
+def p_FunctionLit(p):
+    """FunctionLit : FUNC Function
+    """
+    parsed.append(p.slice)
+
+
+def p_MethodExpr(p):
+    """MethodExpr : ReceiverType DOT ID   %prec ID
+                  | ID DOT ID        %prec ID
+                  | ID DOT ID DOT ID
+    """
+    parsed.append(p.slice)
+
+
+def p_ReceiverType(p):
+    """ReceiverType : LBRACK MULT ID DOT ID RBRACK
+                    | LBRACK MULT ID RBRACK
+                    | LBRACK ReceiverType RBRACK
+    """
+    parsed.append(p.slice)
+
+
+def p_Selector(p):
+    """Selector : DOT ID
+    """
+    parsed.append(p.slice)
+
+
+def p_Index(p):
+    """Index : LSQBRACK Expression RSQBRACK
+    """
+    parsed.append(p.slice)
+
+
+def p_Arguments(p):
+    """Arguments : LBRACK RBRACK
+                 | LBRACK ExpressionList TRIDOT RBRACK
+                 | LBRACK Expression TRIDOT RBRACK
+                 | LBRACK ExpressionList RBRACK
+                 | LBRACK Expression RBRACK
+                 | LBRACK Type TRIDOT RBRACK
+                 | LBRACK Type RBRACK
+                 | LBRACK Type COMMA ExpressionList  TRIDOT RBRACK
+                 | LBRACK Type COMMA ExpressionList  RBRACK
+                 | LBRACK Type COMMA Expression TRIDOT RBRACK
+                 | LBRACK Type COMMA Expression RBRACK
+                 | LBRACK ID TRIDOT RBRACK
+                 | LBRACK ID RBRACK %prec LBRACK
+                 | LBRACK ID COMMA ExpressionList  TRIDOT RBRACK
+                 | LBRACK ID COMMA ExpressionList  RBRACK
+                 | LBRACK ID COMMA Expression TRIDOT RBRACK
+                 | LBRACK ID COMMA Expression RBRACK
+                 | LBRACK ID DOT ID TRIDOT RBRACK
+                 | LBRACK ID DOT ID RBRACK
+                 | LBRACK ID DOT ID COMMA ExpressionList  TRIDOT RBRACK
+                 | LBRACK ID DOT ID COMMA ExpressionList  RBRACK
+                 | LBRACK ID DOT ID COMMA Expression TRIDOT RBRACK
+                 | LBRACK ID DOT ID COMMA Expression RBRACK
+                 | LBRACK ExpressionList TRIDOT COMMA RBRACK
+                 | LBRACK Expression TRIDOT COMMA RBRACK
+                 | LBRACK ExpressionList COMMA RBRACK
+                 | LBRACK Expression COMMA RBRACK
+                 | LBRACK Type TRIDOT COMMA RBRACK
+                 | LBRACK Type COMMA RBRACK
+                 | LBRACK Type COMMA ExpressionList  TRIDOT COMMA RBRACK
+                 | LBRACK Type COMMA ExpressionList  COMMA RBRACK
+                 | LBRACK Type COMMA Expression TRIDOT COMMA RBRACK
+                 | LBRACK Type COMMA Expression COMMA RBRACK
+                 | LBRACK ID TRIDOT COMMA RBRACK
+                 | LBRACK ID COMMA RBRACK
+                 | LBRACK ID COMMA ExpressionList  TRIDOT COMMA RBRACK
+                 | LBRACK ID COMMA ExpressionList  COMMA RBRACK
+                 | LBRACK ID COMMA Expression TRIDOT COMMA RBRACK
+                 | LBRACK ID COMMA Expression COMMA RBRACK
+                 | LBRACK ID DOT ID TRIDOT COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA ExpressionList  TRIDOT COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA ExpressionList  COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA Expression TRIDOT COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA Expression COMMA RBRACK
+    """
+    parsed.append(p.slice)
+
+
+def p_empty(p):
+    "empty :"
+    pass
+
+
+def p_string_lit(p):
+    """string_lit : STRING
+    """
+    parsed.append(p.slice)
+
+
+def p_rune_lit(p):
+    """rune_lit : RUNE
+    """
+    parsed.append(p.slice)
 
 
 parser = yacc.yacc()
@@ -792,11 +899,11 @@ if __name__ == "__main__":
         args.output = args.input.split("/")[-1] + ".dot"
 
     with open(args.input, "r") as go:
-        result = parser.parse(go.read())
+        parser.parse(go.read())
 
     if args.verbose:
-        print(result)
+        print(parsed)
 
     with open(args.output, "w") as outf:
-        outf.write(str(result))
+        outf.write(str(parsed))
     print('Output file "{}" generated'.format(args.output))

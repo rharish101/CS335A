@@ -369,16 +369,10 @@ def p_Parameters(p):
 
 def p_ParameterList(p):
     """ParameterList : ParameterDecl
-                     | ParameterDecl ParameterDeclBot
+                     | ParameterList COMMA ParameterDecl
     """
     parsed.append(p.slice)
 
-
-def p_ParameterDeclBot(p):
-    """ParameterDeclBot : COMMA ParameterDecl
-                        | COMMA ParameterDecl ParameterDeclBot
-    """
-    parsed.append(p.slice)
 
 
 def p_ParameterDecl(p):

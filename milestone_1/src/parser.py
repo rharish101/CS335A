@@ -4,19 +4,23 @@ from ply import yacc
 from argparse import ArgumentParser
 from lexer import *
 
+precedence = (
+    ("right", "ASSIGN", "LOGNOT"),
+    ("left", "LOGOR"),
+    ("left", "LOGAND"),
+    ("left", "BITOR"),
+    ("left", "BITXOR"),
+    ("left", "BITAND"),
+    ("left", "EQUALS", "NOTEQ"),
+    ("left", "LESS", "GREAT", "LESSEQ", "GREATEQ"),
+    ("left", "LSHIFT", "RSHIFT"),
+    ("left", "PLUS", "MINUS"),
+    ("left", "MULT", "DIV", "MODULO"),
+)
 
-def p_SourceFile(p):
-    """SourceFile : PackageClause SEMICOLON SourceFileRepOne SourceFileRepTwo"""
 
-
-def p_SourceFileRepOne(p):
-    """SourceFileRepOne : SourceFileRepOne ImportDecl SEMICOLON
-                        |"""
-
-
-def p_SourceFileRepTwo(p):
-    """SourceFileRepTwo : SourceFileRepTwo TopLevelDecl SEMICOLON
-                        |"""
+def p_Start(p):
+    """Start : SourceFile"""
 
 
 def p_Type(p):
@@ -58,35 +62,23 @@ def p_SliceType(p):
 
 
 def p_StructType(p):
-    """StructType : STRUCT LCURLBR StructTypeRepOne RCURLBR"""
-
-
-def p_StructTypeRepOne(p):
-    """StructTypeRepOne : StructTypeRepOne FieldDecl SEMICOLON
-                        |"""
+    """StructType     : STRUCT LCURLBR StructTypeRepOne RCURLBR
+    StructTypeRepOne  : StructTypeRepOne FieldDecl SEMICOLON
+                      | """
 
 
 def p_FieldDecl(p):
-    """FieldDecl : FieldDeclGroupOne FieldDeclOptOne"""
-
-
-def p_FieldDeclGroupOne(p):
-    """FieldDeclGroupOne : IdentifierList Type
-                         | EmbeddedField"""
-
-
-def p_FieldDeclOptOne(p):
-    """FieldDeclOptOne : Tag
-                       |"""
+    """FieldDecl       : FieldDeclGroupOne FieldDeclOptOne
+    FieldDeclGroupOne  : IdentifierList Type
+                       | EmbeddedField
+    FieldDeclOptOne    : Tag
+                       | """
 
 
 def p_EmbeddedField(p):
-    """EmbeddedField : EmbeddedFieldOptOne TypeName"""
-
-
-def p_EmbeddedFieldOptOne(p):
-    """EmbeddedFieldOptOne : MULT
-                           |"""
+    """EmbeddedField     : EmbeddedFieldOptOne TypeName
+    EmbeddedFieldOptOne  : MULT
+                         | """
 
 
 def p_Tag(p):
@@ -106,12 +98,9 @@ def p_FunctionType(p):
 
 
 def p_Signature(p):
-    """Signature : Parameters SignatureOptOne"""
-
-
-def p_SignatureOptOne(p):
-    """SignatureOptOne : Result
-                       |"""
+    """Signature     : Parameters SignatureOptOne
+    SignatureOptOne  : Result
+                     | """
 
 
 def p_Result(p):
@@ -120,49 +109,31 @@ def p_Result(p):
 
 
 def p_Parameters(p):
-    """Parameters : LBRACK ParametersOptOne RBRACK"""
-
-
-def p_ParametersOptOne(p):
-    """ParametersOptOne : ParameterList ParametersOptOneOptOne
-                        |"""
-
-
-def p_ParametersOptOneOptOne(p):
-    """ParametersOptOneOptOne : COMMA
-                              |"""
+    """Parameters           : LBRACK ParametersOptOne RBRACK
+    ParametersOptOne        : ParameterList ParametersOptOneOptOne
+                            |
+    ParametersOptOneOptOne  : COMMA
+                            | """
 
 
 def p_ParameterList(p):
-    """ParameterList : ParameterDecl ParameterListRepOne"""
-
-
-def p_ParameterListRepOne(p):
-    """ParameterListRepOne : ParameterListRepOne COMMA ParameterDecl
-                           |"""
+    """ParameterList     : ParameterDecl ParameterListRepOne
+    ParameterListRepOne  : ParameterListRepOne COMMA ParameterDecl
+                         | """
 
 
 def p_ParameterDecl(p):
-    """ParameterDecl : ParameterDeclOptOne ParameterDeclOptTwo Type"""
-
-
-def p_ParameterDeclOptOne(p):
-    """ParameterDeclOptOne : IdentifierList
-                           |"""
-
-
-def p_ParameterDeclOptTwo(p):
-    """ParameterDeclOptTwo : TRIDOT
-                           |"""
+    """ParameterDecl     : ParameterDeclOptOne ParameterDeclOptTwo Type
+    ParameterDeclOptOne  : IdentifierList
+                         |
+    ParameterDeclOptTwo  : TRIDOT
+                         | """
 
 
 def p_InterfaceType(p):
-    """InterfaceType : INTERFACE LCURLBR InterfaceTypeRepOne RCURLBR"""
-
-
-def p_InterfaceTypeRepOne(p):
-    """InterfaceTypeRepOne : InterfaceTypeRepOne MethodSpec SEMICOLON
-                           |"""
+    """InterfaceType     : INTERFACE LCURLBR InterfaceTypeRepOne RCURLBR
+    InterfaceTypeRepOne  : InterfaceTypeRepOne MethodSpec SEMICOLON
+                         | """
 
 
 def p_MethodSpec(p):
@@ -187,13 +158,10 @@ def p_KeyType(p):
 
 
 def p_ChannelType(p):
-    """ChannelType : ChannelTypeGroupOne ElementType"""
-
-
-def p_ChannelTypeGroupOne(p):
-    """ChannelTypeGroupOne : CHAN
-                           | CHAN REC
-                           | REC CHAN"""
+    """ChannelType       : ChannelTypeGroupOne ElementType
+    ChannelTypeGroupOne  : CHAN
+                         | CHAN REC
+                         | REC CHAN"""
 
 
 def p_Block(p):
@@ -201,12 +169,9 @@ def p_Block(p):
 
 
 def p_StatementList(p):
-    """StatementList : StatementListRepOne"""
-
-
-def p_StatementListRepOne(p):
-    """StatementListRepOne : StatementListRepOne Statement SEMICOLON
-                           |"""
+    """StatementList     : StatementListRepOne
+    StatementListRepOne  : StatementListRepOne Statement SEMICOLON
+                         | """
 
 
 def p_Declaration(p):
@@ -222,63 +187,39 @@ def p_TopLevelDecl(p):
 
 
 def p_ConstDecl(p):
-    """ConstDecl : CONST ConstDeclGroupOne"""
-
-
-def p_ConstDeclGroupOne(p):
-    """ConstDeclGroupOne : ConstSpec
-                         | LBRACK ConstDeclGroupOneRepOne RBRACK"""
-
-
-def p_ConstDeclGroupOneRepOne(p):
-    """ConstDeclGroupOneRepOne : ConstDeclGroupOneRepOne ConstSpec SEMICOLON
-                               |"""
+    """ConstDecl             : CONST ConstDeclGroupOne
+    ConstDeclGroupOne        : ConstSpec
+                             | LBRACK ConstDeclGroupOneRepOne RBRACK
+    ConstDeclGroupOneRepOne  : ConstDeclGroupOneRepOne ConstSpec SEMICOLON
+                             | """
 
 
 def p_ConstSpec(p):
-    """ConstSpec : IdentifierList ConstSpecOptOne"""
-
-
-def p_ConstSpecOptOne(p):
-    """ConstSpecOptOne : ConstSpecOptOneOptOne ASSIGN ExpressionList
-                       |"""
-
-
-def p_ConstSpecOptOneOptOne(p):
-    """ConstSpecOptOneOptOne : Type
-                             |"""
+    """ConstSpec           : IdentifierList ConstSpecOptOne
+    ConstSpecOptOne        : ConstSpecOptOneOptOne ASSIGN ExpressionList
+                           |
+    ConstSpecOptOneOptOne  : Type
+                           | """
 
 
 def p_IdentifierList(p):
-    """IdentifierList : ID IdentifierListRepOne"""
-
-
-def p_IdentifierListRepOne(p):
-    """IdentifierListRepOne : IdentifierListRepOne COMMA ID
-                            |"""
+    """IdentifierList     : ID IdentifierListRepOne
+    IdentifierListRepOne  : IdentifierListRepOne COMMA ID
+                          | """
 
 
 def p_ExpressionList(p):
-    """ExpressionList : Expression ExpressionListRepOne"""
-
-
-def p_ExpressionListRepOne(p):
-    """ExpressionListRepOne : ExpressionListRepOne COMMA Expression
-                            |"""
+    """ExpressionList     : Expression ExpressionListRepOne
+    ExpressionListRepOne  : ExpressionListRepOne COMMA Expression
+                          | """
 
 
 def p_TypeDecl(p):
-    """TypeDecl : TYPE TypeDeclGroupOne"""
-
-
-def p_TypeDeclGroupOne(p):
-    """TypeDeclGroupOne : TypeSpec
-                        | LBRACK TypeDeclGroupOneRepOne RBRACK"""
-
-
-def p_TypeDeclGroupOneRepOne(p):
-    """TypeDeclGroupOneRepOne : TypeDeclGroupOneRepOne TypeSpec SEMICOLON
-                              |"""
+    """TypeDecl             : TYPE TypeDeclGroupOne
+    TypeDeclGroupOne        : TypeSpec
+                            | LBRACK TypeDeclGroupOneRepOne RBRACK
+    TypeDeclGroupOneRepOne  : TypeDeclGroupOneRepOne TypeSpec SEMICOLON
+                            | """
 
 
 def p_TypeSpec(p):
@@ -295,31 +236,19 @@ def p_TypeDef(p):
 
 
 def p_VarDecl(p):
-    """VarDecl : VAR VarDeclGroupOne"""
-
-
-def p_VarDeclGroupOne(p):
-    """VarDeclGroupOne : VarSpec
-                       | LBRACK VarDeclGroupOneRepOne RBRACK"""
-
-
-def p_VarDeclGroupOneRepOne(p):
-    """VarDeclGroupOneRepOne : VarDeclGroupOneRepOne VarSpec SEMICOLON
-                             |"""
+    """VarDecl             : VAR VarDeclGroupOne
+    VarDeclGroupOne        : VarSpec
+                           | LBRACK VarDeclGroupOneRepOne RBRACK
+    VarDeclGroupOneRepOne  : VarDeclGroupOneRepOne VarSpec SEMICOLON
+                           | """
 
 
 def p_VarSpec(p):
-    """VarSpec : IdentifierList VarSpecGroupOne"""
-
-
-def p_VarSpecGroupOne(p):
-    """VarSpecGroupOne : Type VarSpecGroupOneOptOne
-                       | ASSIGN ExpressionList"""
-
-
-def p_VarSpecGroupOneOptOne(p):
-    """VarSpecGroupOneOptOne : ASSIGN ExpressionList
-                             |"""
+    """VarSpec             : IdentifierList VarSpecGroupOne
+    VarSpecGroupOne        : Type VarSpecGroupOneOptOne
+                           | ASSIGN ExpressionList
+    VarSpecGroupOneOptOne  : ASSIGN ExpressionList
+                           | """
 
 
 def p_ShortVarDecl(p):
@@ -327,12 +256,9 @@ def p_ShortVarDecl(p):
 
 
 def p_FunctionDecl(p):
-    """FunctionDecl : FUNC FunctionName Signature FunctionDeclOptOne"""
-
-
-def p_FunctionDeclOptOne(p):
-    """FunctionDeclOptOne : FunctionBody
-                          |"""
+    """FunctionDecl     : FUNC FunctionName Signature FunctionDeclOptOne
+    FunctionDeclOptOne  : FunctionBody
+                        | """
 
 
 def p_FunctionName(p):
@@ -344,12 +270,9 @@ def p_FunctionBody(p):
 
 
 def p_MethodDecl(p):
-    """MethodDecl : FUNC Receiver MethodName Signature MethodDeclOptOne"""
-
-
-def p_MethodDeclOptOne(p):
-    """MethodDeclOptOne : FunctionBody
-                        |"""
+    """MethodDecl     : FUNC Receiver MethodName Signature MethodDeclOptOne
+    MethodDeclOptOne  : FunctionBody
+                      | """
 
 
 def p_Receiver(p):
@@ -399,35 +322,23 @@ def p_LiteralType(p):
 
 
 def p_LiteralValue(p):
-    """LiteralValue : LCURLBR LiteralValueOptOne RCURLBR"""
-
-
-def p_LiteralValueOptOne(p):
-    """LiteralValueOptOne : ElementList LiteralValueOptOneOptOne
-                          |"""
-
-
-def p_LiteralValueOptOneOptOne(p):
-    """LiteralValueOptOneOptOne : COMMA
-                                |"""
+    """LiteralValue           : LCURLBR LiteralValueOptOne RCURLBR
+    LiteralValueOptOne        : ElementList LiteralValueOptOneOptOne
+                              |
+    LiteralValueOptOneOptOne  : COMMA
+                              | """
 
 
 def p_ElementList(p):
-    """ElementList : KeyedElement ElementListRepOne"""
-
-
-def p_ElementListRepOne(p):
-    """ElementListRepOne : ElementListRepOne COMMA KeyedElement
-                         |"""
+    """ElementList     : KeyedElement ElementListRepOne
+    ElementListRepOne  : ElementListRepOne COMMA KeyedElement
+                       | """
 
 
 def p_KeyedElement(p):
-    """KeyedElement : KeyedElementOptOne Element"""
-
-
-def p_KeyedElementOptOne(p):
-    """KeyedElementOptOne : Key COLON
-                          |"""
+    """KeyedElement     : KeyedElementOptOne Element
+    KeyedElementOptOne  : Key COLON
+                        | """
 
 
 def p_Key(p):
@@ -469,23 +380,14 @@ def p_Index(p):
 
 
 def p_Slice(p):
-    """Slice : LSQBRACK SliceOptOne COLON SliceOptTwo RSQBRACK
-             | LSQBRACK SliceOptThree COLON Expression COLON Expression RSQBRACK"""
-
-
-def p_SliceOptOne(p):
-    """SliceOptOne : Expression
-                   |"""
-
-
-def p_SliceOptTwo(p):
-    """SliceOptTwo : Expression
-                   |"""
-
-
-def p_SliceOptThree(p):
-    """SliceOptThree : Expression
-                     |"""
+    """Slice       : LSQBRACK SliceOptOne COLON SliceOptTwo RSQBRACK
+                   | LSQBRACK SliceOptThree COLON Expression COLON Expression RSQBRACK
+    SliceOptOne    : Expression
+                   |
+    SliceOptTwo    : Expression
+                   |
+    SliceOptThree  : Expression
+                   | """
 
 
 def p_TypeAssertion(p):
@@ -493,32 +395,17 @@ def p_TypeAssertion(p):
 
 
 def p_Arguments(p):
-    """Arguments : LBRACK ArgumentsOptOne RBRACK"""
-
-
-def p_ArgumentsOptOne(p):
-    """ArgumentsOptOne : ArgumentsOptOneGroupOne ArgumentsOptOneOptOne ArgumentsOptOneOptTwo
-                       |"""
-
-
-def p_ArgumentsOptOneGroupOne(p):
-    """ArgumentsOptOneGroupOne : ExpressionList
-                               | Type ArgumentsOptOneGroupOneOptOne"""
-
-
-def p_ArgumentsOptOneGroupOneOptOne(p):
-    """ArgumentsOptOneGroupOneOptOne : COMMA ExpressionList
-                                     |"""
-
-
-def p_ArgumentsOptOneOptOne(p):
-    """ArgumentsOptOneOptOne : TRIDOT
-                             |"""
-
-
-def p_ArgumentsOptOneOptTwo(p):
-    """ArgumentsOptOneOptTwo : COMMA
-                             |"""
+    """Arguments                   : LBRACK ArgumentsOptOne RBRACK
+    ArgumentsOptOne                : ArgumentsOptOneGroupOne ArgumentsOptOneOptOne ArgumentsOptOneOptTwo
+                                   |
+    ArgumentsOptOneGroupOne        : ExpressionList
+                                   | Type ArgumentsOptOneGroupOneOptOne
+    ArgumentsOptOneGroupOneOptOne  : COMMA ExpressionList
+                                   |
+    ArgumentsOptOneOptOne          : TRIDOT
+                                   |
+    ArgumentsOptOneOptTwo          : COMMA
+                                   | """
 
 
 def p_MethodExpr(p):
@@ -584,12 +471,9 @@ def p_unaryop(p):
 
 
 def p_Conversion(p):
-    """Conversion : Type LBRACK Expression ConversionOptOne RBRACK"""
-
-
-def p_ConversionOptOne(p):
-    """ConversionOptOne : COMMA
-                        |"""
+    """Conversion     : Type LBRACK Expression ConversionOptOne RBRACK
+    ConversionOptOne  : COMMA
+                      | """
 
 
 def p_Statement(p):
@@ -620,8 +504,7 @@ def p_SimpleStmt(p):
 
 
 def p_EmptyStmt(p):
-    """
-        EmptyStmt :"""
+    """EmptyStmt : """
 
 
 def p_LabeledStmt(p):
@@ -645,12 +528,9 @@ def p_Channel(p):
 
 
 def p_IncDecStmt(p):
-    """IncDecStmt : Expression IncDecStmtGroupOne"""
-
-
-def p_IncDecStmtGroupOne(p):
-    """IncDecStmtGroupOne : INCR
-                          | DECR"""
+    """IncDecStmt       : Expression IncDecStmtGroupOne
+    IncDecStmtGroupOne  : INCR
+                        | DECR"""
 
 
 def p_Assignment(p):
@@ -658,32 +538,20 @@ def p_Assignment(p):
 
 
 def p_assignop(p):
-    """assignop : assignopOptOne ASSIGN"""
-
-
-def p_assignopOptOne(p):
-    """assignopOptOne : addop
-                      | mulop
-                      |"""
+    """assignop     : assignopOptOne ASSIGN
+    assignopOptOne  : addop
+                    | mulop
+                    | """
 
 
 def p_IfStmt(p):
-    """IfStmt : IF IfStmtOptOne Expression Block IfStmtOptTwo"""
-
-
-def p_IfStmtOptOne(p):
-    """IfStmtOptOne : SimpleStmt SEMICOLON
-                    |"""
-
-
-def p_IfStmtOptTwo(p):
-    """IfStmtOptTwo : ELSE IfStmtOptTwoGroupOne
-                    |"""
-
-
-def p_IfStmtOptTwoGroupOne(p):
-    """IfStmtOptTwoGroupOne : IfStmt
-                            | Block"""
+    """IfStmt             : IF IfStmtOptOne Expression Block IfStmtOptTwo
+    IfStmtOptOne          : SimpleStmt SEMICOLON
+                          |
+    IfStmtOptTwo          : ELSE IfStmtOptTwoGroupOne
+                          |
+    IfStmtOptTwoGroupOne  : IfStmt
+                          | Block"""
 
 
 def p_SwitchStmt(p):
@@ -692,22 +560,13 @@ def p_SwitchStmt(p):
 
 
 def p_ExprSwitchStmt(p):
-    """ExprSwitchStmt : SWITCH ExprSwitchStmtOptOne ExprSwitchStmtOptTwo LCURLBR ExprSwitchStmtRepOne RCURLBR"""
-
-
-def p_ExprSwitchStmtOptOne(p):
-    """ExprSwitchStmtOptOne : SimpleStmt SEMICOLON
-                            |"""
-
-
-def p_ExprSwitchStmtOptTwo(p):
-    """ExprSwitchStmtOptTwo : Expression
-                            |"""
-
-
-def p_ExprSwitchStmtRepOne(p):
-    """ExprSwitchStmtRepOne : ExprSwitchStmtRepOne ExprCaseClause
-                            |"""
+    """ExprSwitchStmt     : SWITCH ExprSwitchStmtOptOne ExprSwitchStmtOptTwo LCURLBR ExprSwitchStmtRepOne RCURLBR
+    ExprSwitchStmtOptOne  : SimpleStmt SEMICOLON
+                          |
+    ExprSwitchStmtOptTwo  : Expression
+                          |
+    ExprSwitchStmtRepOne  : ExprSwitchStmtRepOne ExprCaseClause
+                          | """
 
 
 def p_ExprCaseClause(p):
@@ -720,26 +579,17 @@ def p_ExprSwitchCase(p):
 
 
 def p_TypeSwitchStmt(p):
-    """TypeSwitchStmt : SWITCH TypeSwitchStmtOptOne TypeSwitchGuard LCURLBR TypeSwitchStmtRepOne RCURLBR"""
-
-
-def p_TypeSwitchStmtOptOne(p):
-    """TypeSwitchStmtOptOne : SimpleStmt SEMICOLON
-                            |"""
-
-
-def p_TypeSwitchStmtRepOne(p):
-    """TypeSwitchStmtRepOne : TypeSwitchStmtRepOne TypeCaseClause
-                            |"""
+    """TypeSwitchStmt     : SWITCH TypeSwitchStmtOptOne TypeSwitchGuard LCURLBR TypeSwitchStmtRepOne RCURLBR
+    TypeSwitchStmtOptOne  : SimpleStmt SEMICOLON
+                          |
+    TypeSwitchStmtRepOne  : TypeSwitchStmtRepOne TypeCaseClause
+                          | """
 
 
 def p_TypeSwitchGuard(p):
-    """TypeSwitchGuard : TypeSwitchGuardOptOne PrimaryExpr DOT LBRACK TYPE RBRACK"""
-
-
-def p_TypeSwitchGuardOptOne(p):
-    """TypeSwitchGuardOptOne : ID SHDECL
-                             |"""
+    """TypeSwitchGuard     : TypeSwitchGuardOptOne PrimaryExpr DOT LBRACK TYPE RBRACK
+    TypeSwitchGuardOptOne  : ID SHDECL
+                           | """
 
 
 def p_TypeCaseClause(p):
@@ -752,23 +602,17 @@ def p_TypeSwitchCase(p):
 
 
 def p_TypeList(p):
-    """TypeList : Type TypeListRepOne"""
-
-
-def p_TypeListRepOne(p):
-    """TypeListRepOne : TypeListRepOne COMMA Type
-                      |"""
+    """TypeList     : Type TypeListRepOne
+    TypeListRepOne  : TypeListRepOne COMMA Type
+                    | """
 
 
 def p_ForStmt(p):
-    """ForStmt : FOR ForStmtOptOne Block"""
-
-
-def p_ForStmtOptOne(p):
-    """ForStmtOptOne : Condition
-                     | ForClause
-                     | RangeClause
-                     |"""
+    """ForStmt     : FOR ForStmtOptOne Block
+    ForStmtOptOne  : Condition
+                   | ForClause
+                   | RangeClause
+                   | """
 
 
 def p_Condition(p):
@@ -776,22 +620,13 @@ def p_Condition(p):
 
 
 def p_ForClause(p):
-    """ForClause : ForClauseOptOne SEMICOLON ForClauseOptTwo SEMICOLON ForClauseOptThree"""
-
-
-def p_ForClauseOptOne(p):
-    """ForClauseOptOne : InitStmt
-                       |"""
-
-
-def p_ForClauseOptTwo(p):
-    """ForClauseOptTwo : Condition
-                       |"""
-
-
-def p_ForClauseOptThree(p):
-    """ForClauseOptThree : PostStmt
-                         |"""
+    """ForClause       : ForClauseOptOne SEMICOLON ForClauseOptTwo SEMICOLON ForClauseOptThree
+    ForClauseOptOne    : InitStmt
+                       |
+    ForClauseOptTwo    : Condition
+                       |
+    ForClauseOptThree  : PostStmt
+                       | """
 
 
 def p_InitStmt(p):
@@ -803,13 +638,10 @@ def p_PostStmt(p):
 
 
 def p_RangeClause(p):
-    """RangeClause : RangeClauseOptOne RANGE Expression"""
-
-
-def p_RangeClauseOptOne(p):
-    """RangeClauseOptOne : ExpressionList ASSIGN
-                         | IdentifierList SHDECL
-                         |"""
+    """RangeClause     : RangeClauseOptOne RANGE Expression
+    RangeClauseOptOne  : ExpressionList ASSIGN
+                       | IdentifierList SHDECL
+                       | """
 
 
 def p_GoStmt(p):
@@ -817,12 +649,9 @@ def p_GoStmt(p):
 
 
 def p_SelectStmt(p):
-    """SelectStmt : SELECT LCURLBR SelectStmtRepOne RCURLBR"""
-
-
-def p_SelectStmtRepOne(p):
-    """SelectStmtRepOne : SelectStmtRepOne CommClause
-                        |"""
+    """SelectStmt     : SELECT LCURLBR SelectStmtRepOne RCURLBR
+    SelectStmtRepOne  : SelectStmtRepOne CommClause
+                      | """
 
 
 def p_CommClause(p):
@@ -830,23 +659,17 @@ def p_CommClause(p):
 
 
 def p_CommCase(p):
-    """CommCase : CASE CommCaseGroupOne
-                | DEFAULT"""
-
-
-def p_CommCaseGroupOne(p):
-    """CommCaseGroupOne : SendStmt
-                        | RecvStmt"""
+    """CommCase       : CASE CommCaseGroupOne
+                      | DEFAULT
+    CommCaseGroupOne  : SendStmt
+                      | RecvStmt"""
 
 
 def p_RecvStmt(p):
-    """RecvStmt : RecvStmtOptOne RecvExpr"""
-
-
-def p_RecvStmtOptOne(p):
-    """RecvStmtOptOne : ExpressionList ASSIGN
-                      | IdentifierList SHDECL
-                      |"""
+    """RecvStmt     : RecvStmtOptOne RecvExpr
+    RecvStmtOptOne  : ExpressionList ASSIGN
+                    | IdentifierList SHDECL
+                    | """
 
 
 def p_RecvExpr(p):
@@ -854,30 +677,21 @@ def p_RecvExpr(p):
 
 
 def p_ReturnStmt(p):
-    """ReturnStmt : RETURN ReturnStmtOptOne"""
-
-
-def p_ReturnStmtOptOne(p):
-    """ReturnStmtOptOne : ExpressionList
-                        |"""
+    """ReturnStmt     : RETURN ReturnStmtOptOne
+    ReturnStmtOptOne  : ExpressionList
+                      | """
 
 
 def p_BreakStmt(p):
-    """BreakStmt : BREAK BreakStmtOptOne"""
-
-
-def p_BreakStmtOptOne(p):
-    """BreakStmtOptOne : Label
-                       |"""
+    """BreakStmt     : BREAK BreakStmtOptOne
+    BreakStmtOptOne  : Label
+                     | """
 
 
 def p_ContinueStmt(p):
-    """ContinueStmt : CONTINUE ContinueStmtOptOne"""
-
-
-def p_ContinueStmtOptOne(p):
-    """ContinueStmtOptOne : Label
-                          |"""
+    """ContinueStmt     : CONTINUE ContinueStmtOptOne
+    ContinueStmtOptOne  : Label
+                        | """
 
 
 def p_GotoStmt(p):
@@ -892,6 +706,14 @@ def p_DeferStmt(p):
     """DeferStmt : DEFER Expression"""
 
 
+def p_SourceFile(p):
+    """SourceFile     : PackageClause SEMICOLON SourceFileRepOne SourceFileRepTwo
+    SourceFileRepOne  : SourceFileRepOne ImportDecl SEMICOLON
+                      |
+    SourceFileRepTwo  : SourceFileRepTwo TopLevelDecl SEMICOLON
+                      | """
+
+
 def p_PackageClause(p):
     """PackageClause : PACKAGE PackageName"""
 
@@ -901,27 +723,18 @@ def p_PackageName(p):
 
 
 def p_ImportDecl(p):
-    """ImportDecl : IMPORT ImportDeclGroupOne"""
-
-
-def p_ImportDeclGroupOne(p):
-    """ImportDeclGroupOne : ImportSpec
-                          | LBRACK ImportDeclGroupOneRepOne RBRACK"""
-
-
-def p_ImportDeclGroupOneRepOne(p):
-    """ImportDeclGroupOneRepOne : ImportDeclGroupOneRepOne ImportSpec SEMICOLON
-                                |"""
+    """ImportDecl             : IMPORT ImportDeclGroupOne
+    ImportDeclGroupOne        : ImportSpec
+                              | LBRACK ImportDeclGroupOneRepOne RBRACK
+    ImportDeclGroupOneRepOne  : ImportDeclGroupOneRepOne ImportSpec SEMICOLON
+                              | """
 
 
 def p_ImportSpec(p):
-    """ImportSpec : ImportSpecOptOne ImportPath"""
-
-
-def p_ImportSpecOptOne(p):
-    """ImportSpecOptOne : DOT
-                        | PackageName
-                        |"""
+    """ImportSpec     : ImportSpecOptOne ImportPath
+    ImportSpecOptOne  : DOT
+                      | PackageName
+                      | """
 
 
 def p_ImportPath(p):
@@ -931,15 +744,15 @@ def p_ImportPath(p):
 parser = yacc.yacc()
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Parser for Go")
-    parser.add_argument("input", type=str, help="input file")
-    parser.add_argument(
+    argparser = ArgumentParser(description="Parser for Go")
+    argparser.add_argument("input", type=str, help="input file")
+    argparser.add_argument(
         "-o", "--output", type=str, default=None, help="output file name"
     )
-    parser.add_argument(
+    argparser.add_argument(
         "-v", "--verbose", action="store_true", help="enable debug output"
     )
-    args = parser.parse_args()
+    args = argparser.parse_args()
     if args.output is None:
         args.output = args.input.split("/")[-1] + ".dot"
 
@@ -950,5 +763,5 @@ if __name__ == "__main__":
         print(result)
 
     with open(args.output, "w") as outf:
-        outf.write(result)
+        outf.write(str(result))
     print('Output file "{}" generated'.format(args.output))

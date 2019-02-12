@@ -147,7 +147,8 @@ def tokenizer(string):
     return string
 
 
-grammar = []
+# Start with "SourceFile" as start symbol
+grammar = [["Start: SourceFile"]]
 for item in text.split("\n"):
     if item == "":
         continue
@@ -158,13 +159,6 @@ for item in text.split("\n"):
     item = tokenizer(item)
     item = re.sub(r"([a-z])_([a-z])", r"\1\2", item)  # Remove underscores
 
-    # If non-terminal is "SourceFile" ie. start symbol, then keep at top
-    name = item.split(":")[0].strip()
-    if name == "SourceFile":
-        start = True
-    else:
-        start = False
-
     rules = ebnf2bnf(item)
     total_rules = []
     # Split alternatives for each rule as per indentation
@@ -172,12 +166,9 @@ for item in text.split("\n"):
         lhs_len = len(rule.split(":")[0])
         total_rules.append(re.sub(r" *\|", "\n" + " " * lhs_len + "|", rule))
 
-    if start:
-        grammar = total_rules + grammar
-    else:
-        grammar += total_rules
+    grammar.append(total_rules)
 
 output_file = "bnf.txt"
 with open(output_file, "w") as outf:
-    outf.write("\n\n".join(grammar))
+    outf.write("\n\n".join(["\n".join(rules) for rules in grammar]))
 print("Output written to " + output_file)

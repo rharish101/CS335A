@@ -1,10 +1,4 @@
-SourceFile : PackageClause SEMICOLON SourceFileRepOne SourceFileRepTwo
-
-SourceFileRepOne : SourceFileRepOne ImportDecl SEMICOLON
-                 |
-
-SourceFileRepTwo : SourceFileRepTwo TopLevelDecl SEMICOLON
-                 |
+Start: SourceFile
 
 Type : TypeName
      | TypeLit
@@ -31,20 +25,16 @@ ElementType : Type
 SliceType : LSQBRACK RSQBRACK ElementType
 
 StructType : STRUCT LCURLBR StructTypeRepOne RCURLBR
-
 StructTypeRepOne : StructTypeRepOne FieldDecl SEMICOLON
                  |
 
 FieldDecl : FieldDeclGroupOne FieldDeclOptOne
-
 FieldDeclGroupOne : IdentifierList Type
                   | EmbeddedField
-
 FieldDeclOptOne : Tag
                 |
 
 EmbeddedField : EmbeddedFieldOptOne TypeName
-
 EmbeddedFieldOptOne : MULT
                     |
 
@@ -57,7 +47,6 @@ BaseType : Type
 FunctionType : FUNC Signature
 
 Signature : Parameters SignatureOptOne
-
 SignatureOptOne : Result
                 |
 
@@ -65,28 +54,22 @@ Result : Parameters
        | Type
 
 Parameters : LBRACK ParametersOptOne RBRACK
-
 ParametersOptOne : ParameterList ParametersOptOneOptOne
                  |
-
 ParametersOptOneOptOne : COMMA
                        |
 
 ParameterList : ParameterDecl ParameterListRepOne
-
 ParameterListRepOne : ParameterListRepOne COMMA ParameterDecl
                     |
 
 ParameterDecl : ParameterDeclOptOne ParameterDeclOptTwo Type
-
 ParameterDeclOptOne : IdentifierList
                     |
-
 ParameterDeclOptTwo : TRIDOT
                     |
 
 InterfaceType : INTERFACE LCURLBR InterfaceTypeRepOne RCURLBR
-
 InterfaceTypeRepOne : InterfaceTypeRepOne MethodSpec SEMICOLON
                     |
 
@@ -102,7 +85,6 @@ MapType : MAP LSQBRACK KeyType RSQBRACK ElementType
 KeyType : Type
 
 ChannelType : ChannelTypeGroupOne ElementType
-
 ChannelTypeGroupOne : CHAN
                     | CHAN REC
                     | REC CHAN
@@ -110,7 +92,6 @@ ChannelTypeGroupOne : CHAN
 Block : LCURLBR StatementList RCURLBR
 
 StatementList : StatementListRepOne
-
 StatementListRepOne : StatementListRepOne Statement SEMICOLON
                     |
 
@@ -123,36 +104,28 @@ TopLevelDecl : Declaration
              | MethodDecl
 
 ConstDecl : CONST ConstDeclGroupOne
-
 ConstDeclGroupOne : ConstSpec
                   | LBRACK ConstDeclGroupOneRepOne RBRACK
-
 ConstDeclGroupOneRepOne : ConstDeclGroupOneRepOne ConstSpec SEMICOLON
                         |
 
 ConstSpec : IdentifierList ConstSpecOptOne
-
 ConstSpecOptOne : ConstSpecOptOneOptOne ASSIGN ExpressionList
                 |
-
 ConstSpecOptOneOptOne : Type
                       |
 
 IdentifierList : ID IdentifierListRepOne
-
 IdentifierListRepOne : IdentifierListRepOne COMMA ID
                      |
 
 ExpressionList : Expression ExpressionListRepOne
-
 ExpressionListRepOne : ExpressionListRepOne COMMA Expression
                      |
 
 TypeDecl : TYPE TypeDeclGroupOne
-
 TypeDeclGroupOne : TypeSpec
                  | LBRACK TypeDeclGroupOneRepOne RBRACK
-
 TypeDeclGroupOneRepOne : TypeDeclGroupOneRepOne TypeSpec SEMICOLON
                        |
 
@@ -164,25 +137,20 @@ AliasDecl : ID ASSIGN Type
 TypeDef : ID Type
 
 VarDecl : VAR VarDeclGroupOne
-
 VarDeclGroupOne : VarSpec
                 | LBRACK VarDeclGroupOneRepOne RBRACK
-
 VarDeclGroupOneRepOne : VarDeclGroupOneRepOne VarSpec SEMICOLON
                       |
 
 VarSpec : IdentifierList VarSpecGroupOne
-
 VarSpecGroupOne : Type VarSpecGroupOneOptOne
                 | ASSIGN ExpressionList
-
 VarSpecGroupOneOptOne : ASSIGN ExpressionList
                       |
 
 ShortVarDecl : IdentifierList SHDECL ExpressionList
 
 FunctionDecl : FUNC FunctionName Signature FunctionDeclOptOne
-
 FunctionDeclOptOne : FunctionBody
                    |
 
@@ -191,7 +159,6 @@ FunctionName : ID
 FunctionBody : Block
 
 MethodDecl : FUNC Receiver MethodName Signature MethodDeclOptOne
-
 MethodDeclOptOne : FunctionBody
                  |
 
@@ -226,20 +193,16 @@ LiteralType : StructType
             | TypeName
 
 LiteralValue : LCURLBR LiteralValueOptOne RCURLBR
-
 LiteralValueOptOne : ElementList LiteralValueOptOneOptOne
                    |
-
 LiteralValueOptOneOptOne : COMMA
                          |
 
 ElementList : KeyedElement ElementListRepOne
-
 ElementListRepOne : ElementListRepOne COMMA KeyedElement
                   |
 
 KeyedElement : KeyedElementOptOne Element
-
 KeyedElementOptOne : Key COLON
                    |
 
@@ -269,32 +232,24 @@ Index : LSQBRACK Expression RSQBRACK
 
 Slice : LSQBRACK SliceOptOne COLON SliceOptTwo RSQBRACK
       | LSQBRACK SliceOptThree COLON Expression COLON Expression RSQBRACK
-
 SliceOptOne : Expression
             |
-
 SliceOptTwo : Expression
             |
-
 SliceOptThree : Expression
               |
 
 TypeAssertion : DOT LBRACK Type RBRACK
 
 Arguments : LBRACK ArgumentsOptOne RBRACK
-
 ArgumentsOptOne : ArgumentsOptOneGroupOne ArgumentsOptOneOptOne ArgumentsOptOneOptTwo
                 |
-
 ArgumentsOptOneGroupOne : ExpressionList
                         | Type ArgumentsOptOneGroupOneOptOne
-
 ArgumentsOptOneGroupOneOptOne : COMMA ExpressionList
                               |
-
 ArgumentsOptOneOptOne : TRIDOT
                       |
-
 ArgumentsOptOneOptTwo : COMMA
                       |
 
@@ -343,7 +298,6 @@ unaryop : PLUS
         | REC
 
 Conversion : Type LBRACK Expression ConversionOptOne RBRACK
-
 ConversionOptOne : COMMA
                  |
 
@@ -383,26 +337,21 @@ SendStmt : Channel REC Expression
 Channel : Expression
 
 IncDecStmt : Expression IncDecStmtGroupOne
-
 IncDecStmtGroupOne : INCR
                    | DECR
 
 Assignment : ExpressionList assignop ExpressionList
 
 assignop : assignopOptOne ASSIGN
-
 assignopOptOne : addop
                | mulop
                |
 
 IfStmt : IF IfStmtOptOne Expression Block IfStmtOptTwo
-
 IfStmtOptOne : SimpleStmt SEMICOLON
              |
-
 IfStmtOptTwo : ELSE IfStmtOptTwoGroupOne
              |
-
 IfStmtOptTwoGroupOne : IfStmt
                      | Block
 
@@ -410,13 +359,10 @@ SwitchStmt : ExprSwitchStmt
            | TypeSwitchStmt
 
 ExprSwitchStmt : SWITCH ExprSwitchStmtOptOne ExprSwitchStmtOptTwo LCURLBR ExprSwitchStmtRepOne RCURLBR
-
 ExprSwitchStmtOptOne : SimpleStmt SEMICOLON
                      |
-
 ExprSwitchStmtOptTwo : Expression
                      |
-
 ExprSwitchStmtRepOne : ExprSwitchStmtRepOne ExprCaseClause
                      |
 
@@ -426,15 +372,12 @@ ExprSwitchCase : CASE ExpressionList
                | DEFAULT
 
 TypeSwitchStmt : SWITCH TypeSwitchStmtOptOne TypeSwitchGuard LCURLBR TypeSwitchStmtRepOne RCURLBR
-
 TypeSwitchStmtOptOne : SimpleStmt SEMICOLON
                      |
-
 TypeSwitchStmtRepOne : TypeSwitchStmtRepOne TypeCaseClause
                      |
 
 TypeSwitchGuard : TypeSwitchGuardOptOne PrimaryExpr DOT LBRACK TYPE RBRACK
-
 TypeSwitchGuardOptOne : ID SHDECL
                       |
 
@@ -444,12 +387,10 @@ TypeSwitchCase : CASE TypeList
                | DEFAULT
 
 TypeList : Type TypeListRepOne
-
 TypeListRepOne : TypeListRepOne COMMA Type
                |
 
 ForStmt : FOR ForStmtOptOne Block
-
 ForStmtOptOne : Condition
               | ForClause
               | RangeClause
@@ -458,13 +399,10 @@ ForStmtOptOne : Condition
 Condition : Expression
 
 ForClause : ForClauseOptOne SEMICOLON ForClauseOptTwo SEMICOLON ForClauseOptThree
-
 ForClauseOptOne : InitStmt
                 |
-
 ForClauseOptTwo : Condition
                 |
-
 ForClauseOptThree : PostStmt
                   |
 
@@ -473,7 +411,6 @@ InitStmt : SimpleStmt
 PostStmt : SimpleStmt
 
 RangeClause : RangeClauseOptOne RANGE Expression
-
 RangeClauseOptOne : ExpressionList ASSIGN
                   | IdentifierList SHDECL
                   |
@@ -481,7 +418,6 @@ RangeClauseOptOne : ExpressionList ASSIGN
 GoStmt : GO Expression
 
 SelectStmt : SELECT LCURLBR SelectStmtRepOne RCURLBR
-
 SelectStmtRepOne : SelectStmtRepOne CommClause
                  |
 
@@ -489,12 +425,10 @@ CommClause : CommCase COLON StatementList
 
 CommCase : CASE CommCaseGroupOne
          | DEFAULT
-
 CommCaseGroupOne : SendStmt
                  | RecvStmt
 
 RecvStmt : RecvStmtOptOne RecvExpr
-
 RecvStmtOptOne : ExpressionList ASSIGN
                | IdentifierList SHDECL
                |
@@ -502,17 +436,14 @@ RecvStmtOptOne : ExpressionList ASSIGN
 RecvExpr : Expression
 
 ReturnStmt : RETURN ReturnStmtOptOne
-
 ReturnStmtOptOne : ExpressionList
                  |
 
 BreakStmt : BREAK BreakStmtOptOne
-
 BreakStmtOptOne : Label
                 |
 
 ContinueStmt : CONTINUE ContinueStmtOptOne
-
 ContinueStmtOptOne : Label
                    |
 
@@ -522,20 +453,23 @@ FallthroughStmt : FALLTHROUGH
 
 DeferStmt : DEFER Expression
 
+SourceFile : PackageClause SEMICOLON SourceFileRepOne SourceFileRepTwo
+SourceFileRepOne : SourceFileRepOne ImportDecl SEMICOLON
+                 |
+SourceFileRepTwo : SourceFileRepTwo TopLevelDecl SEMICOLON
+                 |
+
 PackageClause : PACKAGE PackageName
 
 PackageName : ID
 
 ImportDecl : IMPORT ImportDeclGroupOne
-
 ImportDeclGroupOne : ImportSpec
                    | LBRACK ImportDeclGroupOneRepOne RBRACK
-
 ImportDeclGroupOneRepOne : ImportDeclGroupOneRepOne ImportSpec SEMICOLON
                          |
 
 ImportSpec : ImportSpecOptOne ImportPath
-
 ImportSpecOptOne : DOT
                  | PackageName
                  |

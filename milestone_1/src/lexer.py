@@ -80,7 +80,6 @@ tokens = (
         "FLOAT",
         "INT",
         "ID",
-        "KEYWORD",
         "RUNE",
         "STRING",
         "OP",
@@ -192,6 +191,20 @@ def t_NEWLINES(t):
         t.type = "SEMICOLON"
         t.lexer.last = False
         return t
+
+
+def t_error(t):
+    print(
+        '  File "{}", line {}\n    {}'.format(
+            t.lexer.filename, t.lineno, t.lexer.lines[t.lineno - 1]
+        )
+    )
+    print(
+        'SyntaxError: Unexpected token "{}" at position {}'.format(
+            t.value, t.lexpos
+        )
+    )
+    exit(1)
 
 
 t_ignore = " \t"

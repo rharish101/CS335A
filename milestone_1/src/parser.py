@@ -48,6 +48,10 @@ def p_empty(p):
     pass
 
 
+def p_error(p):
+    t_error(p)
+
+
 # =============================================================================
 # TYPES
 # =============================================================================
@@ -870,7 +874,10 @@ if __name__ == "__main__":
         args.output = args.input.split("/")[-1] + ".dot"
 
     with open(args.input, "r") as go:
-        parser.parse(go.read())
+        input_text = go.read()
+    lexer.filename = args.input
+    lexer.lines = input_text.split("\n")
+    parser.parse(input_text)
 
     if args.verbose:
         print(parsed)

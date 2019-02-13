@@ -63,14 +63,14 @@ def p_Type(p):
             | LBRACK Type RBRACK
             | LBRACK ID DOT ID RBRACK
     """
-    if len(p) == 1:
+    if len(p) == 2:  # TypeLit
         p[0] = p[1]
-    elif len(p) == 3:
+    elif len(p) == 4:  # Type or ID
         if type(p) is str:
             p[0] = GoInbuiltType(p[1])
         else:
             p[0] = p[2]
-    else:
+    else:  # ID DOT ID
         p[0] = GoFromModule(p[2], p[4])
 
 
@@ -89,12 +89,12 @@ def p_ArrayType(p):
                  | LSQBRACK ArrayLength RSQBRACK ID
                  | LSQBRACK ArrayLength RSQBRACK ID DOT ID
     """
-    if len(p) == 5:
+    if len(p) == 5:  # Type or ID
         if type(p[4]) is str:
             arr_type = GoInbuiltType(p[4])
         else:
             arr_type = p[4]
-    else:
+    else:  # ID DOT ID
         arr_type = GoFromModule(p[4], p[6])
     p[0] = GoArray(p[2], arr_type)
 
@@ -136,11 +136,11 @@ def p_FieldDecl(p):
     # Embedded field
     else:
         field_type = GoType("embedded")
-        if len(p) == 5:
+        if len(p) == 6:
             var_list = [GoDeref(GoFromModule(p[1], p[3]))]
         elif len(p) == 5:
             var_list = [GoFromModule(p[1], p[3])]
-        elif len(p) == 5:
+        elif len(p) == 4:
             var_list = [GoDeref(GoVar(p[1]))]
         else:
             var_list = [GoVar(p[1])]
@@ -152,7 +152,7 @@ def p_FieldDeclList(p):
     """FieldDeclList : empty
                      | FieldDeclList FieldDecl SEMICOLON
     """
-    if p[1] is None:
+    if p[1] is None:  # empty
         p[0] = []
     else:
         p[0] = p[1] + [p[2]]
@@ -162,7 +162,7 @@ def p_TagTop(p):
     """TagTop : empty
               | STRING
     """
-    if p[1] is None:
+    if p[1] is None:  # empty
         p[0] = ""
     else:
         p[0] = p[1]
@@ -184,6 +184,7 @@ def p_Signature(p):
     """Signature : Parameters
                  | Parameters Result
     """
+    # First element is Parameters, second is Result
     p[0] = (p[1], p[2])
 
 
@@ -193,14 +194,14 @@ def p_Result(p):
               | ID
               | ID DOT ID
     """
-    if type(p[1]) is list:
+    if type(p[1]) is list:  # Parameters
         p[0] = p[1]
     else:
-        if isinstance(p[1], GoType) or isinstance(p[1], GoFromModule):
+        if isinstance(p[1], GoType) or isinstance(p[1], GoFromModule):  # Type
             dtype = p[1]
-        elif len(p) == 2:
+        elif len(p) == 4:  # ID DOT ID
             dtype = GoFromModule(p[1], p[3])
-        else:
+        else:  # ID
             dtype = GoInbuiltType(p[1])
         p[0] = [GoParam(dtype=dtype)]
 
@@ -210,9 +211,9 @@ def p_Parameters(p):
                   | LBRACK ParameterList RBRACK
                   | LBRACK ParameterList COMMA RBRACK
     """
-    if len(p) == 3:
+    if len(p) == 3:  # Nothing in there
         p[0] = []
-    else:
+    else:  # COMMA doesn't matter
         p[0] = p[2]
 
 
@@ -220,7 +221,7 @@ def p_ParameterList(p):
     """ParameterList : ParameterDecl
                      | ParameterList COMMA ParameterDecl
     """
-    if len(p) == 2:
+    if len(p) == 2:  # Single ParameterDecl
         p[0] = [p[1]]
     else:
         p[0] = p[1] + p[3]
@@ -248,16 +249,16 @@ def p_ParameterDecl(p):
         if type(item) is LexToken and item.type == "TRIDOT":
             del p[i]
 
-    if isinstance(p[2], GoType) or isinstance(p[2], GoFromModule):
+    if isinstance(p[2], GoType) or isinstance(p[2], GoFromModule):  # Type
         dtype = p[2]
-    elif len(p) == 5:
+    elif len(p) == 5:  # ID DOT ID is type
         dtype = GoFromModule(p[2], p[4])
-    else:
+    else:  # ID is type
         dtype = GoInbuiltType(p[2])
 
-    if type(p[1]) is list:
+    if type(p[1]) is list:  # IdentifierList
         p[0] = [GoParam(name=identifier, dtype=dtype) for identifier in p[1]]
-    else:
+    else:  # ID
         p[0] = [GoParam(name=p[1], dtype=dtype)]
 
 
@@ -271,7 +272,7 @@ def p_MethodSpecList(p):
     """MethodSpecList : empty
                       | MethodSpecList MethodSpec SEMICOLON
     """
-    if len(p) == 2:
+    if len(p) == 2:  # empty
         p[0] = []
     else:
         p[0] = p[1] + [p[2]]
@@ -282,11 +283,11 @@ def p_MethodSpec(p):
                   | ID DOT ID
                   | ID
     """
-    if len(p) == 3:
+    if len(p) == 3:  # Function signature given
         p[0] = GoMethodFunc(p[1], *p[2])
-    elif len(p) == 4:
+    elif len(p) == 4:  # ID DOT ID element
         p[0] = GoFromModule(p[1], p[3])
-    else:
+    else:  # ID element
         p[0] = GoInbuiltType(p[1])
 
 
@@ -305,7 +306,7 @@ def p_StatementList(p):
     """StatementList : Statement SEMICOLON StatementList
                      | empty
     """
-    if len(p) == 2:
+    if len(p) == 2:  # emtpy
         p[0] = []
     else:
         p[0] = [p[1]] + p[3]
@@ -321,6 +322,7 @@ def p_Declaration(p):
                    | TypeDecl
                    | VarDecl
     """
+    p[0] = p[1]
 
 
 def p_TopLevelDecl(p):
@@ -328,12 +330,17 @@ def p_TopLevelDecl(p):
                     | FunctionDecl
                     | MethodDecl
     """
+    p[0] = p[1]
 
 
 def p_TopLevelDeclList(p):
     """TopLevelDeclList : TopLevelDecl SEMICOLON TopLevelDeclList
                         | empty
     """
+    if len(p) == 2:  # empty
+        p[0] = []
+    else:
+        p[0] = [p[1]] + p[3]
 
 
 def p_ConstDecl(p):
@@ -341,27 +348,41 @@ def p_ConstDecl(p):
                   | CONST ConstSpec
                   | CONST ID
     """
+    if len(p) == 3:  # Single constant spec
+        if isinstance(p[2], GoConstSpec):  # ConstSpec
+            declarations = [p[2]]
+        else:  # ID
+            declarations = [GoConstSpec(p[2])]
+    else:  # List of constant specs
+        declarations = p[3]
+    p[0] = GoConstDecl(declarations)
 
 
 def p_ConstSpec(p):
     """ConstSpec : IdentifierList
-                 | IdentifierList Type ASSIGN Expression
-                 | ID Type ASSIGN Expression
                  | IdentifierList Type ASSIGN ExpressionList
-                 | ID Type ASSIGN ExpressionList
-                 | IdentifierList ID DOT ID ASSIGN Expression
-                 | ID ID DOT ID ASSIGN Expression
                  | IdentifierList ID DOT ID ASSIGN ExpressionList
-                 | ID ID DOT ID ASSIGN ExpressionList
-                 | IdentifierList ID ASSIGN Expression
-                 | ID ID ASSIGN Expression
                  | IdentifierList ID ASSIGN ExpressionList
-                 | ID ID ASSIGN ExpressionList
-                 | IdentifierList ASSIGN Expression
-                 | ID ASSIGN Expression
                  | IdentifierList ASSIGN ExpressionList
+                 | IdentifierList Type ASSIGN Expression
+                 | IdentifierList ID DOT ID ASSIGN Expression
+                 | IdentifierList ID ASSIGN Expression
+                 | IdentifierList ASSIGN Expression
+                 | ID Type ASSIGN ExpressionList
+                 | ID ID DOT ID ASSIGN ExpressionList
+                 | ID ID ASSIGN ExpressionList
                  | ID ASSIGN ExpressionList
+                 | ID Type ASSIGN Expression
+                 | ID ID DOT ID ASSIGN Expression
+                 | ID ID ASSIGN Expression
+                 | ID ASSIGN Expression
     """
+    if type(p[1]) is list:  # IdentifierList
+        if len(p) == 1:
+            p[0] = GoConstSpec(p[1])
+        elif type(p[len(p) - 1]) is list:  # ExpressionList
+        else:  # Expression
+    else:  # ID
 
 
 def p_ConstSpecList(p):
@@ -369,6 +390,14 @@ def p_ConstSpecList(p):
                      | ConstSpecList ConstSpec SEMICOLON
                      | ConstSpecList ID SEMICOLON
     """
+    if len(p) == 2:
+        p[0] = []
+    else:
+        if len(p) == 5:
+            p[1].append(p[2])
+        else:
+            p[1].append(GoConstSpec(p[2]))
+        p[0] = p[1]
 
 
 def p_IdentifierList(p):

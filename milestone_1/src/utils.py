@@ -3,7 +3,7 @@ class GoType:
         self.kind = kind
 
 
-class GoInbuiltType:
+class GoInbuiltType(GoType):
     def __init__(self, name):
         super().__init__("inbuilt")
         self.name = name
@@ -80,3 +80,13 @@ class GoMethodFunc:
 class GoBlock:
     def __init__(self, statements):
         self.statements = statements
+
+
+class GoConstDecl:
+    def __init__(self, declarations):
+        self.declarations = declarations
+
+
+class GoConstSpec:
+    def __init__(self, specs):
+        self.specs = specs

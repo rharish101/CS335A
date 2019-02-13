@@ -592,42 +592,65 @@ def p_ShortVarDecl(p):
                     | ID SHDECL ExpressionList
                     | ID SHDECL Expression
     """
+    if type(p[1]) is list:  # IdentifierList
+        id_list = p[1]
+    else:
+        id_list = [p[1]]
+
+    if type(p[3]) is list:
+        expressions = p[1]
+    else:
+        expressions = [p[1]]
+
+    p[0] = GoShortDecl(id_list, expressions)
 
 
 def p_FunctionDecl(p):
     """FunctionDecl : FUNC FunctionName FunctionDeclTail
     """
+    p[0] = GoFuncDecl(p[2], *p[3])
 
 
 def p_FunctionDeclTail(p):
     """FunctionDeclTail : Function
                         | Signature
     """
+    if len(p[1]) == 3:  # Function is a tuple of (Parameters, Results, Body)
+        p[0] = p[1]
+    else:  # Signature is a tuple of (Parameters, Results)
+        p[0] = (*p[1], GoBlock([]))
 
 
 def p_FunctionName(p):
     """FunctionName : ID
     """
+    p[0] = p[1]
 
 
 def p_Function(p):
     """Function : Signature FunctionBody
     """
+    # Signature is a tuple of (Parameters, Results)
+    p[0] = (*p[1], p[2])
 
 
 def p_FunctionBody(p):
     """FunctionBody : Block
     """
+    p[0] = p[1]
 
 
 def p_MethodDecl(p):
     """MethodDecl : FUNC Receiver ID FunctionDeclTail
     """
+    # FunctionDeclTail is a tuple of (Parameters, Results, Body)
+    p[0] = GoMethDecl(p[2], p[3], *p[4])
 
 
 def p_Receiver(p):
     """Receiver : Parameters
     """
+    p[0] = p[1]
 
 
 # =============================================================================

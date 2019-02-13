@@ -107,3 +107,29 @@ class GoVarSpec:
         self.lhs = lhs
         self.dtype = dtype
         self.rhs = rhs
+
+
+class GoShortDecl(GoDecl):
+    def __init__(self, id_list, expr_list):
+        super().__init__("short", [])
+        self.id_list = id_list
+        self.expr_list = expr_list
+
+
+class GoFuncDecl(GoDecl):
+    def __init__(self, name, params, result, body):
+        super().__init__("function", [])
+        self.name = name
+        self.params = params
+        self.result = result
+        self.body = body
+
+
+class GoMethDecl(GoDecl):
+    def __init__(self, receiver, name, params, result, body):
+        super().__init__("function", [])
+        self.receiver = receiver
+        self.name = name
+        self.params = params
+        self.result = result
+        self.body = body

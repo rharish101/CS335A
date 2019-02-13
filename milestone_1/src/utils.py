@@ -146,3 +146,47 @@ class GoImportSpec:
     def __init__(self, package, import_as=None):
         self.package = package
         self.import_as = import_as
+
+class GoFunc:
+    def __init__(self, key, func):
+        self.key = key
+        self.func = func
+
+class GoPrimaryExpr:
+    def __init__(self, primary_exp, index):
+        self.primary_exp = primary_exp
+        self.index = index
+
+class GoExpression:
+    def __init__(self, left, right, op):
+        self.left = left
+        self.right = right
+        self.op = op
+
+class GoIncDec:
+    def __init__(self, expr, op):
+        self.expr = expr
+        self.op = op
+
+class GoAssign:
+    def __init__(self, left, right, op):
+        self.left = left
+        self.right = right
+        self.op = op
+
+class GoAddMul:
+    def __init__(self, add_op, assign_op):
+        self.add_op = add_op
+        self.assign_op = assign_op
+
+class GoIf:
+    def __init__(self, stmt_cond, inif, inelse):
+        self.stmt_cond = stmt_cond
+        self.inif = inif
+        self.inelse = inelse
+
+# Class for Return, Break, Continue and GoTo statements 
+class GoControl:
+    def __init__(self, keyword, identifier):
+        self.keyword = keyword
+        self.identifier = identifier

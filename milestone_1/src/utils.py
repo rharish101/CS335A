@@ -133,3 +133,16 @@ class GoMethDecl(GoDecl):
         self.params = params
         self.result = result
         self.body = body
+
+
+class GoSourceFile:
+    def __init__(self, package, imports, declarations):
+        self.package = package
+        self.imports = imports
+        self.declarations = declarations
+
+
+class GoImportSpec:
+    def __init__(self, package, import_as=None):
+        self.package = package
+        self.import_as = import_as

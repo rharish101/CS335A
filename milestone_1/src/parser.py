@@ -982,18 +982,27 @@ def p_FallthroughStmt(p):
 def p_SourceFile(p):
     """SourceFile : PACKAGE ID SEMICOLON ImportDeclList TopLevelDeclList
     """
+    p[0] = GoSourceFile(p[2], p[4], p[5])
 
 
 def p_ImportDecl(p):
     """ImportDecl : IMPORT LBRACK ImportSpecList RBRACK
                   | IMPORT ImportSpec
     """
+    if len(p) == 3:  # single ImportSpec
+        p[0] = GoDecl("import", [p[2]])
+    else:  # ImportSpecList
+        p[0] = GoDecl("import", p[3])
 
 
 def p_ImportDeclList(p):
     """ImportDeclList : ImportDecl SEMICOLON ImportDeclList
                       | empty
     """
+    if len(p) == 2:  # empty
+        p[0] = []
+    else:
+        p[0] = [p[1]] + p[3]
 
 
 def p_ImportSpec(p):
@@ -1001,12 +1010,18 @@ def p_ImportSpec(p):
                   | ID STRING
                   | empty STRING
     """
+    # package alias kept last so as to account for empty/default alias of None
+    p[0] = GoImportSpec(p[2], p[1])
 
 
 def p_ImportSpecList(p):
     """ImportSpecList : ImportSpec SEMICOLON ImportSpecList
                       | empty
     """
+    if len(p) == 2:  # empty
+        p[0] = []
+    else:
+        p[0] = [p[1]] + p[3]
 
 
 parser = yacc.yacc()

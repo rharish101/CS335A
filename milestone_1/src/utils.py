@@ -88,5 +88,7 @@ class GoConstDecl:
 
 
 class GoConstSpec:
-    def __init__(self, specs):
-        self.specs = specs
+    def __init__(self, id_list, dtype=None, expr=None):
+        self.id_list = id_list
+        self.dtype = dtype
+        self.expr = expr

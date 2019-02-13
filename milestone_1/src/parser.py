@@ -66,10 +66,10 @@ def p_Type(p):
     if len(p) == 2:  # TypeLit
         p[0] = p[1]
     elif len(p) == 4:  # Type or ID
-        if type(p) is str:
-            p[0] = GoInbuiltType(p[1])
-        else:
+        if isinstance(p[2], GoType):  # Type
             p[0] = p[2]
+        else:  # ID
+            p[0] = GoInbuiltType(p[2])
     else:  # ID DOT ID
         p[0] = GoFromModule(p[2], p[4])
 
@@ -90,10 +90,10 @@ def p_ArrayType(p):
                  | LSQBRACK ArrayLength RSQBRACK ID DOT ID
     """
     if len(p) == 5:  # Type or ID
-        if type(p[4]) is str:
-            arr_type = GoInbuiltType(p[4])
-        else:
+        if isinstance(p[4], GoType):  # Type
             arr_type = p[4]
+        else:  # ID
+            arr_type = GoInbuiltType(p[4])
     else:  # ID DOT ID
         arr_type = GoFromModule(p[4], p[6])
     p[0] = GoArray(p[2], arr_type)
@@ -125,11 +125,11 @@ def p_FieldDecl(p):
     # Explicit field
     if type(p[1]) is list:
         if len(p) == 3:
-            if type(p[2]) is str:
-                field_type = GoInbuiltType(p[2])
-            else:
+            if isinstance(p[2], GoType):  # Type
                 field_type = p[2]
-        else:
+            else:  # ID
+                field_type = GoInbuiltType(p[2])
+        else:  # ID DOT ID
             field_type = GoFromModule(p[2], p[4])
         var_list = p[1]
 
@@ -377,12 +377,30 @@ def p_ConstSpec(p):
                  | ID ID ASSIGN Expression
                  | ID ASSIGN Expression
     """
+    if len(p) == 2:  # Simply declaring constants
+        p[0] = GoConstSpec(p[1])
+        return
+
     if type(p[1]) is list:  # IdentifierList
-        if len(p) == 1:
-            p[0] = GoConstSpec(p[1])
-        elif type(p[len(p) - 1]) is list:  # ExpressionList
-        else:  # Expression
+        id_list = p[1]
     else:  # ID
+        id_list = [p[1]]
+
+    if isinstance(p[2], GoType):  # Type
+        dtype = p[2]
+    elif len(p) == 7:  # ID DOT ID
+        dtype = GoFromModule(p[2], p[4])
+    elif len(p) == 5:  # ID
+        dtype = GoInbuiltType(p[2], p[4])
+    else:  # Type-less
+        dtype = None
+
+    if type(p[len(p) - 1]) is list:  # ExpressionList
+        expression = p[len(p) - 1]
+    else:  # Expression
+        expression = [p[len(p) - 1]]
+
+    p[0] = GoConstSpec(id_list, dtype, expression)
 
 
 def p_ConstSpecList(p):

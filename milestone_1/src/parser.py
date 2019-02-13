@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Parser for Go."""
 from ply import yacc
+from ply.lex import LexToken
 from argparse import ArgumentParser
-from lexer import *
-
-parsed = []
+from lexer import tokens, lexer, t_error
+from utils import *
 
 precedence = (
     ("left", "ID"),
@@ -33,6 +33,7 @@ precedence = (
     ("left", "MULT", "DIV", "MODULO", "BITAND", "BITCLR", "LSHIFT", "RSHIFT"),
 )
 
+
 # =============================================================================
 # BASIC
 # =============================================================================
@@ -40,12 +41,11 @@ precedence = (
 
 def p_start(p):
     "start : SourceFile"
-    pass
+    p[0] = p[1]
 
 
 def p_empty(p):
     "empty :"
-    pass
 
 
 def p_error(p):
@@ -63,7 +63,15 @@ def p_Type(p):
             | LBRACK Type RBRACK
             | LBRACK ID DOT ID RBRACK
     """
-    parsed.append(p.slice)
+    if len(p) == 1:
+        p[0] = p[1]
+    elif len(p) == 3:
+        if type(p) is str:
+            p[0] = GoInbuiltType(p[1])
+        else:
+            p[0] = p[2]
+    else:
+        p[0] = GoFromModule(p[2], p[4])
 
 
 def p_TypeLit(p):
@@ -73,7 +81,7 @@ def p_TypeLit(p):
                | PointerType
                | FunctionType
     """
-    parsed.append(p.slice)
+    p[0] = p[1]
 
 
 def p_ArrayType(p):
@@ -81,19 +89,26 @@ def p_ArrayType(p):
                  | LSQBRACK ArrayLength RSQBRACK ID
                  | LSQBRACK ArrayLength RSQBRACK ID DOT ID
     """
-    parsed.append(p.slice)
+    if len(p) == 5:
+        if type(p[4]) is str:
+            arr_type = GoInbuiltType(p[4])
+        else:
+            arr_type = p[4]
+    else:
+        arr_type = GoFromModule(p[4], p[6])
+    p[0] = GoArray(p[2], arr_type)
 
 
 def p_ArrayLength(p):
     """ArrayLength : Expression
     """
-    parsed.append(p.slice)
+    p[0] = p[1]
 
 
 def p_StructType(p):
     """StructType : STRUCT LCURLBR FieldDeclList RCURLBR
     """
-    parsed.append(p.slice)
+    p[0] = GoStruct(p[3])
 
 
 def p_FieldDecl(p):
@@ -105,46 +120,71 @@ def p_FieldDecl(p):
                  | MULT ID TagTop
                  | ID TagTop
     """
-    parsed.append(p.slice)
+    tag = p[len(p) - 1]
+
+    # Explicit field
+    if type(p[1]) is list:
+        if len(p) == 3:
+            if type(p[2]) is str:
+                field_type = GoInbuiltType(p[2])
+            else:
+                field_type = p[2]
+        else:
+            field_type = GoFromModule(p[2], p[4])
+        var_list = p[1]
+
+    # Embedded field
+    else:
+        field_type = GoType("embedded")
+        if len(p) == 5:
+            var_list = [GoDeref(GoFromModule(p[1], p[3]))]
+        elif len(p) == 5:
+            var_list = [GoFromModule(p[1], p[3])]
+        elif len(p) == 5:
+            var_list = [GoDeref(GoVar(p[1]))]
+        else:
+            var_list = [GoVar(p[1])]
+
+    p[0] = GoStructField(var_list, field_type, tag)
 
 
 def p_FieldDeclList(p):
     """FieldDeclList : empty
-                 | FieldDeclList FieldDecl SEMICOLON
+                     | FieldDeclList FieldDecl SEMICOLON
     """
-    parsed.append(p.slice)
-
-
-def p_Tag(p):
-    """Tag : STRING
-    """
-    parsed.append(p.slice)
+    if p[1] is None:
+        p[0] = []
+    else:
+        p[0] = p[1] + [p[2]]
 
 
 def p_TagTop(p):
     """TagTop : empty
-              | Tag
+              | STRING
     """
-    parsed.append(p.slice)
+    if p[1] is None:
+        p[0] = ""
+    else:
+        p[0] = p[1]
 
 
 def p_PointerType(p):
     """PointerType : MULT Type
     """
-    parsed.append(p.slice)
+    p[0] = GoPointType(p[2])
 
 
 def p_FunctionType(p):
     """FunctionType : FUNC Signature
     """
-    parsed.append(p.slice)
+    p[0] = GoFuncType(*p[1])
 
 
 def p_Signature(p):
     """Signature : Parameters
                  | Parameters Result
     """
-    parsed.append(p.slice)
+    p[0] = (p[1], p[2])
 
 
 def p_Result(p):
@@ -153,56 +193,88 @@ def p_Result(p):
               | ID
               | ID DOT ID
     """
-    parsed.append(p.slice)
+    if type(p[1]) is list:
+        p[0] = p[1]
+    else:
+        if isinstance(p[1], GoType) or isinstance(p[1], GoFromModule):
+            dtype = p[1]
+        elif len(p) == 2:
+            dtype = GoFromModule(p[1], p[3])
+        else:
+            dtype = GoInbuiltType(p[1])
+        p[0] = [GoParam(dtype=dtype)]
 
 
 def p_Parameters(p):
     """Parameters : LBRACK RBRACK
                   | LBRACK ParameterList RBRACK
                   | LBRACK ParameterList COMMA RBRACK
-
     """
-    parsed.append(p.slice)
+    if len(p) == 3:
+        p[0] = []
+    else:
+        p[0] = p[2]
 
 
 def p_ParameterList(p):
     """ParameterList : ParameterDecl
                      | ParameterList COMMA ParameterDecl
     """
-    parsed.append(p.slice)
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[0] = p[1] + p[3]
 
 
 def p_ParameterDecl(p):
     """ParameterDecl : TRIDOT Type
-                     | IdentifierList Type
-                     | IdentifierList TRIDOT Type
-                     | ID Type
-                     | ID TRIDOT Type
-                     | TRIDOT ID
-                     | IdentifierList ID
-                     | IdentifierList TRIDOT ID
-                     | ID ID
-                     | ID TRIDOT ID
                      | TRIDOT ID DOT ID
-                     | IdentifierList ID DOT ID
+                     | TRIDOT ID
+                     | IdentifierList TRIDOT Type
                      | IdentifierList TRIDOT ID DOT ID
-                     | ID ID DOT ID
+                     | IdentifierList TRIDOT ID
+                     | ID TRIDOT Type
                      | ID TRIDOT ID DOT ID
+                     | ID TRIDOT ID
+                     | IdentifierList Type
+                     | IdentifierList ID DOT ID
+                     | IdentifierList ID
+                     | ID Type
+                     | ID ID DOT ID
+                     | ID ID
     """
-    parsed.append(p.slice)
+    # Remove support for variadic params
+    for i, item in enumerate(p):
+        if type(item) is LexToken and item.type == "TRIDOT":
+            del p[i]
+
+    if isinstance(p[2], GoType) or isinstance(p[2], GoFromModule):
+        dtype = p[2]
+    elif len(p) == 5:
+        dtype = GoFromModule(p[2], p[4])
+    else:
+        dtype = GoInbuiltType(p[2])
+
+    if type(p[1]) is list:
+        p[0] = [GoParam(name=identifier, dtype=dtype) for identifier in p[1]]
+    else:
+        p[0] = [GoParam(name=p[1], dtype=dtype)]
 
 
 def p_InterfaceType(p):
     """InterfaceType : INTERFACE LCURLBR MethodSpecList RCURLBR
     """
-    parsed.append(p.slice)
+    p[0] = GoInterfaceType(p[3])
 
 
 def p_MethodSpecList(p):
     """MethodSpecList : empty
-                 | MethodSpecList MethodSpec SEMICOLON
+                      | MethodSpecList MethodSpec SEMICOLON
     """
-    parsed.append(p.slice)
+    if len(p) == 2:
+        p[0] = []
+    else:
+        p[0] = p[1] + [p[2]]
 
 
 def p_MethodSpec(p):
@@ -210,6 +282,12 @@ def p_MethodSpec(p):
                   | ID DOT ID
                   | ID
     """
+    if len(p) == 3:
+        p[0] = GoMethodFunc(p[1], *p[2])
+    elif len(p) == 4:
+        p[0] = GoFromModule(p[1], p[3])
+    else:
+        p[0] = GoInbuiltType(p[1])
 
 
 # =============================================================================
@@ -220,14 +298,17 @@ def p_MethodSpec(p):
 def p_Block(p):
     """Block : LCURLBR StatementList RCURLBR
     """
-    parsed.append(p.slice)
+    p[0] = GoBlock(p[2])
 
 
 def p_StatementList(p):
     """StatementList : Statement SEMICOLON StatementList
                      | empty
     """
-    parsed.append(p.slice)
+    if len(p) == 2:
+        p[0] = []
+    else:
+        p[0] = [p[1]] + p[3]
 
 
 # =============================================================================
@@ -240,7 +321,6 @@ def p_Declaration(p):
                    | TypeDecl
                    | VarDecl
     """
-    parsed.append(p.slice)
 
 
 def p_TopLevelDecl(p):
@@ -248,14 +328,12 @@ def p_TopLevelDecl(p):
                     | FunctionDecl
                     | MethodDecl
     """
-    parsed.append(p.slice)
 
 
 def p_TopLevelDeclList(p):
     """TopLevelDeclList : TopLevelDecl SEMICOLON TopLevelDeclList
                         | empty
     """
-    parsed.append(p.slice)
 
 
 def p_ConstDecl(p):
@@ -263,7 +341,6 @@ def p_ConstDecl(p):
                   | CONST ConstSpec
                   | CONST ID
     """
-    parsed.append(p.slice)
 
 
 def p_ConstSpec(p):
@@ -285,7 +362,6 @@ def p_ConstSpec(p):
                  | IdentifierList ASSIGN ExpressionList
                  | ID ASSIGN ExpressionList
     """
-    parsed.append(p.slice)
 
 
 def p_ConstSpecList(p):
@@ -293,60 +369,51 @@ def p_ConstSpecList(p):
                      | ConstSpecList ConstSpec SEMICOLON
                      | ConstSpecList ID SEMICOLON
     """
-    parsed.append(p.slice)
 
 
 def p_IdentifierList(p):
     """IdentifierList : ID IdentifierBotList
     """
-    parsed.append(p.slice)
 
 
 def p_IdentifierBotList(p):
     """IdentifierBotList : COMMA ID
                          | IdentifierBotList COMMA ID
     """
-    parsed.append(p.slice)
 
 
 def p_ExpressionList(p):
     """ExpressionList : Expression ExpressionBotList
     """
-    parsed.append(p.slice)
 
 
 def p_ExpressionListBot(p):
     """ExpressionListBot : empty
                          | ExpressionList
     """
-    parsed.append(p.slice)
 
 
 def p_TypeDecl(p):
     """TypeDecl : TYPE TypeSpecTopList
     """
-    parsed.append(p.slice)
 
 
 def p_TypeSpec(p):
     """TypeSpec : AliasDecl
                 | TypeDef
     """
-    parsed.append(p.slice)
 
 
 def p_TypeSpecList(p):
     """TypeSpecList : empty
                     | TypeSpecList TypeSpec SEMICOLON
     """
-    parsed.append(p.slice)
 
 
 def p_TypeSpecTopList(p):
     """TypeSpecTopList : TypeSpec
                        | LBRACK TypeSpecList  RBRACK
     """
-    parsed.append(p.slice)
 
 
 def p_AliasDecl(p):
@@ -354,7 +421,6 @@ def p_AliasDecl(p):
                  | ID ASSIGN ID DOT ID
                  | ID ASSIGN ID
     """
-    parsed.append(p.slice)
 
 
 def p_TypeDef(p):
@@ -362,13 +428,11 @@ def p_TypeDef(p):
                | ID ID
                | ID ID DOT ID
     """
-    parsed.append(p.slice)
 
 
 def p_VarDecl(p):
     """VarDecl : VAR VarSpecTopList
     """
-    parsed.append(p.slice)
 
 
 def p_VarSpec(p):
@@ -383,7 +447,6 @@ def p_VarSpec(p):
                | IdentifierList ASSIGN Expression
                | ID ASSIGN Expression
     """
-    parsed.append(p.slice)
 
 
 def p_VarSpecMid(p):
@@ -391,21 +454,18 @@ def p_VarSpecMid(p):
                   | ASSIGN ExpressionList
                   | ASSIGN Expression
     """
-    parsed.append(p.slice)
 
 
 def p_VarSpecList(p):
     """VarSpecList : empty
                    | VarSpecList VarSpec SEMICOLON
     """
-    parsed.append(p.slice)
 
 
 def p_VarSpecTopList(p):
     """VarSpecTopList : VarSpec
                       | LBRACK VarSpecList RBRACK
     """
-    parsed.append(p.slice)
 
 
 def p_ShortVarDecl(p):
@@ -414,50 +474,42 @@ def p_ShortVarDecl(p):
                     | ID SHDECL ExpressionList
                     | ID SHDECL Expression
     """
-    parsed.append(p.slice)
 
 
 def p_FunctionDecl(p):
     """FunctionDecl : FUNC FunctionName FunctionDeclTail
     """
-    parsed.append(p.slice)
 
 
 def p_FunctionDeclTail(p):
     """FunctionDeclTail : Function
                         | Signature
     """
-    parsed.append(p.slice)
 
 
 def p_FunctionName(p):
     """FunctionName : ID
     """
-    parsed.append(p.slice)
 
 
 def p_Function(p):
     """Function : Signature FunctionBody
     """
-    parsed.append(p.slice)
 
 
 def p_FunctionBody(p):
     """FunctionBody : Block
     """
-    parsed.append(p.slice)
 
 
 def p_MethodDecl(p):
     """MethodDecl : FUNC Receiver ID FunctionDeclTail
     """
-    parsed.append(p.slice)
 
 
 def p_Receiver(p):
     """Receiver : Parameters
     """
-    parsed.append(p.slice)
 
 
 # =============================================================================
@@ -470,14 +522,12 @@ def p_Operand(p):
                 | MethodExpr
                 | LBRACK Expression RBRACK
     """
-    parsed.append(p.slice)
 
 
 def p_Literal(p):
     """Literal  : BasicLit
                 | FunctionLit
     """
-    parsed.append(p.slice)
 
 
 def p_BasicLit(p):
@@ -487,13 +537,11 @@ def p_BasicLit(p):
                 | STRING
                 | RUNE
     """
-    parsed.append(p.slice)
 
 
 def p_FunctionLit(p):
     """FunctionLit : FUNC Function
     """
-    parsed.append(p.slice)
 
 
 def p_PrimaryExpr(p):
@@ -503,19 +551,16 @@ def p_PrimaryExpr(p):
                    | PrimaryExpr Index
                    | PrimaryExpr Arguments
     """
-    parsed.append(p.slice)
 
 
 def p_Selector(p):
     """Selector : DOT ID
     """
-    parsed.append(p.slice)
 
 
 def p_Index(p):
     """Index : LSQBRACK Expression RSQBRACK
     """
-    parsed.append(p.slice)
 
 
 def p_Arguments(p):
@@ -565,7 +610,6 @@ def p_Arguments(p):
                  | LBRACK ID DOT ID COMMA Expression TRIDOT COMMA RBRACK
                  | LBRACK ID DOT ID COMMA Expression COMMA RBRACK
     """
-    parsed.append(p.slice)
 
 
 def p_MethodExpr(p):
@@ -573,7 +617,6 @@ def p_MethodExpr(p):
                   | ID DOT ID        %prec ID
                   | ID DOT ID DOT ID
     """
-    parsed.append(p.slice)
 
 
 def p_ReceiverType(p):
@@ -581,7 +624,6 @@ def p_ReceiverType(p):
                     | LBRACK MULT ID RBRACK
                     | LBRACK ReceiverType RBRACK
     """
-    parsed.append(p.slice)
 
 
 def p_Expression(p):
@@ -607,28 +649,24 @@ def p_Expression(p):
                   | Expression BITCLR Expression
 
     """
-    parsed.append(p.slice)
 
 
 def p_ExpressionBot(p):
     """ExpressionBot : empty
                      | Expression
     """
-    parsed.append(p.slice)
 
 
 def p_ExpressionBotList(p):
     """ExpressionBotList : COMMA Expression
                          | COMMA Expression ExpressionBotList
     """
-    parsed.append(p.slice)
 
 
 def p_UnaryExpr(p):
     """UnaryExpr : PrimaryExpr
                  | unary_op UnaryExpr
     """
-    parsed.append(p.slice)
 
 
 def p_addmul_op(p):
@@ -636,7 +674,6 @@ def p_addmul_op(p):
                  | add_op
                  | mul_op
     """
-    parsed.append(p.slice)
 
 
 def p_add_op(p):
@@ -645,7 +682,6 @@ def p_add_op(p):
               | BITOR
               | BITXOR
     """
-    parsed.append(p.slice)
 
 
 def p_mul_op(p):
@@ -657,7 +693,6 @@ def p_mul_op(p):
                | BITAND
                | BITCLR
     """
-    parsed.append(p.slice)
 
 
 def p_unary_op(p):
@@ -671,7 +706,6 @@ def p_unary_op(p):
                   | DECR
                   | INCR
     """
-    parsed.append(p.slice)
 
 
 # =============================================================================
@@ -692,7 +726,6 @@ def p_Statement(p):
                  | GotoStmt
                  | FallthroughStmt
     """
-    parsed.append(p.slice)
 
 
 def p_SimpleStmt(p):
@@ -701,14 +734,12 @@ def p_SimpleStmt(p):
                   | ShortVarDecl
                   | IncDecStmt
     """
-    parsed.append(p.slice)
 
 
 def p_IncDecStmt(p):
     """IncDecStmt : Expression INCR
                   | Expression DECR
     """
-    parsed.append(p.slice)
 
 
 def p_Assignment(p):
@@ -717,60 +748,51 @@ def p_Assignment(p):
                   | Expression assign_op ExpressionList
                   | ExpressionList assign_op ExpressionList
     """
-    parsed.append(p.slice)
 
 
 def p_assign_op(p):
     """assign_op : addmul_op ASSIGN
     """
-    parsed.append(p.slice)
 
 
 def p_IfStmt(p):
     """IfStmt : IF Expression Block ElseBot
               | IF SimpleStmt SEMICOLON  Expression Block ElseBot
     """
-    parsed.append(p.slice)
 
 
 def p_ElseBot(p):
     """ElseBot : empty
                | ELSE ElseTail
     """
-    parsed.append(p.slice)
 
 
 def p_ElseTail(p):
     """ElseTail : IfStmt
                 | Block
     """
-    parsed.append(p.slice)
 
 
 def p_SwitchStmt(p):
     """SwitchStmt : ExprSwitchStmt
     """
-    parsed.append(p.slice)
 
 
 def p_ExprSwitchStmt(p):
     """ExprSwitchStmt : SWITCH SimpleStmt SEMICOLON  ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
                       | SWITCH ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
     """
-    parsed.append(p.slice)
 
 
 def p_ExprCaseClauseList(p):
     """ExprCaseClauseList : empty
                           | ExprCaseClauseList ExprCaseClause
     """
-    parsed.append(p.slice)
 
 
 def p_ExprCaseClause(p):
     """ExprCaseClause : ExprSwitchCase COLON StatementList
     """
-    parsed.append(p.slice)
 
 
 def p_ExprSwitchCase(p):
@@ -778,44 +800,37 @@ def p_ExprSwitchCase(p):
                       | DEFAULT
                       | CASE Expression
     """
-    parsed.append(p.slice)
 
 
 def p_ForStmt(p):
     """ForStmt : FOR ExpressionBot Block
     """
-    parsed.append(p.slice)
 
 
 def p_ReturnStmt(p):
     """ReturnStmt : RETURN ExpressionListBot
                   | RETURN Expression
     """
-    parsed.append(p.slice)
 
 
 def p_BreakStmt(p):
     """BreakStmt : BREAK ID
     """
-    parsed.append(p.slice)
 
 
 def p_ContinueStmt(p):
     """ContinueStmt : CONTINUE ID
     """
-    parsed.append(p.slice)
 
 
 def p_GotoStmt(p):
     """GotoStmt : GOTO ID
     """
-    parsed.append(p.slice)
 
 
 def p_FallthroughStmt(p):
     """FallthroughStmt : FALLTHROUGH
     """
-    parsed.append(p.slice)
 
 
 # =============================================================================
@@ -826,21 +841,18 @@ def p_FallthroughStmt(p):
 def p_SourceFile(p):
     """SourceFile : PACKAGE ID SEMICOLON ImportDeclList TopLevelDeclList
     """
-    parsed.append(p.slice)
 
 
 def p_ImportDecl(p):
     """ImportDecl : IMPORT LBRACK ImportSpecList RBRACK
                   | IMPORT ImportSpec
     """
-    parsed.append(p.slice)
 
 
 def p_ImportDeclList(p):
     """ImportDeclList : ImportDecl SEMICOLON ImportDeclList
                       | empty
     """
-    parsed.append(p.slice)
 
 
 def p_ImportSpec(p):
@@ -848,14 +860,12 @@ def p_ImportSpec(p):
                   | ID STRING
                   | empty STRING
     """
-    parsed.append(p.slice)
 
 
 def p_ImportSpecList(p):
     """ImportSpecList : ImportSpec SEMICOLON ImportSpecList
                       | empty
     """
-    parsed.append(p.slice)
 
 
 parser = yacc.yacc()
@@ -877,11 +887,11 @@ if __name__ == "__main__":
         input_text = go.read()
     lexer.filename = args.input
     lexer.lines = input_text.split("\n")
-    parser.parse(input_text)
+    result = parser.parse(input_text)
 
     if args.verbose:
-        print(parsed)
+        print(result)
 
     with open(args.output, "w") as outf:
-        outf.write(str(parsed))
+        outf.write(str(result))
     print('Output file "{}" generated'.format(args.output))

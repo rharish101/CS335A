@@ -124,7 +124,7 @@ def p_FieldDecl(p):
 
     # Explicit field
     if type(p[1]) is list:
-        if len(p) == 3:
+        if len(p) == 4:
             if isinstance(p[2], GoType):  # Type
                 field_type = p[2]
             else:  # ID
@@ -137,11 +137,11 @@ def p_FieldDecl(p):
     else:
         field_type = GoType("embedded")
         if len(p) == 6:
-            var_list = [GoDeref(GoFromModule(p[1], p[3]))]
+            var_list = [GoDeref(GoFromModule(p[2], p[4]))]
         elif len(p) == 5:
             var_list = [GoFromModule(p[1], p[3])]
         elif len(p) == 4:
-            var_list = [GoDeref(GoVar(p[1]))]
+            var_list = [GoDeref(GoVar(p[2]))]
         else:
             var_list = [GoVar(p[1])]
 
@@ -185,7 +185,10 @@ def p_Signature(p):
                  | Parameters Result
     """
     # First element is Parameters, second is Result
-    p[0] = (p[1], p[2])
+    if len(p) == 2:  # No result given
+        p[0] = (p[1], None)
+    else:
+        p[0] = (p[1], p[2])
 
 
 def p_Result(p):
@@ -355,7 +358,7 @@ def p_ConstDecl(p):
             declarations = [GoConstSpec(p[2])]
     else:  # List of constant specs
         declarations = p[3]
-    p[0] = GoConstDecl(declarations)
+    p[0] = GoDecl("constant", declarations)
 
 
 def p_ConstSpec(p):
@@ -412,55 +415,74 @@ def p_ConstSpecList(p):
         p[0] = []
     else:
         if len(p) == 5:
-            p[1].append(p[2])
+            p[0] = p[1] + [p[2]]
         else:
-            p[1].append(GoConstSpec(p[2]))
-        p[0] = p[1]
+            p[0] = p[1] + [GoConstSpec(p[2])]
 
 
 def p_IdentifierList(p):
     """IdentifierList : ID IdentifierBotList
     """
+    p[0] = [p[1]] + p[2]
 
 
 def p_IdentifierBotList(p):
     """IdentifierBotList : COMMA ID
                          | IdentifierBotList COMMA ID
     """
+    if len(p) == 3:  # Just COMMA ID
+        p[0] = [p[2]]
+    else:
+        p[0] = p[1] + [p[3]]
 
 
 def p_ExpressionList(p):
     """ExpressionList : Expression ExpressionBotList
     """
+    p[0] = [p[1]] + p[2]
 
 
 def p_ExpressionListBot(p):
     """ExpressionListBot : empty
                          | ExpressionList
     """
+    if p[1] is None:  # empty
+        p[0] = []
+    else:
+        p[0] = p[1]
 
 
 def p_TypeDecl(p):
     """TypeDecl : TYPE TypeSpecTopList
     """
+    p[0] = GoDecl("type", p[2])
 
 
 def p_TypeSpec(p):
     """TypeSpec : AliasDecl
                 | TypeDef
     """
+    p[0] = p[1]
 
 
 def p_TypeSpecList(p):
     """TypeSpecList : empty
                     | TypeSpecList TypeSpec SEMICOLON
     """
+    if len(p) == 2:  # empty
+        p[0] = []
+    else:
+        p[0] = p[1] + [p[2]]
 
 
 def p_TypeSpecTopList(p):
     """TypeSpecTopList : TypeSpec
                        | LBRACK TypeSpecList  RBRACK
     """
+    if len(p) == 2:  # single TypeSpec
+        p[0] = [p[1]]
+    else:
+        p[0] = p[2]
 
 
 def p_AliasDecl(p):
@@ -468,32 +490,67 @@ def p_AliasDecl(p):
                  | ID ASSIGN ID DOT ID
                  | ID ASSIGN ID
     """
+    if isinstance(p[3], GoType):
+        dtype = p[3]
+    elif len(p) == 6:
+        dtype = GoFromModule(p[3], p[5])
+    else:
+        dtype = GoInbuiltType(p[3])
+    p[0] = GoTypeDefAlias("alias", p[1], dtype)
 
 
 def p_TypeDef(p):
     """TypeDef : ID Type
-               | ID ID
                | ID ID DOT ID
+               | ID ID
     """
+    if isinstance(p[2], GoType):
+        dtype = p[2]
+    elif len(p) == 5:
+        dtype = GoFromModule(p[2], p[4])
+    else:
+        dtype = GoInbuiltType(p[2])
+    p[0] = GoTypeDefAlias("typedef", p[1], dtype)
 
 
 def p_VarDecl(p):
     """VarDecl : VAR VarSpecTopList
     """
+    p[0] = GoDecl("var", p[2])
 
 
 def p_VarSpec(p):
     """VarSpec : IdentifierList Type VarSpecMid
-               | ID Type VarSpecMid
-               | IdentifierList ID VarSpecMid
-               | ID ID VarSpecMid
                | IdentifierList ID DOT ID VarSpecMid
-               | ID ID DOT ID VarSpecMid
+               | IdentifierList ID VarSpecMid
                | IdentifierList ASSIGN ExpressionList
-               | ID ASSIGN ExpressionList
                | IdentifierList ASSIGN Expression
+               | ID Type VarSpecMid
+               | ID ID DOT ID VarSpecMid
+               | ID ID VarSpecMid
+               | ID ASSIGN ExpressionList
                | ID ASSIGN Expression
     """
+    if type(p[1]) is list:  # IdentifierList
+        lhs = p[1]
+    else:  # ID
+        lhs = [p[1]]
+
+    if type(p[len(p) - 1]) is list:  # VarSpecMid or ExpressionList
+        rhs = p[len(p) - 1]
+    else:  # Expression
+        rhs = []
+
+    if isinstance(p[2], GoType):  # Type
+        dtype = p[2]
+    elif len(p) == 6:  # ID DOT ID
+        dtype = GoFromModule(p[2], p[4])
+    elif p.type == "ID":  # LexToken with type "ID"
+        dtype = GoInbuiltType(p[2])
+    else:  # No type given
+        dtype = None
+
+    p[0] = GoVarSpec(lhs, dtype, rhs)
 
 
 def p_VarSpecMid(p):
@@ -501,18 +558,32 @@ def p_VarSpecMid(p):
                   | ASSIGN ExpressionList
                   | ASSIGN Expression
     """
+    if len(p) == 2:  # empty
+        p[0] = []
+    elif type(p[2]) is list:  # ExpressionList
+        p[0] = p[2]
+    else:  # Expression
+        p[0] = [p[2]]
 
 
 def p_VarSpecList(p):
     """VarSpecList : empty
                    | VarSpecList VarSpec SEMICOLON
     """
+    if len(p) == 2:  # empty
+        p[0] = []
+    else:
+        p[0] = p[1] + [p[2]]
 
 
 def p_VarSpecTopList(p):
     """VarSpecTopList : VarSpec
                       | LBRACK VarSpecList RBRACK
     """
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[0] = p[2]
 
 
 def p_ShortVarDecl(p):

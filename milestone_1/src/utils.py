@@ -82,8 +82,9 @@ class GoBlock:
         self.statements = statements
 
 
-class GoConstDecl:
-    def __init__(self, declarations):
+class GoDecl:
+    def __init__(self, kind, declarations):
+        self.kind = kind
         self.declarations = declarations
 
 
@@ -92,3 +93,17 @@ class GoConstSpec:
         self.id_list = id_list
         self.dtype = dtype
         self.expr = expr
+
+
+class GoTypeDefAlias:
+    def __init__(self, kind, alias, actual):
+        self.kind = kind
+        self.alias = alias
+        self.actual = actual
+
+
+class GoVarSpec:
+    def __init__(self, lhs, dtype, rhs):
+        self.lhs = lhs
+        self.dtype = dtype
+        self.rhs = rhs

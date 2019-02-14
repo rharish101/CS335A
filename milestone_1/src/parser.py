@@ -813,7 +813,7 @@ def p_Expression(p):
                   | Expression BITAND Expression
                   | Expression BITCLR Expression
     """
-    if len(p) == 1:  # UnaryExpr given
+    if len(p) == 2:  # UnaryExpr given
         p[0] = p[1]
     else:  # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
         p[0] = GoExpression(p[1], p[3], p[2])
@@ -851,11 +851,9 @@ def p_UnaryExpr(p):
 
 
 def p_addmul_op(p):
-    """addmul_op : empty
-                 | add_op
+    """addmul_op : add_op
                  | mul_op
     """
-    # If empty, then pass on None
     p[0] = p[1]
 
 
@@ -954,6 +952,7 @@ def p_Assignment(p):
 
 def p_assign_op(p):
     """assign_op : addmul_op ASSIGN
+                 | ASSIGN
     """
     p[0] = p[1]
 
@@ -995,38 +994,82 @@ def p_SwitchStmt(p):
     p[0] = p[1]
 
 
-# TODO:
 def p_ExprSwitchStmt(p):
     """ExprSwitchStmt : SWITCH SimpleStmt SEMICOLON  ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
                       | SWITCH ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
     """
+    if len(p) == 6:  # No SimpleStmt given
+        stmt = None
+    else:
+        stmt = p[2]
+    p[0] = GoSwitch(stmt, p[len(p) - 4], p[len(p) - 2])
 
 
-# TODO:
 def p_ExprCaseClauseList(p):
     """ExprCaseClauseList : empty
                           | ExprCaseClauseList ExprCaseClause
     """
+    if len(p) == 2:  # empty
+        p[0] = []
+    else:
+        p[0] = p[1] + [p[2]]
 
 
-# TODO:
 def p_ExprCaseClause(p):
     """ExprCaseClause : ExprSwitchCase COLON StatementList
     """
+    p[0] = GoCaseClause(*p[1], p[3])
 
 
-# TODO:
 def p_ExprSwitchCase(p):
     """ExprSwitchCase : CASE ExpressionList
                       | DEFAULT
                       | CASE Expression
     """
+    if len(p) == 2:  # default
+        expressions = []
+    elif type(p[2]) is list:
+        expressions = p[2]
+    else:
+        expressions = [p[2]]
+    p[0] = (p[1], expressions)
 
 
-# TODO:
 def p_ForStmt(p):
     """ForStmt : FOR ExpressionBot Block
+               | FOR ForClause Block
+               | FOR RangeClause Block
     """
+    if isinstance(p[2], GoBaseExpr):  # while loop
+        clause = GoForClause(None, p[2], None)
+    else:
+        clause = p[2]
+    p[0] = GoFor(clause, p[3])
+
+
+def p_ForClause(p):
+    """ForClause : SimpleStmt SEMICOLON SimpleStmt SEMICOLON SimpleStmt
+                 | SimpleStmt SEMICOLON SimpleStmt SEMICOLON empty
+                 | SimpleStmt SEMICOLON empty SEMICOLON SimpleStmt
+                 | SimpleStmt SEMICOLON empty SEMICOLON empty
+                 | empty SEMICOLON SimpleStmt SEMICOLON SimpleStmt
+                 | empty SEMICOLON SimpleStmt SEMICOLON empty
+                 | empty SEMICOLON empty SEMICOLON SimpleStmt
+                 | empty SEMICOLON empty SEMICOLON empty
+    """
+    p[0] = GoForClause(p[1], p[3], p[5])
+
+
+def p_RangeClause(p):
+    """RangeClause : ExpressionList assign_op RANGE Expression
+                   | IdentifierList SHDECL RANGE Expression
+                   | empty RANGE Expression
+    """
+    if len(p) == 4:  # empty
+        lhs = []
+    else:
+        lhs = p[1]
+    p[0] = GoRange(lhs, p[len(p) - 1])
 
 
 def p_ReturnStmt(p):

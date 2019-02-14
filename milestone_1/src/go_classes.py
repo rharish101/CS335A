@@ -213,6 +213,46 @@ class GoIf:
         self.inelse = inelse
 
 
+class GoSwitch:
+    def __init__(self, stmt, cond, case_list):
+        self.stmt = stmt  # stmt can be None, indicating no statement
+        self.cond = cond
+        self.case_list = case_list
+
+
+class GoCaseClause:
+    def __init__(self, kind, expr_list, stmt_list):
+        self.kind = kind  # stmt can be None, indicating no statement
+        self.expr_list = expr_list
+        self.stmt_list = stmt_list
+
+
+class GoFor:
+    def __init__(self, clause, infor):
+        self.clause = clause
+        self.infor = infor
+
+
+class GoBaseForCl:
+    def __init__(self, kind):
+        self.kind = kind
+
+
+class GoForClause(GoBaseForCl):
+    def __init__(self, init, expr, post):
+        super().__init__("standard")
+        self.init = init  # init can be None, indicating no statement
+        self.expr = expr  # expr can be None, indicating no statement
+        self.post = post  # post can be None, indicating no statement
+
+
+class GoRange(GoBaseForCl):
+    def __init__(self, lhs, rhs):
+        super().__init__("range")
+        self.lhs = lhs
+        self.rhs = rhs
+
+
 # Class for Return, Break, Continue and Goto statements
 class GoControl:
     def __init__(self, kind):

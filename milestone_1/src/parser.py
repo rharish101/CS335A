@@ -987,7 +987,10 @@ def p_assign_op(p):
     """assign_op : addmul_op ASSIGN
                  | ASSIGN
     """
-    p[0] = p[1]
+    if len(p) == 2:  # simple assignment
+        p[0] = None
+    else:
+        p[0] = p[1]
 
 
 def p_IfStmt(p):

@@ -120,6 +120,8 @@ imag_regex = r"(" + decimals + r"|" + float_regex + ")i"
 
 def t_COMMENT(t):
     r"(//.*|/\*(\*(?!/)|[^*])*\*/)"
+    # Update line no.
+    t.lexer.lineno += len(t.value.split("\n")) - 1
     pass
 
 
@@ -167,6 +169,9 @@ def t_RUNE(t):
 
 def t_STRING(t):
     r"(\"(\\[^\n]|[^\"\\\n])*\"|`[^`]*`)"
+    # Update line no.
+    t.lexer.lineno += len(t.value.split("\n")) - 1
+
     # Keep track of last token for semicolon insertion on newlines
     t.lexer.last = True
     return t
@@ -185,6 +190,9 @@ def t_OP(t):
 
 def t_NEWLINES(t):
     r"\n+"
+    # Update line no.
+    t.lexer.lineno += len(t.value.split("\n")) - 1
+
     # Check last token for semicolon insertion
     if t.lexer.last:
         t.type = "SEMICOLON"
@@ -198,9 +206,15 @@ def t_error(t):
             t.lexer.filename, t.lineno, t.lexer.lines[t.lineno - 1]
         )
     )
+    position = (
+        t.lexer.lexpos
+        - sum(map(lambda line: len(line) + 1, t.lexer.lines[: t.lineno - 1]))
+        - len(t.value)
+        + 1
+    )
     print(
         'SyntaxError: Unexpected token "{}" at position {}'.format(
-            t.value, t.lexpos
+            t.value, position
         )
     )
     exit(1)

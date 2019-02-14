@@ -114,6 +114,9 @@ def p_FieldDecl(p):
     """FieldDecl : IdentifierList Type TagTop
                  | IdentifierList ID DOT ID TagTop
                  | IdentifierList ID TagTop
+                 | ID Type TagTop
+                 | ID ID DOT ID TagTop
+                 | ID ID TagTop
                  | MULT ID DOT ID TagTop
                  | ID DOT ID TagTop
                  | MULT ID TagTop
@@ -610,9 +613,9 @@ def p_ShortVarDecl(p):
         id_list = [p[1]]
 
     if type(p[3]) is list:
-        expressions = p[1]
+        expressions = p[3]
     else:
-        expressions = [p[1]]
+        expressions = [p[3]]
 
     p[0] = GoShortDecl(id_list, expressions)
 
@@ -701,12 +704,19 @@ def p_BasicLit(p):
 
 def p_CompositeLit(p):
     """CompositeLit : LiteralType LiteralValue
+                    | ID DOT ID LiteralValue
+                    | ID LiteralValue
                     | LSQBRACK TRIDOT RSQBRACK Type LiteralValue
                     | LSQBRACK TRIDOT RSQBRACK ID DOT ID LiteralValue
                     | LSQBRACK TRIDOT RSQBRACK ID LiteralValue
     """
-    if len(p) == 3:  # No square brackets
-        dtype = p[1]
+    if len(p) < 6:  # No square brackets
+        if isinstance(p[1], GoType):  # LiteralType
+            dtype = p[1]
+        elif len(p) == 5:  # ID DOT ID
+            dtype = GoFromModule(p[1], p[3])
+        else:  # ID
+            dtype = GoInbuiltType(p[1])
     elif isinstance(p[4], GoType):  # Type
         dtype = p[4]
     elif len(p) == 8:  # ID DOT ID
@@ -802,33 +812,12 @@ def p_Index(p):
 
 def p_Arguments(p):
     """Arguments : LBRACK RBRACK
-                 | LBRACK Type COMMA ExpressionList RBRACK
-                 | LBRACK ID DOT ID COMMA ExpressionList RBRACK
-                 | LBRACK ID COMMA ExpressionList RBRACK
                  | LBRACK ExpressionList RBRACK
-                 | LBRACK Type COMMA Expression RBRACK
-                 | LBRACK ID DOT ID COMMA Expression RBRACK
-                 | LBRACK ID COMMA Expression RBRACK
                  | LBRACK Expression RBRACK
-                 | LBRACK Type RBRACK
-                 | LBRACK ID DOT ID RBRACK
-                 | LBRACK ID RBRACK %prec LBRACK
-                 | LBRACK Type COMMA ExpressionList TRIDOT RBRACK
-                 | LBRACK ID DOT ID COMMA ExpressionList TRIDOT RBRACK
-                 | LBRACK ID COMMA ExpressionList TRIDOT RBRACK
                  | LBRACK ExpressionList TRIDOT RBRACK
-                 | LBRACK Type COMMA Expression TRIDOT RBRACK
-                 | LBRACK ID DOT ID COMMA Expression TRIDOT RBRACK
-                 | LBRACK ID COMMA Expression TRIDOT RBRACK
                  | LBRACK Expression TRIDOT RBRACK
-                 | LBRACK Type TRIDOT RBRACK
-                 | LBRACK ID DOT ID TRIDOT RBRACK
-                 | LBRACK ID TRIDOT RBRACK
+                 | LBRACK TRIDOT RBRACK
     """
-    if len(p) == 3:  # no arguments
-        p[0] = GoArguments([])
-        return
-
     # Remove support for variadic params and remove trailing comma
     new_p = []
     for i, item in enumerate(p):
@@ -837,24 +826,18 @@ def p_Arguments(p):
         ):
             new_p.append(item)
 
-    if type(new_p[-2]) is list:  # ExpressionList
-        expressions = new_p[-2]
-    elif isinstance(new_p[-2], GoBaseExpr):  # Expression
-        expressions = [new_p[-2]]
+    if len(new_p) == 3:  # no arguments
+        p[0] = GoArguments([])
+        return
+
+    if type(new_p[2]) is list:  # ExpressionList
+        expressions = new_p[2]
+    elif isinstance(new_p[2], GoBaseExpr):  # Expression
+        expressions = [new_p[2]]
     else:  # no expressions, only type
         expressions = []
 
-    if isinstance(new_p[2], GoType):  # Type
-        dtype = new_p[2]
-    elif type(new_p[2]) is str:  # ID DOT ID or ID
-        if type(new_p[3]) is str and new_p[3] == ".":  # ID DOT ID
-            dtype = GoFromModule(new_p[2], new_p[4])
-        else:  # ID
-            dtype = GoInbuiltType(new_p[2])
-    else:  # no type given
-        dtype = None
-
-    p[0] = GoArguments(expressions, dtype)
+    p[0] = GoArguments(expressions)
 
 
 def p_MethodExpr(p):
@@ -1116,8 +1099,8 @@ def p_ExprCaseClause(p):
 
 def p_ExprSwitchCase(p):
     """ExprSwitchCase : CASE ExpressionList
-                      | DEFAULT
                       | CASE Expression
+                      | DEFAULT
     """
     if len(p) == 2:  # default
         expressions = []
@@ -1155,7 +1138,9 @@ def p_ForClause(p):
 
 def p_RangeClause(p):
     """RangeClause : ExpressionList assign_op RANGE Expression
+                   | Expression assign_op RANGE Expression
                    | IdentifierList SHDECL RANGE Expression
+                   | ID SHDECL RANGE Expression
                    | empty RANGE Expression
     """
     if len(p) == 4:  # empty
@@ -1168,12 +1153,13 @@ def p_RangeClause(p):
 def p_ReturnStmt(p):
     """ReturnStmt : RETURN ExpressionListBot
                   | RETURN Expression
+                  | RETURN
     """
     if type(p[2]) is list:
         expressions = p[2]
     else:
         expressions = [p[2]]
-    p[0] = GoControl(p[1], expressions)
+    p[0] = GoReturn(expressions)
 
 
 def p_BreakStmt(p):

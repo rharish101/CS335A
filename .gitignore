@@ -12,3 +12,4 @@ milestone_1/src/get_golang_bnf.ipynb
 milestone_1/src/parser.out
 milestone_1/src/parsetab.py
 milestone_1/src/*.dot
+milestone_1/src/*.ps

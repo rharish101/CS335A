@@ -777,12 +777,15 @@ def p_PrimaryExpr(p):
                    | PrimaryExpr Arguments
     """
     if len(p) == 2:  # Operand or ID
+        rhs = None
         if type(p[1]) is str:
-            p[0] = GoVar(p[1])
+            lhs = GoVar(p[1])
         else:
-            p[0] = p[1]
+            lhs = p[1]
     else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
-        p[0] = GoPrimaryExpr(p[1], p[2])
+        lhs = p[1]
+        rhs = p[2]
+    p[0] = GoPrimaryExpr(lhs, rhs)
 
 
 def p_Selector(p):
@@ -1261,6 +1264,7 @@ node_count = 0
 
 def escape_string(string):
     """Escape a string for output into ".dot" file."""
+    string = string.encode("unicode-escape").decode("utf8")
     string = string.replace('"', '\\"')
     return string
 
@@ -1316,6 +1320,8 @@ if __name__ == "__main__":
 
     with open(args.input, "r") as go:
         input_text = go.read()
+    if input_text[-1] != "\n":
+        input_text += "\n"
 
     # Storing filename and input text for error reporting
     lexer.filename = args.input

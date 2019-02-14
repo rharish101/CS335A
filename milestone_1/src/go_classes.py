@@ -253,7 +253,7 @@ class GoPrimaryExpr(GoBaseExpr):
     def __init__(self, lhs, rhs):
         super().__init__("primary")
         self.lhs = lhs
-        self.rhs = rhs
+        self.rhs = rhs  # rhs may be none
 
 
 class GoSelector:

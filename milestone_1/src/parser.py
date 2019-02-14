@@ -1193,6 +1193,48 @@ def p_ImportSpecList(p):
         p[0] = [p[1]] + p[3]
 
 
+# Used for numbering of nodes in the output ".dot" file
+node_count = 0
+
+
+def escape_string(string):
+    """Escape a string for output into ".dot" file."""
+    string = string.replace('"', '\\"')
+    return string
+
+
+def get_dot(obj):
+    """Get a list of node and edge declarations."""
+    global node_count
+    if type(obj) is str:
+        output = [
+            'N_{} [label="'.format(node_count) + escape_string(obj) + '"]'
+        ]
+    elif obj is None:
+        output = ['N_{} [label="None"]'.format(node_count)]
+    elif type(obj) is str:
+        output = ['N_{} [label="list"]'.format(node_count)]
+    else:
+        output = [
+            'N_{} [label="{}"]'.format(node_count, obj.__class__.__name__)
+        ]
+    own_count = node_count
+    node_count += 1
+
+    if type(obj) is list:
+        for child in obj:
+            output.append("N_{} -> N_{}".format(own_count, node_count))
+            output += get_dot(child)
+    elif type(obj) is not str and obj is not None:
+        for attr in obj.__dict__:
+            output.append(
+                'N_{} -> N_{} [label="{}"]'.format(own_count, node_count, attr)
+            )
+            output += get_dot(getattr(obj, attr))
+
+    return output
+
+
 parser = yacc.yacc()
 
 if __name__ == "__main__":
@@ -1222,5 +1264,6 @@ if __name__ == "__main__":
         print(result)
 
     with open(args.output, "w") as outf:
-        outf.write(str(result))
+        core_info = ";\n  ".join(get_dot(result))
+        outf.write("digraph syntax_tree {\n  " + core_info + ";\n}")
     print('Output file "{}" generated'.format(args.output))

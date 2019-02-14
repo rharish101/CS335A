@@ -1,14 +1,36 @@
 """Contains classes used by the parser (and possibly the semantic analyser)."""
+
+
+class GoClass:
+    """Just to define a standard to_dot function for all classes."""
+
+    def __init__(self):
+        pass
+
+    def to_dot(self):
+        return ""
+
+
+# For converting to ".dot"
+node_count = 0
+
+
 # =============================================================================
 # TYPES
 # =============================================================================
 
 
-class GoType:
+class GoType(GoClass):
     """The base class to inherit types from."""
 
     def __init__(self, kind):
         self.kind = kind
+
+    def to_dot(self):
+        global node_count
+        output = 'N_{} [label="{}"];'.format(node_count, self.kind)
+        node_count += 1
+        return output
 
 
 class GoInbuiltType(GoType):
@@ -28,13 +50,34 @@ class GoInbuiltType(GoType):
         super().__init__("inbuilt")
         self.name = name
 
+    def to_dot(self):
+        global node_count
+        output = 'N_{} [label="{}"];'.format(node_count, self.name)
+        node_count += 1
+        return output
 
-class GoFromModule:
+
+class GoFromModule(GoClass):
     """For module imports."""
 
     def __init__(self, parent, child):
         self.parent = parent
         self.child = child
+
+    def to_dot(self):
+        global node_count
+        output = 'N_{} [label="{}"];\n'.format(node_count, "module_import")
+        output += 'N_{} [label="Parent: {}"];\n'.format(
+            node_count + 1, self.parent
+        )
+        output += 'N_{} [label="Child: {}"];\n'.format(
+            node_count + 2, self.child
+        )
+        output += "N_{} -> N_{};\nN_{} -> N_{}".format(
+            node_count, node_count + 1, node_count, node_count + 2
+        )
+        node_count += 3
+        return output
 
 
 class GoArray(GoType):
@@ -45,6 +88,25 @@ class GoArray(GoType):
         self.length = length
         self.dtype = dtype
 
+    def to_dot(self):
+        global node_count
+        own_count = node_count
+        count_now = node_count
+        output = 'N_{} [label="{}"];\n'.format(node_count, "module_import")
+        node_count += 1
+
+        output += self.length.to_dot()
+        output += 'N_{} -> N_{} [label="Length"];\n'.format(
+            own_count, count_now + 1
+        )
+
+        count_now = node_count
+        output += self.length.to_dot()
+        output += 'N_{} -> N_{} [label="Type"];\n'.format(
+            own_count, count_now + 1
+        )
+        return output
+
 
 class GoStruct(GoType):
     """For struct types."""
@@ -54,7 +116,7 @@ class GoStruct(GoType):
         self.field = fields
 
 
-class GoStructField:
+class GoStructField(GoClass):
     """For a single field in a struct."""
 
     def __init__(self, var_list, dtype, tag):
@@ -63,14 +125,14 @@ class GoStructField:
         self.tag = tag
 
 
-class GoDeref:
+class GoDeref(GoClass):
     """For derefencing a variable using "*"."""
 
     def __init__(self, var):
         self.var = var
 
 
-class GoVar:
+class GoVar(GoClass):
     """For variables."""
 
     def __init__(self, name):
@@ -94,7 +156,7 @@ class GoFuncType(GoType):
         self.result = result
 
 
-class GoParam:
+class GoParam(GoClass):
     """For parameters to be passed to functions."""
 
     def __init__(self, name=None, dtype=None):
@@ -110,7 +172,7 @@ class GoInterfaceType(GoType):
         self.methods = methods
 
 
-class GoMethodFunc:
+class GoMethodFunc(GoClass):
     """For methods (not functions)."""
 
     def __init__(self, name, params, result=None):
@@ -124,7 +186,7 @@ class GoMethodFunc:
 # =============================================================================
 
 
-class GoBlock:
+class GoBlock(GoClass):
     """For blocks of statements."""
 
     def __init__(self, statements):
@@ -136,7 +198,7 @@ class GoBlock:
 # =============================================================================
 
 
-class GoDecl:
+class GoDecl(GoClass):
     """The base class to inherit declarations from."""
 
     def __init__(self, kind, declarations):
@@ -144,7 +206,7 @@ class GoDecl:
         self.declarations = declarations
 
 
-class GoConstSpec:
+class GoConstSpec(GoClass):
     """For a single spec of a constant in a const declaration."""
 
     def __init__(self, id_list, dtype=None, expr=None):
@@ -153,7 +215,7 @@ class GoConstSpec:
         self.expr = expr
 
 
-class GoTypeDefAlias:
+class GoTypeDefAlias(GoClass):
     """For typedefs and aliases."""
 
     def __init__(self, kind, alias, actual):
@@ -162,7 +224,7 @@ class GoTypeDefAlias:
         self.actual = actual
 
 
-class GoVarSpec:
+class GoVarSpec(GoClass):
     """For a single spec of a variable in a declaration of variables."""
 
     def __init__(self, lhs, dtype, rhs):
@@ -208,7 +270,7 @@ class GoMethDecl(GoDecl):
 # =============================================================================
 
 
-class GoBaseExpr:
+class GoBaseExpr(GoClass):
     """The base class to inherit expressions from."""
 
     def __init__(self, kind):
@@ -224,21 +286,21 @@ class GoPrimaryExpr(GoBaseExpr):
         self.rhs = rhs
 
 
-class GoSelector:
+class GoSelector(GoClass):
     """For selection of an attribute from package/struct in a primary expr."""
 
     def __init__(self, child):
         self.child = child
 
 
-class GoIndex:
+class GoIndex(GoClass):
     """For indexing an array in a primary expr."""
 
     def __init__(self, index):
         self.index = index
 
 
-class GoArguments:
+class GoArguments(GoClass):
     """For arguments to a function."""
 
     def __init__(self, expr_list, dtype=None):
@@ -270,7 +332,7 @@ class GoUnaryExpr(GoBaseExpr):
 # =============================================================================
 
 
-class GoAssign:
+class GoAssign(GoClass):
     """For assignment statements."""
 
     def __init__(self, lhs, rhs, op):
@@ -279,7 +341,7 @@ class GoAssign:
         self.op = op  # op can be None, indicating a simple assignment
 
 
-class GoIf:
+class GoIf(GoClass):
     """For if/else statements."""
 
     def __init__(self, stmt, cond, inif, inelse):
@@ -289,7 +351,7 @@ class GoIf:
         self.inelse = inelse
 
 
-class GoSwitch:
+class GoSwitch(GoClass):
     """For switch/case statements."""
 
     def __init__(self, stmt, cond, case_list):
@@ -298,7 +360,7 @@ class GoSwitch:
         self.case_list = case_list
 
 
-class GoCaseClause:
+class GoCaseClause(GoClass):
     """For a single case clause in a switch/case statement."""
 
     def __init__(self, kind, expr_list, stmt_list):
@@ -307,7 +369,7 @@ class GoCaseClause:
         self.stmt_list = stmt_list
 
 
-class GoFor:
+class GoFor(GoClass):
     """For loops (for/while/range)."""
 
     def __init__(self, clause, infor):
@@ -315,7 +377,7 @@ class GoFor:
         self.infor = infor
 
 
-class GoBaseForCl:
+class GoBaseForCl(GoClass):
     """The base class to inherit for loop clauses from.
 
     For loop clauses include C-style for loop and clauses using "range".
@@ -344,7 +406,7 @@ class GoRange(GoBaseForCl):
         self.rhs = rhs
 
 
-class GoControl:
+class GoControl(GoClass):
     """The base class to inherit control statements from.
 
     Control statements include return, break, continue, goto and fallthrough.
@@ -379,7 +441,7 @@ class GoLabelCtrl(GoControl):
 # =============================================================================
 
 
-class GoSourceFile:
+class GoSourceFile(GoClass):
     """For the source file."""
 
     def __init__(self, package, imports, declarations):
@@ -388,7 +450,7 @@ class GoSourceFile:
         self.declarations = declarations
 
 
-class GoImportSpec:
+class GoImportSpec(GoClass):
     """For an import specification."""
 
     def __init__(self, package, import_as=None):

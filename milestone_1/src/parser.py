@@ -1274,7 +1274,7 @@ def get_dot(obj):
         ]
     elif obj is None:
         output = ['N_{} [label="None"]'.format(node_count)]
-    elif type(obj) is str:
+    elif type(obj) is list:
         output = ['N_{} [label="list"]'.format(node_count)]
     else:
         output = [

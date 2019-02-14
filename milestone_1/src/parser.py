@@ -234,10 +234,11 @@ def p_ParameterList(p):
     """ParameterList : ParameterDecl
                      | ParameterList COMMA ParameterDecl
     """
+    # ParameterDecl returns a list
     if len(p) == 2:  # Single ParameterDecl
-        p[0] = [p[1]]
+        p[0] = p[1]
     else:
-        p[0] = p[1] + [p[3]]
+        p[0] = p[1] + p[3]
 
 
 def p_ParameterDecl(p):
@@ -272,6 +273,7 @@ def p_ParameterDecl(p):
     else:  # ID is type
         dtype = GoInbuiltType(new_p[2])
 
+    # ParameterDecl returns a list
     if type(new_p[1]) is list:  # IdentifierList
         p[0] = [
             GoParam(name=identifier, dtype=dtype) for identifier in new_p[1]

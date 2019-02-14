@@ -9,7 +9,9 @@ assign_1/doc/report.aux
 assign_1/src/*.html
 
 milestone_1/src/get_golang_bnf.ipynb
-milestone_1/src/parser.out
-milestone_1/src/parsetab.py
-milestone_1/src/*.dot
-milestone_1/src/*.ps
+milestone_1/**/parser.out
+milestone_1/**/parsetab.py
+milestone_1/**/*.dot
+milestone_1/**/*.ps
+milestone_1/bin/
+milestone_1/myASTGenerator

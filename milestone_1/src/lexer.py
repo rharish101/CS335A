@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Lexer for Go."""
-from __future__ import print_function
 from ply import lex
 from ply.lex import TOKEN
 from collections import OrderedDict
@@ -209,5 +208,10 @@ def t_error(t):
 
 t_ignore = " \t"
 
+# =============================================================================
+# NOTE:
+# lexer.filename should contain the source file's name
+# lexer.lines should be a list containing the source file split by newlines
+# =============================================================================
 lexer = lex.lex()
 lexer.last = False

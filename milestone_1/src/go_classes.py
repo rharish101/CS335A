@@ -1,3 +1,9 @@
+"""Contains classes used by the parser (and possibly the semantic analyser)."""
+# =============================================================================
+# TYPES
+# =============================================================================
+
+
 class GoType:
     def __init__(self, kind):
         self.kind = kind
@@ -77,9 +83,19 @@ class GoMethodFunc:
         self.result = result
 
 
+# =============================================================================
+# BLOCKS
+# =============================================================================
+
+
 class GoBlock:
     def __init__(self, statements):
         self.statements = statements
+
+
+# =============================================================================
+# DECLARATIONS AND SCOPE
+# =============================================================================
 
 
 class GoDecl:
@@ -135,6 +151,92 @@ class GoMethDecl(GoDecl):
         self.body = body
 
 
+# =============================================================================
+# EXPRESSIONS
+# =============================================================================
+
+
+class GoBaseExpr:
+    def __init__(self, kind):
+        self.kind = kind
+
+
+class GoPrimaryExpr(GoBaseExpr):
+    def __init__(self, lhs, rhs):
+        super().__init__("primary")
+        self.lhs = lhs
+        self.rhs = rhs
+
+
+class GoSelector:
+    def __init__(self, child):
+        self.child = child
+
+
+class GoIndex:
+    def __init__(self, index):
+        self.index = index
+
+
+class GoExpression(GoBaseExpr):
+    def __init__(self, lhs, rhs, op):
+        super().__init__("expression")
+        self.lhs = lhs
+        self.rhs = rhs
+        self.op = op
+
+
+class GoUnaryExpr(GoBaseExpr):
+    def __init__(self, expr, op):
+        super().__init__("unary")
+        self.expr = expr
+        self.op = op
+
+
+# =============================================================================
+# STATEMENTS
+# =============================================================================
+
+
+class GoAssign:
+    def __init__(self, lhs, rhs, op):
+        self.lhs = lhs
+        self.rhs = rhs
+        self.op = op  # op can be None, indicating a simple assignment
+
+
+class GoIf:
+    def __init__(self, stmt, cond, inif, inelse):
+        self.stmt = stmt  # stmt can be None, indicating no statement
+        self.cond = cond
+        self.inif = inif
+        self.inelse = inelse
+
+
+# Class for Return, Break, Continue and Goto statements
+class GoControl:
+    def __init__(self, kind):
+        self.kind = kind
+
+
+class GoReturn(GoControl):
+    def __init__(self, expr_list):
+        super().__init__("return")
+        self.expr_list = expr_list
+
+
+class GoLabelCtrl(GoControl):
+    def __init__(self, keyword, label):
+        super().__init__("label")
+        self.keyword = keyword
+        self.label = label
+
+
+# =============================================================================
+# PACKAGES
+# =============================================================================
+
+
 class GoSourceFile:
     def __init__(self, package, imports, declarations):
         self.package = package
@@ -146,47 +248,3 @@ class GoImportSpec:
     def __init__(self, package, import_as=None):
         self.package = package
         self.import_as = import_as
-
-class GoFunc:
-    def __init__(self, key, func):
-        self.key = key
-        self.func = func
-
-class GoPrimaryExpr:
-    def __init__(self, primary_exp, index):
-        self.primary_exp = primary_exp
-        self.index = index
-
-class GoExpression:
-    def __init__(self, left, right, op):
-        self.left = left
-        self.right = right
-        self.op = op
-
-class GoIncDec:
-    def __init__(self, expr, op):
-        self.expr = expr
-        self.op = op
-
-class GoAssign:
-    def __init__(self, left, right, op):
-        self.left = left
-        self.right = right
-        self.op = op
-
-class GoAddMul:
-    def __init__(self, add_op, assign_op):
-        self.add_op = add_op
-        self.assign_op = assign_op
-
-class GoIf:
-    def __init__(self, stmt_cond, inif, inelse):
-        self.stmt_cond = stmt_cond
-        self.inif = inif
-        self.inelse = inelse
-
-# Class for Return, Break, Continue and GoTo statements 
-class GoControl:
-    def __init__(self, keyword, identifier):
-        self.keyword = keyword
-        self.identifier = identifier

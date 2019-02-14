@@ -4,7 +4,7 @@ from ply import yacc
 from ply.lex import LexToken
 from argparse import ArgumentParser
 from lexer import tokens, lexer, t_error
-from utils import *
+from go_classes import *
 
 precedence = (
     ("left", "ID"),
@@ -399,11 +399,11 @@ def p_ConstSpec(p):
         dtype = None
 
     if type(p[len(p) - 1]) is list:  # ExpressionList
-        expression = p[len(p) - 1]
+        expressions = p[len(p) - 1]
     else:  # Expression
-        expression = [p[len(p) - 1]]
+        expressions = [p[len(p) - 1]]
 
-    p[0] = GoConstSpec(id_list, dtype, expression)
+    p[0] = GoConstSpec(id_list, dtype, expressions)
 
 
 def p_ConstSpecList(p):
@@ -659,19 +659,19 @@ def p_Receiver(p):
 
 
 def p_Operand(p):
-    """Operand  : Literal
-                | MethodExpr
-                | LBRACK Expression RBRACK
+    """Operand : Literal
+               | MethodExpr
+               | LBRACK Expression RBRACK
     """
-    if len(p) == 2:
-    	p[0] = p[1]
-    else:
-    	p[0] = p[2]
+    if len(p) == 2:  # Literal or MethodExpr
+        p[0] = p[1]
+    else:  # Expression
+        p[0] = p[2]
 
 
 def p_Literal(p):
-    """Literal  : BasicLit
-                | FunctionLit
+    """Literal : BasicLit
+               | FunctionLit
     """
     p[0] = p[1]
 
@@ -685,11 +685,11 @@ def p_BasicLit(p):
     """
     p[0] = p[1]
 
+
 def p_FunctionLit(p):
     """FunctionLit : FUNC Function
     """
-    p[0] = GoFunc(p[1], p[2])
-
+    p[0] = p[2]
 
 
 def p_PrimaryExpr(p):
@@ -699,24 +699,25 @@ def p_PrimaryExpr(p):
                    | PrimaryExpr Index
                    | PrimaryExpr Arguments
     """
-	if len(p) == 2:
-		p[0] = p[1]
-	else:
-		p[0] = GoPrimaryExpr(p[1], p[2])
+    if len(p) == 2:  # Operand or ID
+        p[0] = p[1]
+    else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
+        p[0] = GoPrimaryExpr(p[1], p[2])
 
 
 def p_Selector(p):
     """Selector : DOT ID
     """
-    p[0] = (p[1], p[2])
+    p[0] = GoSelector(p[2])
 
 
 def p_Index(p):
     """Index : LSQBRACK Expression RSQBRACK
     """
-    p[0] = p[2]
+    p[0] = GoIndex(p[2])
 
-#XXX
+
+# TODO:
 def p_Arguments(p):
     """Arguments : LBRACK RBRACK
                  | LBRACK ExpressionList TRIDOT RBRACK
@@ -766,15 +767,14 @@ def p_Arguments(p):
     """
 
 
-
 def p_MethodExpr(p):
     """MethodExpr : ReceiverType DOT ID   %prec ID
                   | ID DOT ID        %prec ID
                   | ID DOT ID DOT ID
     """
-    if len(p) == 4:
+    if len(p) == 4:  # Single import from ReceiverType/package
         p[0] = GoFromModule(p[1], p[3])
-    else:
+    else:  # Double import from package/class
         p[0] = GoFromModule(GoFromModule(p[1], p[3]), p[5])
 
 
@@ -783,11 +783,11 @@ def p_ReceiverType(p):
                     | LBRACK MULT ID RBRACK
                     | LBRACK ReceiverType RBRACK
     """
-    if len(p) == 7:
-    	p[0] = GoDeref(GoFromModule(p[3], p[5]))
-    elif len(p) == 5:
-        p[0] = GoDeref(p[3])
-    else:
+    if len(p) == 7:  # Deferencing a package import
+        p[0] = GoDeref(GoFromModule(p[3], p[5]))
+    elif len(p) == 5:  # Deferencing a variable
+        p[0] = GoDeref(GoVar(p[3]))
+    else:  # ReceiverType
         p[0] = p[2]
 
 
@@ -812,16 +812,21 @@ def p_Expression(p):
                   | Expression RSHIFT Expression
                   | Expression BITAND Expression
                   | Expression BITCLR Expression
-
     """
-    p[0] = GoExpression(p[1], p[3] ,p[2])
+    if len(p) == 1:  # UnaryExpr given
+        p[0] = p[1]
+    else:  # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
+        p[0] = GoExpression(p[1], p[3], p[2])
 
 
 def p_ExpressionBot(p):
     """ExpressionBot : empty
                      | Expression
     """
-    p[0] = p[1]
+    if p[1] is None:  # empty
+        p[0] = GoBaseExpr("empty")
+    else:
+        p[0] = p[1]
 
 
 def p_ExpressionBotList(p):
@@ -829,16 +834,20 @@ def p_ExpressionBotList(p):
                          | COMMA Expression ExpressionBotList
     """
     if len(p) == 3:
-    	p[0] = [p[2]]
+        p[0] = [p[2]]
     else:
-    	p[0] = [p[2]] + p[3]
+        p[0] = [p[2]] + p[3]
 
 
-#XXX
 def p_UnaryExpr(p):
     """UnaryExpr : PrimaryExpr
                  | unary_op UnaryExpr
     """
+    if len(p) == 2:  # PrimaryExpr
+        p[0] = p[1]
+    else:  # unary_op used
+        # 1st arg. is expression, 2nd arg. is unary_op
+        p[0] = GoUnaryExpr(p[2], p[1])
 
 
 def p_addmul_op(p):
@@ -846,6 +855,7 @@ def p_addmul_op(p):
                  | add_op
                  | mul_op
     """
+    # If empty, then pass on None
     p[0] = p[1]
 
 
@@ -918,56 +928,66 @@ def p_IncDecStmt(p):
     """IncDecStmt : Expression INCR
                   | Expression DECR
     """
-    p[0] = GoIncDec(p[1], p[2])
+    # 1st arg. is expression, 2nd arg. is unary_op
+    p[0] = GoUnaryExpr(p[1], p[2])
 
 
 def p_Assignment(p):
     """Assignment : Expression assign_op Expression
-                  | ExpressionList assign_op Expression
                   | Expression assign_op ExpressionList
+                  | ExpressionList assign_op Expression
                   | ExpressionList assign_op ExpressionList
     """
-    if type(p[1]) is list:
-        if type(p[3]) is list:
-            p[0] = GoAssign(p[1], p[3], p[2])
-        else:
-            p[0] = GoAssign(p[1], [p[3]], p[2])
-    else:
-        if type(p[3]) is list:
-            p[0] = GoAssign([p[1]], p[3], p[2])
-        else:
-            p[0] = GoAssign([p[1]], [p[3]], p[2])
+    if type(p[1]) is list:  # LHS is ExpressionList
+        lhs = p[1]
+    else:  # LHS is a single Expression
+        lhs = [p[1]]
+
+    if type(p[3]) is list:  # RHS is ExpressionList
+        rhs = p[3]
+    else:  # RHS is a single Expression
+        rhs = [p[3]]
+
+    # 1st arg. is LHS, 2nd arg. is RHS, and 3rd arg. is the assign op
+    p[0] = GoAssign(lhs, rhs, p[2])
 
 
 def p_assign_op(p):
     """assign_op : addmul_op ASSIGN
     """
-    p[0] = GoAddMul(p[1], p[2])
+    p[0] = p[1]
 
-#XXX
+
 def p_IfStmt(p):
     """IfStmt : IF Expression Block ElseBot
               | IF SimpleStmt SEMICOLON Expression Block ElseBot
     """
-    if len(p) == 5:
-        p[0] = GoIf([p[2]], p[3], p[4])
+    if len(p) == 5:  # No SimpleStmt
+        stmt = None
     else:
-        p[0] = GoIf([p[2],p[3],p[4]], p[5], p[6])
+        stmt = p[2]
+    p[0] = GoIf(stmt, p[len(p) - 3], p[len(p) - 2], p[len(p) - 1])
 
 
 def p_ElseBot(p):
     """ElseBot : empty
                | ELSE ElseTail
     """
-    p[0] = p[2]
-
+    if len(p) == 2:  # empty
+        p[0] = GoBlock([])
+    else:
+        p[0] = p[2]
 
 
 def p_ElseTail(p):
     """ElseTail : IfStmt
                 | Block
     """
-    p[0] = p[1]
+    if isinstance(p[1], GoBlock):
+        p[0] = p[1]
+    else:
+        p[0] = GoBlock([p[1]])
+
 
 def p_SwitchStmt(p):
     """SwitchStmt : ExprSwitchStmt
@@ -975,24 +995,27 @@ def p_SwitchStmt(p):
     p[0] = p[1]
 
 
+# TODO:
 def p_ExprSwitchStmt(p):
     """ExprSwitchStmt : SWITCH SimpleStmt SEMICOLON  ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
                       | SWITCH ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
     """
 
 
-
+# TODO:
 def p_ExprCaseClauseList(p):
     """ExprCaseClauseList : empty
                           | ExprCaseClauseList ExprCaseClause
     """
 
 
+# TODO:
 def p_ExprCaseClause(p):
     """ExprCaseClause : ExprSwitchCase COLON StatementList
     """
 
 
+# TODO:
 def p_ExprSwitchCase(p):
     """ExprSwitchCase : CASE ExpressionList
                       | DEFAULT
@@ -1000,37 +1023,45 @@ def p_ExprSwitchCase(p):
     """
 
 
+# TODO:
 def p_ForStmt(p):
     """ForStmt : FOR ExpressionBot Block
     """
-    
+
 
 def p_ReturnStmt(p):
     """ReturnStmt : RETURN ExpressionListBot
                   | RETURN Expression
     """
-    p[0] = GoControl(p[1], p[2])
+    if type(p[2]) is list:
+        expressions = p[2]
+    else:
+        expressions = [p[2]]
+    p[0] = GoControl(p[1], expressions)
+
 
 def p_BreakStmt(p):
     """BreakStmt : BREAK ID
     """
-    p[0] = GoControl(p[1], p[2])
+    p[0] = GoLabelCtrl(p[1], p[2])
+
 
 def p_ContinueStmt(p):
     """ContinueStmt : CONTINUE ID
     """
-    p[0] = GoControl(p[1], p[2])
+    p[0] = GoLabelCtrl(p[1], p[2])
+
 
 def p_GotoStmt(p):
     """GotoStmt : GOTO ID
     """
-    p[0] = GoControl(p[1], p[2])
+    p[0] = GoLabelCtrl(p[1], p[2])
 
 
 def p_FallthroughStmt(p):
     """FallthroughStmt : FALLTHROUGH
     """
-    p[0] = p[1]
+    p[0] = GoControl("fallthrough")
 
 
 # =============================================================================
@@ -1096,14 +1127,18 @@ if __name__ == "__main__":
     )
     args = argparser.parse_args()
     if args.output is None:
+        # Output filename is source filename (w/o extension) with the "dot"
+        # extension
         args.output = args.input.split("/")[-1] + ".dot"
 
     with open(args.input, "r") as go:
         input_text = go.read()
+
+    # Storing filename and input text for error reporting
     lexer.filename = args.input
     lexer.lines = input_text.split("\n")
-    result = parser.parse(input_text)
 
+    result = parser.parse(input_text)
     if args.verbose:
         print(result)
 

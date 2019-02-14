@@ -203,7 +203,7 @@ def p_Signature(p):
 
 def p_Result(p):
     """Result : Parameters
-              | Type
+              | TypeLit
               | ID DOT ID
               | ID
     """
@@ -251,6 +251,9 @@ def p_ParameterDecl(p):
                      | ID TRIDOT Type
                      | ID TRIDOT ID DOT ID
                      | ID TRIDOT ID
+                     | Type
+                     | ID DOT ID
+                     | ID
                      | IdentifierList Type
                      | IdentifierList ID DOT ID
                      | IdentifierList ID
@@ -263,6 +266,15 @@ def p_ParameterDecl(p):
     for item in p:
         if type(item) is not str or item != "...":
             new_p.append(item)
+
+    if len(new_p) == 2 or len(new_p) == 4:  # only types given
+        if isinstance(p[1], GoType):  # GoType
+            dtype = p[1]
+        elif len(new_p) == 4:  # ID DOT ID
+            dtype = GoFromModule(p[1], p[3])
+        else:  # ID
+            dtype = GoInbuiltType(p[1])
+        p[0] = [GoParam(name=None, dtype=dtype)]
 
     if isinstance(new_p[2], GoType) or isinstance(
         new_p[2], GoFromModule
@@ -1158,7 +1170,7 @@ def p_ReturnStmt(p):
                   | RETURN
     """
     if len(p) == 2:
-    	expressions = []
+        expressions = []
     elif type(p[2]) is list:
         expressions = p[2]
     else:
@@ -1266,8 +1278,6 @@ def get_dot(obj):
         output = [
             'N_{} [label="'.format(node_count) + escape_string(obj) + '"]'
         ]
-    elif obj is None:
-        output = ['N_{} [label="None"]'.format(node_count)]
     elif type(obj) is list:
         output = ['N_{} [label="list"]'.format(node_count)]
     else:
@@ -1279,14 +1289,25 @@ def get_dot(obj):
 
     if type(obj) is list:
         for child in obj:
+            # Avoid None child node and empty lists
+            if child is None or (type(child) is list and len(child) == 0):
+                continue
             output.append("N_{} -> N_{}".format(own_count, node_count))
             output += get_dot(child)
     elif type(obj) is not str and obj is not None:
         for attr in obj.__dict__:
+            child = getattr(obj, attr)
+            # Avoid None child node, empty lists, and "kind" attributes
+            if (
+                attr == "kind"
+                or child is None
+                or (type(child) is list and len(child) == 0)
+            ):
+                continue
             output.append(
                 'N_{} -> N_{} [label="{}"]'.format(own_count, node_count, attr)
             )
-            output += get_dot(getattr(obj, attr))
+            output += get_dot(child)
 
     return output
 

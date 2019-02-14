@@ -98,7 +98,7 @@ class GoParam:
     """For parameters to be passed to functions."""
 
     def __init__(self, name=None, dtype=None):
-        self.name = name
+        self.name = name  # name can be None
         self.dtype = dtype
 
 

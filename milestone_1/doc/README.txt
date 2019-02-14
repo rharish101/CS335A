@@ -7,7 +7,7 @@ The parser is built using GNU Make as follows:
   $ make
 
 The parser is then run as follows:
-  $ ./myASTGenerator tests/input2/some.go --output=some.dot
+  $ ./myASTGenerator ../tests/input2/some.go --output=some.dot
 
 It is HIGHLY recommended to run it with python3.
 

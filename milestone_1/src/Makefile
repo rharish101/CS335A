@@ -2,7 +2,7 @@ all: parser
 
 parser:
 	mkdir -p bin
-	cp -t bin/ src/lexer.py src/parser.py src/go_classes.py
+	cp -t bin/ lexer.py parser.py go_classes.py
 	ln -sf bin/parser.py myASTGenerator
 	chmod +x myASTGenerator
 

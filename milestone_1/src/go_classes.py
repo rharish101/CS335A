@@ -208,18 +208,43 @@ class GoMethDecl(GoDecl):
 # =============================================================================
 
 
-class GoBaseExpr:
-    """The base class to inherit expressions from."""
+class GoBaseLit:
+    """The base class to inherit literals from."""
 
     def __init__(self, kind):
         self.kind = kind
 
 
-class GoBasicLit:
+class GoBasicLit(GoBaseLit):
     """For literals like integers, strings and so on."""
 
     def __init__(self, item):
+        super().__init__("basic")
         self.item = item
+
+
+class GoCompositeLit(GoBaseLit):
+    """For composite literals."""
+
+    def __init__(self, dtype, value):
+        super().__init__("composite")
+        self.dtype = dtype
+        self.value = value
+
+
+class GoKeyedElement:
+    """For keyed elements in composite literals."""
+
+    def __init__(self, key, element):
+        self.key = key
+        self.element = element
+
+
+class GoBaseExpr:
+    """The base class to inherit expressions from."""
+
+    def __init__(self, kind):
+        self.kind = kind
 
 
 class GoPrimaryExpr(GoBaseExpr):

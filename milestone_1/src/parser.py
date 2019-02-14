@@ -705,7 +705,16 @@ def p_CompositeLit(p):
                     | LSQBRACK TRIDOT RSQBRACK ID DOT ID LiteralValue
                     | LSQBRACK TRIDOT RSQBRACK ID LiteralValue
     """
-    p[0] = p[1]
+    if len(p) == 3:  # No square brackets
+        dtype = p[1]
+    elif isinstance(p[4], GoType):  # Type
+        dtype = p[4]
+    elif len(p) == 8:  # ID DOT ID
+        dtype = GoFromModule(p[4], p[6])
+    else:
+        dtype = GoInbuiltType(p[4])
+
+    p[0] = GoCompositeLit(dtype, p[len(p) - 1])
 
 
 def p_LiteralType(p):
@@ -720,12 +729,20 @@ def p_LiteralValue(p):
                     | LCURLBR ElementList RCURLBR
                     | LCURLBR ElementList COMMA RCURLBR
     """
+    if len(p) == 3:  # No ElementList given
+        p[0] = []
+    else:  # ElementList
+        p[0] = p[2]
 
 
 def p_ElementList(p):
     """ElementList : KeyedElement
                    | ElementList COMMA KeyedElement
     """
+    if len(p) == 2:
+        p[0] = [p[1]]
+    else:
+        p[0] = p[1] + [p[3]]
 
 
 def p_KeyedElement(p):
@@ -738,6 +755,12 @@ def p_KeyedElement(p):
                     | Expression COLON LiteralValue
                     | LiteralValue COLON LiteralValue
     """
+    if len(p) == 2:  # No key
+        key = None
+    else:  # Key given
+        key = p[1]
+
+    p[0] = GoKeyedElement(key, p[len(p) - 1])
 
 
 def p_FunctionLit(p):

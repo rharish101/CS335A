@@ -1154,12 +1154,15 @@ def p_RangeClause(p):
 
 def p_ReturnStmt(p):
     """ReturnStmt : RETURN ExpressionList
+    			  | RETURN Expression
                   | RETURN
     """
     if len(p) == 2:
     	expressions = []
-    else:
+    elif type(p[2]) is list:
         expressions = p[2]
+    else:
+    	expressions = [p[2]]
     p[0] = GoReturn(expressions)
 
 

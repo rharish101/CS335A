@@ -403,7 +403,7 @@ class GoLabelCtrl(GoControl):
     def __init__(self, keyword, label):
         super().__init__("label")
         self.keyword = keyword
-        self.label = label
+        self.label = label  # label can be None
 
 
 # =============================================================================

@@ -1177,14 +1177,20 @@ def p_BreakStmt(p):
     """BreakStmt : BREAK ID
                  | BREAK
     """
-    p[0] = GoLabelCtrl(p[1], p[2])
+    if len(p) == 3:
+        p[0] = GoLabelCtrl(p[1], p[2])
+    else:
+        p[0] = GoLabelCtrl(p[1], None)
 
 
 def p_ContinueStmt(p):
     """ContinueStmt : CONTINUE ID
                     | CONTINUE
     """
-    p[0] = GoLabelCtrl(p[1], p[2])
+    if len(p) == 3:
+        p[0] = GoLabelCtrl(p[1], p[2])
+    else:
+        p[0] = GoLabelCtrl(p[1], None)
 
 
 def p_GotoStmt(p):
@@ -1306,7 +1312,7 @@ if __name__ == "__main__":
     if args.output is None:
         # Output filename is source filename (w/o extension) with the "dot"
         # extension
-        args.output = args.input.split("/")[-1] + ".dot"
+        args.output = args.input.split("/")[-1][:-3] + ".dot"
 
     with open(args.input, "r") as go:
         input_text = go.read()

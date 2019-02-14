@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Parser for Go."""
 from ply import yacc
-from ply.lex import LexToken
 from argparse import ArgumentParser
 from lexer import tokens, lexer, t_error
 from go_classes import *
@@ -248,21 +247,26 @@ def p_ParameterDecl(p):
                      | ID ID
     """
     # Remove support for variadic params
-    for i, item in enumerate(p):
-        if type(item) is LexToken and item.type == "TRIDOT":
-            del p[i]
+    new_p = []
+    for item in p:
+        if type(item) is not str or item != "...":
+            new_p.append(item)
 
-    if isinstance(p[2], GoType) or isinstance(p[2], GoFromModule):  # Type
-        dtype = p[2]
-    elif len(p) == 5:  # ID DOT ID is type
-        dtype = GoFromModule(p[2], p[4])
+    if isinstance(new_p[2], GoType) or isinstance(
+        new_p[2], GoFromModule
+    ):  # Type
+        dtype = new_p[2]
+    elif len(new_p) == 5:  # ID DOT ID is type
+        dtype = GoFromModule(new_p[2], new_p[4])
     else:  # ID is type
-        dtype = GoInbuiltType(p[2])
+        dtype = GoInbuiltType(new_p[2])
 
-    if type(p[1]) is list:  # IdentifierList
-        p[0] = [GoParam(name=identifier, dtype=dtype) for identifier in p[1]]
+    if type(new_p[1]) is list:  # IdentifierList
+        p[0] = [
+            GoParam(name=identifier, dtype=dtype) for identifier in new_p[1]
+        ]
     else:  # ID
-        p[0] = [GoParam(name=p[1], dtype=dtype)]
+        p[0] = [GoParam(name=new_p[1], dtype=dtype)]
 
 
 def p_InterfaceType(p):
@@ -545,7 +549,7 @@ def p_VarSpec(p):
         dtype = p[2]
     elif len(p) == 6:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
-    elif p.type == "ID":  # LexToken with type "ID"
+    elif type(p) is str:  # ID
         dtype = GoInbuiltType(p[2])
     else:  # No type given
         dtype = None
@@ -717,54 +721,83 @@ def p_Index(p):
     p[0] = GoIndex(p[2])
 
 
-# TODO:
 def p_Arguments(p):
     """Arguments : LBRACK RBRACK
-                 | LBRACK ExpressionList TRIDOT RBRACK
-                 | LBRACK Expression TRIDOT RBRACK
+                 | LBRACK Type COMMA ExpressionList RBRACK
+                 | LBRACK ID DOT ID COMMA ExpressionList RBRACK
+                 | LBRACK ID COMMA ExpressionList RBRACK
                  | LBRACK ExpressionList RBRACK
-                 | LBRACK Expression RBRACK
-                 | LBRACK Type TRIDOT RBRACK
-                 | LBRACK Type RBRACK
-                 | LBRACK Type COMMA ExpressionList  TRIDOT RBRACK
-                 | LBRACK Type COMMA ExpressionList  RBRACK
-                 | LBRACK Type COMMA Expression TRIDOT RBRACK
                  | LBRACK Type COMMA Expression RBRACK
-                 | LBRACK ID TRIDOT RBRACK
-                 | LBRACK ID RBRACK %prec LBRACK
-                 | LBRACK ID COMMA ExpressionList  TRIDOT RBRACK
-                 | LBRACK ID COMMA ExpressionList  RBRACK
-                 | LBRACK ID COMMA Expression TRIDOT RBRACK
-                 | LBRACK ID COMMA Expression RBRACK
-                 | LBRACK ID DOT ID TRIDOT RBRACK
-                 | LBRACK ID DOT ID RBRACK
-                 | LBRACK ID DOT ID COMMA ExpressionList  TRIDOT RBRACK
-                 | LBRACK ID DOT ID COMMA ExpressionList  RBRACK
-                 | LBRACK ID DOT ID COMMA Expression TRIDOT RBRACK
                  | LBRACK ID DOT ID COMMA Expression RBRACK
-                 | LBRACK ExpressionList TRIDOT COMMA RBRACK
-                 | LBRACK Expression TRIDOT COMMA RBRACK
+                 | LBRACK ID COMMA Expression RBRACK
+                 | LBRACK Expression RBRACK
+                 | LBRACK Type RBRACK
+                 | LBRACK ID DOT ID RBRACK
+                 | LBRACK ID RBRACK %prec LBRACK
+                 | LBRACK Type COMMA ExpressionList COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA ExpressionList COMMA RBRACK
+                 | LBRACK ID COMMA ExpressionList COMMA RBRACK
                  | LBRACK ExpressionList COMMA RBRACK
-                 | LBRACK Expression COMMA RBRACK
-                 | LBRACK Type TRIDOT COMMA RBRACK
-                 | LBRACK Type COMMA RBRACK
-                 | LBRACK Type COMMA ExpressionList  TRIDOT COMMA RBRACK
-                 | LBRACK Type COMMA ExpressionList  COMMA RBRACK
-                 | LBRACK Type COMMA Expression TRIDOT COMMA RBRACK
                  | LBRACK Type COMMA Expression COMMA RBRACK
-                 | LBRACK ID TRIDOT COMMA RBRACK
-                 | LBRACK ID COMMA RBRACK
-                 | LBRACK ID COMMA ExpressionList  TRIDOT COMMA RBRACK
-                 | LBRACK ID COMMA ExpressionList  COMMA RBRACK
-                 | LBRACK ID COMMA Expression TRIDOT COMMA RBRACK
-                 | LBRACK ID COMMA Expression COMMA RBRACK
-                 | LBRACK ID DOT ID TRIDOT COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA ExpressionList  TRIDOT COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA ExpressionList  COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA Expression TRIDOT COMMA RBRACK
                  | LBRACK ID DOT ID COMMA Expression COMMA RBRACK
+                 | LBRACK ID COMMA Expression COMMA RBRACK
+                 | LBRACK Expression COMMA RBRACK
+                 | LBRACK Type COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA RBRACK
+                 | LBRACK ID COMMA RBRACK
+                 | LBRACK Type COMMA ExpressionList TRIDOT RBRACK
+                 | LBRACK ID DOT ID COMMA ExpressionList TRIDOT RBRACK
+                 | LBRACK ID COMMA ExpressionList TRIDOT RBRACK
+                 | LBRACK ExpressionList TRIDOT RBRACK
+                 | LBRACK Type COMMA Expression TRIDOT RBRACK
+                 | LBRACK ID DOT ID COMMA Expression TRIDOT RBRACK
+                 | LBRACK ID COMMA Expression TRIDOT RBRACK
+                 | LBRACK Expression TRIDOT RBRACK
+                 | LBRACK Type TRIDOT RBRACK
+                 | LBRACK ID DOT ID TRIDOT RBRACK
+                 | LBRACK ID TRIDOT RBRACK
+                 | LBRACK Type COMMA ExpressionList TRIDOT COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA ExpressionList TRIDOT COMMA RBRACK
+                 | LBRACK ID COMMA ExpressionList TRIDOT COMMA RBRACK
+                 | LBRACK ExpressionList TRIDOT COMMA RBRACK
+                 | LBRACK Type COMMA Expression TRIDOT COMMA RBRACK
+                 | LBRACK ID DOT ID COMMA Expression TRIDOT COMMA RBRACK
+                 | LBRACK ID COMMA Expression TRIDOT COMMA RBRACK
+                 | LBRACK Expression TRIDOT COMMA RBRACK
+                 | LBRACK Type TRIDOT COMMA RBRACK
+                 | LBRACK ID DOT ID TRIDOT COMMA RBRACK
+                 | LBRACK ID TRIDOT COMMA RBRACK
     """
+    if len(p) == 3:  # no arguments
+        p[0] = GoArguments([])
+        return
+
+    # Remove support for variadic params and remove trailing comma
+    new_p = []
+    for i, item in enumerate(p):
+        if (type(item) is not str or item != "...") and (
+            i != len(p) - 2 or type(item) is not str or item != ","
+        ):
+            new_p.append(item)
+
+    if type(new_p[-2]) is list:  # ExpressionList
+        expressions = new_p[-2]
+    elif isinstance(new_p[-2], GoBaseExpr):  # Expression
+        expressions = [new_p[-2]]
+    else:  # no expressions, only type
+        expressions = []
+
+    if isinstance(new_p[2], GoType):  # Type
+        dtype = new_p[2]
+    elif type(new_p[2]) is str:  # ID DOT ID or ID
+        if type(new_p[3]) is str and new_p[3] == ".":  # ID DOT ID
+            dtype = GoFromModule(new_p[2], new_p[4])
+        else:  # ID
+            dtype = GoInbuiltType(new_p[2])
+    else:  # no type given
+        dtype = None
+
+    p[0] = GoArguments(expressions, dtype)
 
 
 def p_MethodExpr(p):
@@ -950,7 +983,6 @@ def p_Assignment(p):
     p[0] = GoAssign(lhs, rhs, p[2])
 
 
-#???
 def p_assign_op(p):
     """assign_op : addmul_op ASSIGN
                  | ASSIGN

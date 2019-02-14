@@ -25,7 +25,7 @@ class GoArray(GoType):
     def __init__(self, length, dtype):
         super().__init__("array")
         self.length = length
-        self.type = dtype
+        self.dtype = dtype
 
 
 class GoStruct(GoType):
@@ -37,7 +37,7 @@ class GoStruct(GoType):
 class GoStructField:
     def __init__(self, var_list, dtype, tag):
         self.vars = var_list
-        self.type = dtype
+        self.dtype = dtype
         self.tag = tag
 
 
@@ -176,6 +176,12 @@ class GoSelector:
 class GoIndex:
     def __init__(self, index):
         self.index = index
+
+
+class GoArguments:
+    def __init__(self, expr_list, dtype=None):
+        self.expr_list = expr_list
+        self.dtype = dtype  # dtype can be None
 
 
 class GoExpression(GoBaseExpr):

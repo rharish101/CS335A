@@ -74,8 +74,7 @@ def p_Type(p):
 
 
 def p_TypeLit(p):
-    """TypeLit : ArrayType
-               | StructType
+    """TypeLit : LiteralType
                | InterfaceType
                | PointerType
                | FunctionType
@@ -169,8 +168,16 @@ def p_TagTop(p):
 
 def p_PointerType(p):
     """PointerType : MULT Type
+                   | MULT ID DOT ID
+                   | MULT ID
     """
-    p[0] = GoPointType(p[2])
+    if isinstance(p[2], GoType):  # Type
+        point_to = p[2]
+    elif len(p) == 5:  # ID DOT ID
+        point_to = GoFromModule(p[2], p[4])
+    else:  # ID
+        point_to = GoInbuiltType(p[2])
+    p[0] = GoPointType(point_to)
 
 
 def p_FunctionType(p):
@@ -447,8 +454,8 @@ def p_ExpressionList(p):
 
 
 def p_ExpressionListBot(p):
-    """ExpressionListBot : empty
-                         | ExpressionList
+    """ExpressionListBot : COMMA Expression
+                         | ExpressionListBot COMMA Expression
     """
     if p[1] is None:  # empty
         p[0] = []
@@ -676,6 +683,7 @@ def p_Operand(p):
 def p_Literal(p):
     """Literal : BasicLit
                | FunctionLit
+               | CompositeLit
     """
     p[0] = p[1]
 
@@ -688,6 +696,47 @@ def p_BasicLit(p):
                 | RUNE
     """
     p[0] = p[1]
+
+
+def p_CompositeLit(p):
+    """CompositeLit : LiteralType LiteralValue
+                    | LSQBRACK TRIDOT RSQBRACK Type LiteralValue
+                    | LSQBRACK TRIDOT RSQBRACK ID DOT ID LiteralValue
+                    | LSQBRACK TRIDOT RSQBRACK ID LiteralValue
+    """
+    p[0] = p[1]
+
+
+def p_LiteralType(p):
+    """LiteralType : ArrayType
+                   | StructType
+    """
+    p[0] = p[1]
+
+
+def p_LiteralValue(p):
+    """LiteralValue : LCURLBR RCURLBR
+                    | LCURLBR ElementList RCURLBR
+                    | LCURLBR ElementList COMMA RCURLBR
+    """
+
+
+def p_ElementList(p):
+    """ElementList : KeyedElement
+                   | ElementList COMMA KeyedElement
+    """
+
+
+def p_KeyedElement(p):
+    """KeyedElement : Expression
+                    | LiteralValue
+                    | ID COLON Expression
+                    | Expression COLON Expression
+                    | LiteralValue COLON Expression
+                    | ID COLON LiteralValue
+                    | Expression COLON LiteralValue
+                    | LiteralValue COLON LiteralValue
+    """
 
 
 def p_FunctionLit(p):

@@ -7,4 +7,4 @@ parser:
 	chmod +x myASTGenerator
 
 clean:
-	rm -rf bin myASTGenerator
+	rm -rf bin myASTGenerator parser.out parsetab.py

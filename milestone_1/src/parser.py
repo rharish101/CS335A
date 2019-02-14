@@ -950,6 +950,7 @@ def p_Assignment(p):
     p[0] = GoAssign(lhs, rhs, p[2])
 
 
+#???
 def p_assign_op(p):
     """assign_op : addmul_op ASSIGN
                  | ASSIGN

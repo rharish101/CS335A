@@ -813,7 +813,7 @@ def p_Expression(p):
                   | Expression BITAND Expression
                   | Expression BITCLR Expression
     """
-    if len(p) == 1:  # UnaryExpr given
+    if len(p) == 2:  # UnaryExpr given
         p[0] = p[1]
     else:  # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
         p[0] = GoExpression(p[1], p[3], p[2])
@@ -952,6 +952,7 @@ def p_Assignment(p):
     p[0] = GoAssign(lhs, rhs, p[2])
 
 
+#???
 def p_assign_op(p):
     """assign_op : addmul_op ASSIGN
     """

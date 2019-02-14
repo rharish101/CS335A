@@ -48,6 +48,7 @@ def p_empty(p):
 
 
 def p_error(p):
+    print("Parser state before crash: {}".format(parser.state))
     t_error(p)
 
 
@@ -84,8 +85,8 @@ def p_TypeLit(p):
 
 def p_ArrayType(p):
     """ArrayType : LSQBRACK ArrayLength RSQBRACK Type
-                 | LSQBRACK ArrayLength RSQBRACK ID
                  | LSQBRACK ArrayLength RSQBRACK ID DOT ID
+                 | LSQBRACK ArrayLength RSQBRACK ID
     """
     if len(p) == 5:  # Type or ID
         if isinstance(p[4], GoType):  # Type
@@ -111,8 +112,8 @@ def p_StructType(p):
 
 def p_FieldDecl(p):
     """FieldDecl : IdentifierList Type TagTop
-                 | IdentifierList ID TagTop
                  | IdentifierList ID DOT ID TagTop
+                 | IdentifierList ID TagTop
                  | MULT ID DOT ID TagTop
                  | ID DOT ID TagTop
                  | MULT ID TagTop
@@ -200,8 +201,8 @@ def p_Signature(p):
 def p_Result(p):
     """Result : Parameters
               | Type
-              | ID
               | ID DOT ID
+              | ID
     """
     if type(p[1]) is list:  # Parameters
         p[0] = p[1]
@@ -695,7 +696,7 @@ def p_BasicLit(p):
                 | STRING
                 | RUNE
     """
-    p[0] = p[1]
+    p[0] = GoBasicLit(p[1])
 
 
 def p_CompositeLit(p):
@@ -753,7 +754,10 @@ def p_PrimaryExpr(p):
                    | PrimaryExpr Arguments
     """
     if len(p) == 2:  # Operand or ID
-        p[0] = p[1]
+        if type(p[1]) is str:
+            p[0] = GoVar(p[1])
+        else:
+            p[0] = p[1]
     else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
         p[0] = GoPrimaryExpr(p[1], p[2])
 
@@ -783,17 +787,6 @@ def p_Arguments(p):
                  | LBRACK Type RBRACK
                  | LBRACK ID DOT ID RBRACK
                  | LBRACK ID RBRACK %prec LBRACK
-                 | LBRACK Type COMMA ExpressionList COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA ExpressionList COMMA RBRACK
-                 | LBRACK ID COMMA ExpressionList COMMA RBRACK
-                 | LBRACK ExpressionList COMMA RBRACK
-                 | LBRACK Type COMMA Expression COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA Expression COMMA RBRACK
-                 | LBRACK ID COMMA Expression COMMA RBRACK
-                 | LBRACK Expression COMMA RBRACK
-                 | LBRACK Type COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA RBRACK
-                 | LBRACK ID COMMA RBRACK
                  | LBRACK Type COMMA ExpressionList TRIDOT RBRACK
                  | LBRACK ID DOT ID COMMA ExpressionList TRIDOT RBRACK
                  | LBRACK ID COMMA ExpressionList TRIDOT RBRACK
@@ -805,17 +798,6 @@ def p_Arguments(p):
                  | LBRACK Type TRIDOT RBRACK
                  | LBRACK ID DOT ID TRIDOT RBRACK
                  | LBRACK ID TRIDOT RBRACK
-                 | LBRACK Type COMMA ExpressionList TRIDOT COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA ExpressionList TRIDOT COMMA RBRACK
-                 | LBRACK ID COMMA ExpressionList TRIDOT COMMA RBRACK
-                 | LBRACK ExpressionList TRIDOT COMMA RBRACK
-                 | LBRACK Type COMMA Expression TRIDOT COMMA RBRACK
-                 | LBRACK ID DOT ID COMMA Expression TRIDOT COMMA RBRACK
-                 | LBRACK ID COMMA Expression TRIDOT COMMA RBRACK
-                 | LBRACK Expression TRIDOT COMMA RBRACK
-                 | LBRACK Type TRIDOT COMMA RBRACK
-                 | LBRACK ID DOT ID TRIDOT COMMA RBRACK
-                 | LBRACK ID TRIDOT COMMA RBRACK
     """
     if len(p) == 3:  # no arguments
         p[0] = GoArguments([])
@@ -1170,12 +1152,14 @@ def p_ReturnStmt(p):
 
 def p_BreakStmt(p):
     """BreakStmt : BREAK ID
+                 | BREAK
     """
     p[0] = GoLabelCtrl(p[1], p[2])
 
 
 def p_ContinueStmt(p):
     """ContinueStmt : CONTINUE ID
+                    | CONTINUE
     """
     p[0] = GoLabelCtrl(p[1], p[2])
 

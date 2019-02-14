@@ -215,6 +215,13 @@ class GoBaseExpr:
         self.kind = kind
 
 
+class GoBasicLit:
+    """For literals like integers, strings and so on."""
+
+    def __init__(self, item):
+        self.item = item
+
+
 class GoPrimaryExpr(GoBaseExpr):
     """For primary expressions (operands for unary/binary expressions)."""
 

@@ -1318,7 +1318,7 @@ if __name__ == "__main__":
     argparser = ArgumentParser(description="Parser for Go")
     argparser.add_argument("input", type=str, help="input file")
     argparser.add_argument(
-        "-o", "--output", type=str, default=None, help="output file name"
+        "-o", "--out", type=str, default=None, help="output file name"
     )
     argparser.add_argument(
         "-v", "--verbose", action="store_true", help="enable debug output"

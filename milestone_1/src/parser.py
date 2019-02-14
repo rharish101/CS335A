@@ -237,7 +237,7 @@ def p_ParameterList(p):
     if len(p) == 2:  # Single ParameterDecl
         p[0] = [p[1]]
     else:
-        p[0] = p[1] + p[3]
+        p[0] = p[1] + [p[3]]
 
 
 def p_ParameterDecl(p):

@@ -99,7 +99,7 @@ class GoParam:
 
     def __init__(self, name=None, dtype=None):
         self.name = name
-        self.dtype = name
+        self.dtype = dtype
 
 
 class GoInterfaceType(GoType):

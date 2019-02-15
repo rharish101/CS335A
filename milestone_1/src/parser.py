@@ -1288,19 +1288,25 @@ def get_dot(obj):
 
     if type(obj) is list:
         for child in obj:
-            # Avoid None child node and empty lists
-            if child is None or (type(child) is list and len(child) == 0):
+            # Avoid None child node, empty strings, and empty lists
+            if (
+                child is None
+                or child == ""
+                or (type(child) is list and len(child) == 0)
+            ):
                 continue
             output.append("N_{} -> N_{}".format(own_count, node_count))
             output += get_dot(child)
     elif type(obj) is not str and obj is not None:
         for attr in obj.__dict__:
             child = getattr(obj, attr)
-            # Avoid None child node, empty lists, and "kind" attributes
+            # Avoid None child node, emtpy strings, empty lists, and "kind"
+            # attributes
             if (
-                attr == "kind"
-                or child is None
+                child is None
+                or child == ""
                 or (type(child) is list and len(child) == 0)
+                or attr == "kind"
             ):
                 continue
             output.append(

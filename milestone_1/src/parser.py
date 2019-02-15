@@ -6,8 +6,6 @@ from lexer import tokens, lexer, t_error
 from go_classes import *
 
 precedence = (
-    ("left", "SHDECL"),
-    ("left", "COMMA"),
     ("left", "LSQBRACK"),
     ("left", "RSQBRACK"),
     ("left", "LCURLBR"),
@@ -15,6 +13,8 @@ precedence = (
     ("left", "LBRACK"),
     ("left", "RBRACK"),
     ("left", "ID"),
+    ("left", "SHDECL"),
+    ("left", "COMMA"),
     ("left", "TRIDOT"),
     ("left", "DOT"),
     ("left", "SEMICOLON"),
@@ -36,7 +36,6 @@ precedence = (
     ("left", "LSHIFT", "RSHIFT"),
     ("left", "PLUS", "MINUS"),
     ("left", "MULT", "DIV", "MODULO"),
-    
 )
 
 

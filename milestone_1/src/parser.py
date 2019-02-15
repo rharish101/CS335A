@@ -1324,10 +1324,10 @@ if __name__ == "__main__":
         "-v", "--verbose", action="store_true", help="enable debug output"
     )
     args = argparser.parse_args()
-    if args.output is None:
+    if args.out is None:
         # Output filename is source filename (w/o extension) with the "dot"
         # extension
-        args.output = args.input.split("/")[-1][:-3] + ".dot"
+        args.out = args.input.split("/")[-1][:-3] + ".dot"
 
     with open(args.input, "r") as go:
         input_text = go.read()
@@ -1342,7 +1342,7 @@ if __name__ == "__main__":
     if args.verbose:
         print(result)
 
-    with open(args.output, "w") as outf:
+    with open(args.out, "w") as outf:
         core_info = ";\n  ".join(get_dot(result))
         outf.write("digraph syntax_tree {\n  " + core_info + ";\n}")
-    print('Output file "{}" generated'.format(args.output))
+    print('Output file "{}" generated'.format(args.out))

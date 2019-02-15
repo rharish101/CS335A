@@ -36,7 +36,6 @@ precedence = (
     ("left", "LSHIFT", "RSHIFT"),
     ("left", "PLUS", "MINUS"),
     ("left", "MULT", "DIV", "MODULO"),
-    
 )
 
 
@@ -112,10 +111,10 @@ def p_ArrayType(p):
             arr_type = p[3]
         else:  # ID
             arr_type = GoType(p[3])
-        length = ""
+        length = "variable"
     else:
         arr_type = GoFromModule(p[3], p[5])
-        length = ""
+        length = "variable"
 
     p[0] = GoArray(length, arr_type)
 
@@ -737,11 +736,11 @@ def p_CompositeLit(p):
         else:  # ID
             dtype = GoType(p[1])
     elif isinstance(p[4], GoBaseType):  # Type
-        dtype = p[4]
+        dtype = GoArray("variable", p[4])
     elif len(p) == 8:  # ID DOT ID
-        dtype = GoFromModule(p[4], p[6])
+        dtype = GoArray("variable", GoFromModule(p[4], p[6]))
     else:
-        dtype = GoType(p[4])
+        dtype = GoArray("variable", GoType(p[4]))
 
     p[0] = GoCompositeLit(dtype, p[len(p) - 1])
 
@@ -1171,7 +1170,7 @@ def p_RangeClause(p):
 
 def p_ReturnStmt(p):
     """ReturnStmt : RETURN ExpressionList
-    			  | RETURN Expression
+                  | RETURN Expression
                   | RETURN
     """
     if len(p) == 2:
@@ -1263,6 +1262,11 @@ def p_ImportSpecList(p):
         p[0] = []
     else:
         p[0] = [p[1]] + p[3]
+
+
+# =============================================================================
+# Generating the ".dot" file
+# =============================================================================
 
 
 # Used for numbering of nodes in the output ".dot" file

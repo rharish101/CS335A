@@ -5,4 +5,4 @@ parser:
 	chmod +x myASTGenerator
 
 clean:
-	rm -rf myASTGenerator parser.out parsetab.py
+	rm -rf myASTGenerator parser.out parsetab.py __pycache__ *.pyc

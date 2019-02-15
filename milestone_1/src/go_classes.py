@@ -4,15 +4,15 @@
 # =============================================================================
 
 
-class GoType:
+class GoBaseType:
     """The base class to inherit types from."""
 
     def __init__(self, kind):
         self.kind = kind
 
 
-class GoInbuiltType(GoType):
-    """For inbuilt types.
+class GoType(GoBaseType):
+    """For inbuilt types and typedef/aliases being used after declaration.
 
     Inbuilt types are:
         uint8, uint16, uint32, uint64
@@ -22,6 +22,11 @@ class GoInbuiltType(GoType):
         byte (alias for uint8), rune (alias for int32)
         uint, int, uintptr
         string
+
+    WARNING:
+        Sometimes standard variables may be cast as this type. The most common
+        scenario is when multiple parameters of the same type are being passed
+        into functions with the common type being specified only once.
     """
 
     def __init__(self, name):
@@ -37,7 +42,7 @@ class GoFromModule:
         self.child = child
 
 
-class GoArray(GoType):
+class GoArray(GoBaseType):
     """For array types."""
 
     def __init__(self, length, dtype):
@@ -46,7 +51,7 @@ class GoArray(GoType):
         self.dtype = dtype
 
 
-class GoStruct(GoType):
+class GoStruct(GoBaseType):
     """For struct types."""
 
     def __init__(self, fields):
@@ -77,7 +82,7 @@ class GoVar:
         self.name = name
 
 
-class GoPointType(GoType):
+class GoPointType(GoBaseType):
     """For pointer types."""
 
     def __init__(self, dtype):
@@ -85,7 +90,7 @@ class GoPointType(GoType):
         self.dtype = dtype
 
 
-class GoFuncType(GoType):
+class GoFuncType(GoBaseType):
     """For function types."""
 
     def __init__(self, params, result=None):
@@ -102,7 +107,7 @@ class GoParam:
         self.dtype = dtype
 
 
-class GoInterfaceType(GoType):
+class GoInterfaceType(GoBaseType):
     """For interfaces."""
 
     def __init__(self, methods):

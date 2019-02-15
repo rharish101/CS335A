@@ -66,10 +66,10 @@ def p_Type(p):
     if len(p) == 2:  # TypeLit
         p[0] = p[1]
     elif len(p) == 4:  # Type or ID
-        if isinstance(p[2], GoType):  # Type
+        if isinstance(p[2], GoBaseType):  # Type
             p[0] = p[2]
         else:  # ID
-            p[0] = GoInbuiltType(p[2])
+            p[0] = GoType(p[2])
     else:  # ID DOT ID
         p[0] = GoFromModule(p[2], p[4])
 
@@ -92,19 +92,19 @@ def p_ArrayType(p):
                  | LSQBRACK RSQBRACK ID
     """
     if len(p) == 5:  # Type or ID
-        if isinstance(p[4], GoType):  # Type
+        if isinstance(p[4], GoBaseType):  # Type
             arr_type = p[4]
         else:  # ID
-            arr_type = GoInbuiltType(p[4])
+            arr_type = GoType(p[4])
         length = p[2]
     elif len(p) == 7:  # ID DOT ID
         arr_type = GoFromModule(p[4], p[6])
         length = p[2]
     elif len(p) == 4:
-        if isinstance(p[3], GoType):  # Type
+        if isinstance(p[3], GoBaseType):  # Type
             arr_type = p[3]
         else:  # ID
-            arr_type = GoInbuiltType(p[3])
+            arr_type = GoType(p[3])
         length = ""
     else:
         arr_type = GoFromModule(p[3], p[5])
@@ -142,17 +142,17 @@ def p_FieldDecl(p):
     # Explicit field
     if type(p[1]) is list:
         if len(p) == 4:
-            if isinstance(p[2], GoType):  # Type
+            if isinstance(p[2], GoBaseType):  # Type
                 field_type = p[2]
             else:  # ID
-                field_type = GoInbuiltType(p[2])
+                field_type = GoType(p[2])
         else:  # ID DOT ID
             field_type = GoFromModule(p[2], p[4])
         var_list = p[1]
 
     # Embedded field
     else:
-        field_type = GoType("embedded")
+        field_type = GoBaseType("embedded")
         if len(p) == 6:
             var_list = [GoDeref(GoFromModule(p[2], p[4]))]
         elif len(p) == 5:
@@ -190,12 +190,12 @@ def p_PointerType(p):
                    | MULT ID DOT ID
                    | MULT ID
     """
-    if isinstance(p[2], GoType):  # Type
+    if isinstance(p[2], GoBaseType):  # Type
         point_to = p[2]
     elif len(p) == 5:  # ID DOT ID
         point_to = GoFromModule(p[2], p[4])
     else:  # ID
-        point_to = GoInbuiltType(p[2])
+        point_to = GoType(p[2])
     p[0] = GoPointType(point_to)
 
 
@@ -225,12 +225,14 @@ def p_Result(p):
     if type(p[1]) is list:  # Parameters
         p[0] = p[1]
     else:
-        if isinstance(p[1], GoType) or isinstance(p[1], GoFromModule):  # Type
+        if isinstance(p[1], GoBaseType) or isinstance(
+            p[1], GoFromModule
+        ):  # Type
             dtype = p[1]
         elif len(p) == 4:  # ID DOT ID
             dtype = GoFromModule(p[1], p[3])
         else:  # ID
-            dtype = GoInbuiltType(p[1])
+            dtype = GoType(p[1])
         p[0] = [GoParam(dtype=dtype)]
 
 
@@ -249,29 +251,22 @@ def p_ParameterList(p):
     """ParameterList : ParameterDecl
                      | ParameterList COMMA ParameterDecl
     """
-    # ParameterDecl returns a list
     if len(p) == 2:  # Single ParameterDecl
-        p[0] = p[1]
+        p[0] = [p[1]]
     else:
-        p[0] = p[1] + p[3]
+        p[0] = p[1] + [p[3]]
 
 
 def p_ParameterDecl(p):
     """ParameterDecl : TRIDOT Type
                      | TRIDOT ID DOT ID
                      | TRIDOT ID
-                     | IdentifierList TRIDOT Type
-                     | IdentifierList TRIDOT ID DOT ID
-                     | IdentifierList TRIDOT ID
                      | ID TRIDOT Type
                      | ID TRIDOT ID DOT ID
                      | ID TRIDOT ID
                      | Type
                      | ID DOT ID
                      | ID
-                     | IdentifierList Type
-                     | IdentifierList ID DOT ID
-                     | IdentifierList ID
                      | ID Type
                      | ID ID DOT ID
                      | ID ID
@@ -283,30 +278,18 @@ def p_ParameterDecl(p):
             new_p.append(item)
 
     if len(new_p) == 2 or len(new_p) == 4:  # only types given
-        if isinstance(p[1], GoType):  # GoType
-            dtype = p[1]
-        elif len(new_p) == 4:  # ID DOT ID
-            dtype = GoFromModule(p[1], p[3])
-        else:  # ID
-            dtype = GoInbuiltType(p[1])
-        p[0] = [GoParam(name=None, dtype=dtype)]
+        name = None
+    else:  # ID given as name
+        name = new_p[1]
 
-    if isinstance(new_p[2], GoType) or isinstance(
-        new_p[2], GoFromModule
-    ):  # Type
-        dtype = new_p[2]
-    elif len(new_p) == 5:  # ID DOT ID is type
-        dtype = GoFromModule(new_p[2], new_p[4])
-    else:  # ID is type
-        dtype = GoInbuiltType(new_p[2])
-
-    # ParameterDecl returns a list
-    if type(new_p[1]) is list:  # IdentifierList
-        p[0] = [
-            GoParam(name=identifier, dtype=dtype) for identifier in new_p[1]
-        ]
+    if isinstance(new_p[-1], GoBaseType):  # GoBaseType
+        dtype = new_p[-1]
+    elif len(new_p) > 3:  # ID DOT ID
+        dtype = GoFromModule(new_p[-3], new_p[-1])
     else:  # ID
-        p[0] = [GoParam(name=new_p[1], dtype=dtype)]
+        dtype = GoType(new_p[-1])
+
+    p[0] = GoParam(name=name, dtype=dtype)
 
 
 def p_InterfaceType(p):
@@ -335,7 +318,7 @@ def p_MethodSpec(p):
     elif len(p) == 4:  # ID DOT ID element
         p[0] = GoFromModule(p[1], p[3])
     else:  # ID element
-        p[0] = GoInbuiltType(p[1])
+        p[0] = GoType(p[1])
 
 
 # =============================================================================
@@ -433,12 +416,12 @@ def p_ConstSpec(p):
     else:  # ID
         id_list = [p[1]]
 
-    if isinstance(p[2], GoType):  # Type
+    if isinstance(p[2], GoBaseType):  # Type
         dtype = p[2]
     elif len(p) == 7:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
     elif len(p) == 5:  # ID
-        dtype = GoInbuiltType(p[2], p[4])
+        dtype = GoType(p[2], p[4])
     else:  # Type-less
         dtype = None
 
@@ -534,12 +517,12 @@ def p_AliasDecl(p):
                  | ID ASSIGN ID DOT ID
                  | ID ASSIGN ID
     """
-    if isinstance(p[3], GoType):
+    if isinstance(p[3], GoBaseType):  # Type
         dtype = p[3]
-    elif len(p) == 6:
+    elif len(p) == 6:  # ID DOT ID
         dtype = GoFromModule(p[3], p[5])
-    else:
-        dtype = GoInbuiltType(p[3])
+    else:  # ID
+        dtype = GoType(p[3])
     p[0] = GoTypeDefAlias("alias", p[1], dtype)
 
 
@@ -548,12 +531,12 @@ def p_TypeDef(p):
                | ID ID DOT ID
                | ID ID
     """
-    if isinstance(p[2], GoType):
+    if isinstance(p[2], GoBaseType):  # Type
         dtype = p[2]
-    elif len(p) == 5:
+    elif len(p) == 5:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
-    else:
-        dtype = GoInbuiltType(p[2])
+    else:  # ID
+        dtype = GoType(p[2])
     p[0] = GoTypeDefAlias("typedef", p[1], dtype)
 
 
@@ -585,12 +568,12 @@ def p_VarSpec(p):
     else:  # Expression
         rhs = []
 
-    if isinstance(p[2], GoType):  # Type
+    if isinstance(p[2], GoBaseType):  # Type
         dtype = p[2]
     elif len(p) == 6:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
     elif type(p) is str:  # ID
-        dtype = GoInbuiltType(p[2])
+        dtype = GoType(p[2])
     else:  # No type given
         dtype = None
 
@@ -740,18 +723,18 @@ def p_CompositeLit(p):
                     | LSQBRACK TRIDOT RSQBRACK ID LiteralValue
     """
     if len(p) < 6:  # No square brackets
-        if isinstance(p[1], GoType):  # LiteralType
+        if isinstance(p[1], GoBaseType):  # LiteralType
             dtype = p[1]
         elif len(p) == 5:  # ID DOT ID
             dtype = GoFromModule(p[1], p[3])
         else:  # ID
-            dtype = GoInbuiltType(p[1])
-    elif isinstance(p[4], GoType):  # Type
+            dtype = GoType(p[1])
+    elif isinstance(p[4], GoBaseType):  # Type
         dtype = p[4]
     elif len(p) == 8:  # ID DOT ID
         dtype = GoFromModule(p[4], p[6])
     else:
-        dtype = GoInbuiltType(p[4])
+        dtype = GoType(p[4])
 
     p[0] = GoCompositeLit(dtype, p[len(p) - 1])
 
@@ -1189,7 +1172,7 @@ def p_ReturnStmt(p):
     elif type(p[2]) is list:
         expressions = p[2]
     else:
-    	expressions = [p[2]]
+        expressions = [p[2]]
     p[0] = GoReturn(expressions)
 
 

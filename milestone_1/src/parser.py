@@ -475,16 +475,6 @@ def p_ExpressionList(p):
     p[0] = [p[1]] + p[2]
 
 
-def p_ExpressionListBot(p):
-    """ExpressionListBot : COMMA Expression
-                         | ExpressionListBot COMMA Expression
-    """
-    if p[1] is None:  # empty
-        p[0] = []
-    else:
-        p[0] = p[1]
-
-
 def p_TypeDecl(p):
     """TypeDecl : TYPE TypeSpecTopList
     """

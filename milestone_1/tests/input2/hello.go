@@ -9,7 +9,8 @@ import "fmt"
 func main() {
 	a := [2]int{1, 2}
 	fmt.Println(a)
-	fmt.Println("help \"me\"")
+	fmt.Println("help \"me\"",
+	)
 	fmt.Println(`hello /*world*/
 	Yo buddy
 	`)

@@ -1045,11 +1045,11 @@ def p_IfStmt(p):
     """IfStmt : IF LBRACK Expression RBRACK Block ElseBot
               | IF LBRACK SimpleStmt SEMICOLON Expression RBRACK Block ElseBot
     """
-    if len(p) == 5:  # No SimpleStmt
+    if len(p) == 7:  # No SimpleStmt
         stmt = None
     else:
-        stmt = p[2]
-    p[0] = GoIf(stmt, p[len(p) - 3], p[len(p) - 2], p[len(p) - 1])
+        stmt = p[3]
+    p[0] = GoIf(stmt, p[len(p) - 4], p[len(p) - 2], p[len(p) - 1])
 
 
 def p_ElseBot(p):
@@ -1082,11 +1082,11 @@ def p_ExprSwitchStmt(p):
     """ExprSwitchStmt : SWITCH LBRACK SimpleStmt SEMICOLON  ExpressionBot RBRACK LCURLBR ExprCaseClauseList RCURLBR
                       | SWITCH LBRACK ExpressionBot RBRACK LCURLBR ExprCaseClauseList RCURLBR
     """
-    if len(p) == 6:  # No SimpleStmt given
+    if len(p) == 8:  # No SimpleStmt given
         stmt = None
     else:
         stmt = p[2]
-    p[0] = GoSwitch(stmt, p[len(p) - 4], p[len(p) - 2])
+    p[0] = GoSwitch(stmt, p[len(p) - 5], p[len(p) - 2])
 
 
 def p_ExprCaseClauseList(p):
@@ -1124,11 +1124,11 @@ def p_ForStmt(p):
                | FOR LBRACK ForClause RBRACK Block
                | FOR LBRACK RangeClause RBRACK Block
     """
-    if isinstance(p[2], GoBaseExpr):  # while loop
-        clause = GoForClause(None, p[2], None)
+    if isinstance(p[3], GoBaseExpr):  # while loop
+        clause = GoForClause(None, p[3], None)
     else:
-        clause = p[2]
-    p[0] = GoFor(clause, p[3])
+        clause = p[3]
+    p[0] = GoFor(clause, p[5])
 
 
 def p_ForClause(p):

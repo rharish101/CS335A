@@ -1042,8 +1042,8 @@ def p_assign_op(p):
 
 
 def p_IfStmt(p):
-    """IfStmt : IF Expression Block ElseBot
-              | IF SimpleStmt SEMICOLON Expression Block ElseBot
+    """IfStmt : IF LBRACK Expression RBRACK Block ElseBot
+              | IF LBRACK SimpleStmt SEMICOLON Expression RBRACK Block ElseBot
     """
     if len(p) == 5:  # No SimpleStmt
         stmt = None
@@ -1079,8 +1079,8 @@ def p_SwitchStmt(p):
 
 
 def p_ExprSwitchStmt(p):
-    """ExprSwitchStmt : SWITCH SimpleStmt SEMICOLON  ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
-                      | SWITCH ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
+    """ExprSwitchStmt : SWITCH LBRACK SimpleStmt SEMICOLON  ExpressionBot RBRACK LCURLBR ExprCaseClauseList RCURLBR
+                      | SWITCH LBRACK ExpressionBot RBRACK LCURLBR ExprCaseClauseList RCURLBR
     """
     if len(p) == 6:  # No SimpleStmt given
         stmt = None
@@ -1120,9 +1120,9 @@ def p_ExprSwitchCase(p):
 
 
 def p_ForStmt(p):
-    """ForStmt : FOR ExpressionBot Block
-               | FOR ForClause Block
-               | FOR RangeClause Block
+    """ForStmt : FOR LBRACK ExpressionBot RBRACK Block
+               | FOR LBRACK ForClause RBRACK Block
+               | FOR LBRACK RangeClause RBRACK Block
     """
     if isinstance(p[2], GoBaseExpr):  # while loop
         clause = GoForClause(None, p[2], None)

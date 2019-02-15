@@ -1,7 +1,7 @@
 Parser for Go
-============
+=============
 
-This is a parser for Go written in Python for CS335A by project group 8.
+This is a parser for a modified (*) Go written in Python for CS335A by project group 8.
 
 The parser is built using GNU Make as follows:
   $ make
@@ -24,3 +24,9 @@ Now, the parser can be tested. After testing, deactivate the virtualenv as follo
 
 To visualize the graph, use the "dot" tool from "graphviz" as follows:
   $ dot -Tps some.dot -o some.ps
+
+==============================
+NOTE:
+==============================
+*: The modification to Go is as follows:
+  Parentheses are necessary for the expressions in if statements, for loops, and switch-case statements.

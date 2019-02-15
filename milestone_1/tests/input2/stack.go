@@ -27,7 +27,7 @@ func (stack *Stack) Push(item interface{}) {
 
 // Deletes top of a stack and return it
 func (stack *Stack) Pop() interface{} {
-	if stack.depth > 0 {
+	if (stack.depth > 0) {
 		item := stack.sp.item
 		stack.sp = stack.sp.next
 		stack.depth--
@@ -39,7 +39,7 @@ func (stack *Stack) Pop() interface{} {
 
 // Returns top of a stack without deletion
 func (stack *Stack) Peek() interface{} {
-	if stack.depth > 0 {
+	if (stack.depth > 0) {
 		return stack.sp.item
 	}
 

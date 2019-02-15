@@ -7,10 +7,10 @@ func main() {
 	var a int = 10
 
 	/* for loop execution */
-	for a < 20 {
+	for (a := 10; a < 20; a += 1) {
 		fmt.Printf("value of a: %d\n", a)
 		a++
-		if a > 15 {
+		if (a > 15) {
 			/* terminate the loop using break statement */
 			break
 		}

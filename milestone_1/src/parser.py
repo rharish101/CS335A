@@ -12,6 +12,8 @@ precedence = (
     ("left", "RSQBRACK"),
     ("left", "LCURLBR"),
     ("left", "RCURLBR"),
+    ("left", "LBRACK"),
+    ("left", "RBRACK"),
     ("left", "ID"),
     ("left", "TRIDOT"),
     ("left", "DOT"),
@@ -34,8 +36,7 @@ precedence = (
     ("left", "LSHIFT", "RSHIFT"),
     ("left", "PLUS", "MINUS"),
     ("left", "MULT", "DIV", "MODULO"),
-    ("left", "LBRACK"),
-    ("left", "RBRACK"),
+    
 )
 
 

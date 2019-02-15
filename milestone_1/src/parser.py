@@ -87,15 +87,30 @@ def p_ArrayType(p):
     """ArrayType : LSQBRACK ArrayLength RSQBRACK Type
                  | LSQBRACK ArrayLength RSQBRACK ID DOT ID
                  | LSQBRACK ArrayLength RSQBRACK ID
+                 | LSQBRACK RSQBRACK Type
+                 | LSQBRACK RSQBRACK ID DOT ID
+                 | LSQBRACK RSQBRACK ID
     """
     if len(p) == 5:  # Type or ID
         if isinstance(p[4], GoType):  # Type
             arr_type = p[4]
         else:  # ID
             arr_type = GoInbuiltType(p[4])
-    else:  # ID DOT ID
+        length = p[2]
+    elif len(p) == 7:  # ID DOT ID
         arr_type = GoFromModule(p[4], p[6])
-    p[0] = GoArray(p[2], arr_type)
+        length = p[2]
+    elif len(p) == 4:
+        if isinstance(p[3], GoType):  # Type
+            arr_type = p[3]
+        else:  # ID
+            arr_type = GoInbuiltType(p[3])
+        length = ""
+    else:
+        arr_type = GoFromModule(p[3], p[5])
+        length = ""
+
+    p[0] = GoArray(length, arr_type)
 
 
 def p_ArrayLength(p):

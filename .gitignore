@@ -14,3 +14,6 @@ milestone_1/src/parsetab.py
 milestone_1/src/*.dot
 milestone_1/src/*.ps
 milestone_1/src/myASTGenerator
+
+milestone_2/src/parser.out
+milestone_2/src/parsetab.py

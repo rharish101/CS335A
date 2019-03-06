@@ -610,8 +610,8 @@ def p_VarSpecTopList(p):
 
 
 def p_ShortVarDecl(p):
-    """ShortVarDecl : IdentifierList SHDECL ExpressionList
-                    | IdentifierList SHDECL Expression
+    """ShortVarDecl : ExpressionList SHDECL ExpressionList
+                    | ExpressionList SHDECL Expression
                     | ID SHDECL ExpressionList
                     | ID SHDECL Expression
     """

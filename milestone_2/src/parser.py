@@ -800,15 +800,12 @@ def p_PrimaryExpr(p):
                    | PrimaryExpr Arguments
     """
     if len(p) == 2:  # Operand or ID
-        rhs = None
         if type(p[1]) is str:
-            lhs = GoVar(p[1])
+            p[0] = GoVar(p[1])
         else:
-            lhs = p[1]
+            p[0] = p[1]
     else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
-        lhs = p[1]
-        rhs = p[2]
-    p[0] = GoPrimaryExpr(lhs, rhs)
+        p[0] = GoPrimaryExpr(p[1], p[2])
 
 
 def p_Selector(p):
@@ -1380,6 +1377,9 @@ def escape_string(string):
 def get_dot(obj):
     """Get a list of node and edge declarations."""
     global node_count
+    if type(obj) in (int, float, complex):
+        obj = str(obj)
+
     if type(obj) is str:
         output = [
             'N_{} [label="'.format(node_count) + escape_string(obj) + '"]'

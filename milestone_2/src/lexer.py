@@ -200,18 +200,23 @@ def t_NEWLINES(t):
         return t
 
 
-def t_error(t):
+def go_traceback(t):
+    """Print traceback for the custom error message and return position."""
     print(
         '  File "{}", line {}\n    {}'.format(
             t.lexer.filename, t.lineno, t.lexer.lines[t.lineno - 1]
         )
     )
-    position = (
+    return (
         t.lexer.lexpos
         - sum(map(lambda line: len(line) + 1, t.lexer.lines[: t.lineno - 1]))
         - len(t.value)
         + 1
     )
+
+
+def t_error(t):
+    position = go_traceback(t)
     print(
         'SyntaxError: Unexpected token "{}" at position {}'.format(
             t.value, position

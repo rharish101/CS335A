@@ -2,7 +2,7 @@
 """Parser for Go."""
 from ply import yacc
 from argparse import ArgumentParser
-from lexer import tokens, lexer, t_error
+from lexer import tokens, lexer, t_error, go_traceback
 from go_classes import *
 
 precedence = (
@@ -54,7 +54,6 @@ def p_empty(p):
 
 
 def p_error(p):
-    print("Parser state before crash: {}".format(parser.state))
     t_error(p)
 
 
@@ -707,7 +706,13 @@ def p_BasicLit(p):
                 | STRING
                 | RUNE
     """
-    p[0] = GoBasicLit(p[1])
+    if p.slice[1].type == "INT":
+        p[1] = int(p[1])
+    elif p.slice[1].type == "FLOAT":
+        p[1] = float(p[1])
+    elif p.slice[1].type == "IMAG":
+        p[1] = complex(p[1][:-1] + "j")
+    p[0] = GoBasicLit(p[1], p.slice[1].type)
 
 
 def p_CompositeLit(p):
@@ -927,8 +932,41 @@ def p_UnaryExpr(p):
     if len(p) == 2:  # PrimaryExpr
         p[0] = p[1]
     else:  # unary_op used
-        # 1st arg. is expression, 2nd arg. is unary_op
-        p[0] = GoUnaryExpr(p[2], p[1])
+        if isinstance(p[2], GoBasicLit):  # Direct calculation
+            error = False
+            if p[2].tok_type in ("STRING", "RUNE"):  # Error
+                error = True
+            elif p[1] == "+":
+                pass
+            elif p[1] == "-":
+                p[2].item = -1 * p[2].item
+            elif p[1] == "!":
+                p[2].item = not p[2].item
+            elif p[1] == "^":
+                if p[2].tok_type == "INT":
+                    p[2].item ^= -1
+                else:
+                    error = True
+            elif p[1] == "*":
+                error = True
+            elif p[1] == "++":
+                p[2].item += 1
+            elif p[1] == "--":
+                p[2].item -= 1
+
+            if error:
+                position = go_traceback(p.slice[1])
+                raise Exception(
+                    'Unary operator "{}" not applicable for argument of type '
+                    '"{}" at position {}'.format(
+                        p[1], p[2].tok_type.lower(), position
+                    )
+                )
+            else:
+                p[0] = p[2]
+        else:
+            # 1st arg. is expression, 2nd arg. is unary_op
+            p[0] = GoUnaryExpr(p[2], p[1])
 
 
 def p_addmul_op(p):

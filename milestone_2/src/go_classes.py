@@ -223,9 +223,10 @@ class GoBaseLit:
 class GoBasicLit(GoBaseLit):
     """For literals like integers, strings and so on."""
 
-    def __init__(self, item):
+    def __init__(self, item, tok_type):
         super().__init__("basic")
         self.item = item
+        self.tok_type = tok_type
 
 
 class GoCompositeLit(GoBaseLit):

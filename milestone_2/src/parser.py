@@ -956,12 +956,13 @@ def p_UnaryExpr(p):
 
             if error:
                 position = go_traceback(p.slice[1])
-                raise Exception(
-                    'Unary operator "{}" not applicable for argument of type '
-                    '"{}" at position {}'.format(
+                print(
+                    'SyntaxError: Unary operator "{}" not applicable for '
+                    'argument of type "{}" at position {}'.format(
                         p[1], p[2].tok_type.lower(), position
                     )
                 )
+                exit()
             else:
                 p[0] = p[2]
         else:

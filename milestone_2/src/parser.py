@@ -901,8 +901,71 @@ def p_Expression(p):
     """
     if len(p) == 2:  # UnaryExpr given
         p[0] = p[1]
-    else:  # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
-        p[0] = GoExpression(p[1], p[3], p[2])
+    else:
+        if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBaseLit):
+            # Direct calculation
+            error = False
+            try:
+                if p[2] == "||":
+                    p[1].item = p[1].item or p[3].item
+                elif p[2] == "&&":
+                    p[1].item = p[1].item and p[3].item
+                elif p[2] == "==":
+                    p[1].item = p[1].item == p[3].item
+                elif p[2] == "!=":
+                    p[1].item = p[1].item != p[3].item
+                elif p[2] == "<":
+                    p[1].item = p[1].item < p[3].item
+                elif p[2] == "<=":
+                    p[1].item = p[1].item <= p[3].item
+                elif p[2] == ">":
+                    p[1].item = p[1].item > p[3].item
+                elif p[2] == ">=":
+                    p[1].item = p[1].item >= p[3].item
+                elif p[2] == "+":
+                    p[1].item += p[3].item
+                elif p[2] == "-":
+                    p[1].item -= p[3].item
+                elif p[2] == "|":
+                    p[1].item |= p[3].item
+                elif p[2] == "^":
+                    p[1].item ^= p[3].item
+                elif p[2] == "*":
+                    p[1].item *= p[3].item
+                elif p[2] == "/":
+                    p[1].item /= p[3].item
+                elif p[2] == "%":
+                    p[1].item %= p[3].item
+                elif p[2] == "<<":
+                    p[1].item <<= p[3].item
+                elif p[2] == ">>":
+                    p[1].item >>= p[3].item
+                elif p[2] == "&":
+                    p[1].item &= p[3].item
+                elif p[2] == "&^":
+                    p[1].item &= ~p[3].item
+                else:
+                    error = True
+            except Exception:
+                error = True
+
+            if error:
+                position = go_traceback(p.slice[1])
+                print(
+                    'SyntaxError: Binary operator "{}" not applicable for '
+                    'arguments of types "{}" and "{}" at position {}'.format(
+                        p[2],
+                        p[1].tok_type.lower(),
+                        p[3].tok_type.lower(),
+                        position,
+                    )
+                )
+                exit()
+            else:
+                p[0] = p[1]
+        else:
+            # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
+            p[0] = GoExpression(p[1], p[3], p[2])
 
 
 def p_ExpressionBot(p):
@@ -934,25 +997,30 @@ def p_UnaryExpr(p):
     else:  # unary_op used
         if isinstance(p[2], GoBasicLit):  # Direct calculation
             error = False
-            if p[2].tok_type in ("STRING", "RUNE"):  # Error
-                error = True
-            elif p[1] == "+":
-                pass
-            elif p[1] == "-":
-                p[2].item = -1 * p[2].item
-            elif p[1] == "!":
-                p[2].item = not p[2].item
-            elif p[1] == "^":
-                if p[2].tok_type == "INT":
-                    p[2].item ^= -1
+            try:
+                if p[2].tok_type in ("STRING", "RUNE"):  # Error
+                    error = True
+                elif p[1] == "+":
+                    pass
+                elif p[1] == "-":
+                    p[2].item = -1 * p[2].item
+                elif p[1] == "!":
+                    p[2].item = not p[2].item
+                elif p[1] == "^":
+                    if p[2].tok_type == "INT":
+                        p[2].item = ~p[2].item
+                    else:
+                        error = True
+                elif p[1] == "*":
+                    error = True
+                elif p[1] == "++":
+                    p[2].item += 1
+                elif p[1] == "--":
+                    p[2].item -= 1
                 else:
                     error = True
-            elif p[1] == "*":
+            except Exception:
                 error = True
-            elif p[1] == "++":
-                p[2].item += 1
-            elif p[1] == "--":
-                p[2].item -= 1
 
             if error:
                 position = go_traceback(p.slice[1])

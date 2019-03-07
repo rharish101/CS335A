@@ -201,15 +201,14 @@ def t_NEWLINES(t):
 
 
 def t_error(t):
-    lines = t.lexer.lexdata.split("\n")
     print(
         '  File "{}", line {}\n    {}'.format(
-            t.lexer.filename, t.lineno, lines[t.lineno - 1]
+            t.lexer.filename, t.lineno, t.lexer.lines[t.lineno - 1]
         )
     )
     position = (
         t.lexer.lexpos
-        - sum(map(lambda line: len(line) + 1, lines[: t.lineno - 1]))
+        - sum(map(lambda line: len(line) + 1, t.lexer.lines[: t.lineno - 1]))
         - len(t.value)
         + 1
     )
@@ -226,6 +225,7 @@ t_ignore = " \t"
 # =============================================================================
 # NOTE:
 # lexer.filename should contain the source file's name
+# lexer.lines should be a list containing the source file split by newlines
 # =============================================================================
 lexer = lex.lex()
 lexer.last = False

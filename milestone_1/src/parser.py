@@ -38,28 +38,6 @@ precedence = (
     ("left", "MULT", "DIV", "MODULO"),
 )
 
-current_types = [
-    "uint8",
-    "uint16",
-    "uint32",
-    "uint64",
-    "int8",
-    "int16",
-    "int32",
-    "int64",
-    "float32",
-    "float64",
-    "complex64",
-    "complex128",
-    "byte",
-    "rune",
-    "uint",
-    "int",
-    "uintptr",
-    "string",
-]
-current_types = set(current_types)
-
 
 # =============================================================================
 # BASIC
@@ -80,17 +58,6 @@ def p_error(p):
     t_error(p)
 
 
-def raise_type_error(lexer, value):
-    lines = lexer.lexdata.split("\n")
-    print(
-        '  File "{}", line {}\n    {}'.format(
-            lexer.filename, lexer.lineno, lines[lexer.lineno - 1]
-        )
-    )
-    print('TypeError: "{}" is not a valid type'.format(value))
-    exit(2)
-
-
 # =============================================================================
 # TYPES
 # =============================================================================
@@ -107,10 +74,8 @@ def p_Type(p):
     elif len(p) == 4:  # Type or ID
         if isinstance(p[2], GoBaseType):  # Type
             p[0] = p[2]
-        elif p[2] in current_types:  # ID
+        else:  # ID
             p[0] = GoType(p[2])
-        else:  # ID not a type
-            raise_type_error(p.lexer, p[2])
     else:  # ID DOT ID
         p[0] = GoFromModule(p[2], p[4])
 
@@ -135,10 +100,8 @@ def p_ArrayType(p):
     if len(p) == 5:  # Type or ID
         if isinstance(p[4], GoBaseType):  # Type
             arr_type = p[4]
-        elif p[4] in current_types:  # ID
+        else:  # ID
             arr_type = GoType(p[4])
-        else:  # ID not a type
-            raise_type_error(p.lexer, p[4])
         length = p[2]
     elif len(p) == 7:  # ID DOT ID
         arr_type = GoFromModule(p[4], p[6])
@@ -146,10 +109,8 @@ def p_ArrayType(p):
     elif len(p) == 4:
         if isinstance(p[3], GoBaseType):  # Type
             arr_type = p[3]
-        elif p[3] in current_types:  # ID
+        else:  # ID
             arr_type = GoType(p[3])
-        else:  # ID not a type
-            raise_type_error(p.lexer, p[3])
         length = "variable"
     else:
         arr_type = GoFromModule(p[3], p[5])
@@ -189,10 +150,8 @@ def p_FieldDecl(p):
         if len(p) == 4:
             if isinstance(p[2], GoBaseType):  # Type
                 field_type = p[2]
-            elif p[2] in current_types:  # ID
+            else:  # ID
                 field_type = GoType(p[2])
-            else:  # ID not a type
-                raise_type_error(p.lexer, p[2])
         else:  # ID DOT ID
             field_type = GoFromModule(p[2], p[4])
         var_list = p[1]
@@ -241,10 +200,8 @@ def p_PointerType(p):
         point_to = p[2]
     elif len(p) == 5:  # ID DOT ID
         point_to = GoFromModule(p[2], p[4])
-    elif p[2] in current_types:  # ID
+    else:  # ID
         point_to = GoType(p[2])
-    else:  # ID not a type
-        raise_type_error(p.lexer, p[2])
     p[0] = GoPointType(point_to)
 
 
@@ -280,10 +237,8 @@ def p_Result(p):
             dtype = p[1]
         elif len(p) == 4:  # ID DOT ID
             dtype = GoFromModule(p[1], p[3])
-        elif p[1] in current_types:  # ID
+        else:  # ID
             dtype = GoType(p[1])
-        else:  # ID not a type
-            raise_type_error(p.lexer, p[1])
         p[0] = [GoParam(dtype=dtype)]
 
 
@@ -337,10 +292,8 @@ def p_ParameterDecl(p):
         dtype = new_p[-1]
     elif len(new_p) > 3:  # ID DOT ID
         dtype = GoFromModule(new_p[-3], new_p[-1])
-    elif new_p[-1] in current_types:  # ID
+    else:  # ID
         dtype = GoType(new_p[-1])
-    else:  # ID not a type
-        raise_type_error(p.lexer, new_p[-2])
 
     p[0] = GoParam(name=name, dtype=dtype)
 
@@ -370,10 +323,8 @@ def p_MethodSpec(p):
         p[0] = GoMethodFunc(p[1], *p[2])
     elif len(p) == 4:  # ID DOT ID element
         p[0] = GoFromModule(p[1], p[3])
-    elif p[1] in current_types:  # ID element
+    else:  # ID element
         p[0] = GoType(p[1])
-    else:  # ID not a type
-        raise_type_error(p.lexer, p[1])
 
 
 # =============================================================================
@@ -476,10 +427,7 @@ def p_ConstSpec(p):
     elif len(p) == 7:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
     elif len(p) == 5:  # ID
-        if p[2] in current_types:
-            dtype = GoType(p[2])
-        else:  # ID not a type
-            raise_type_error(p.lexer, p[2])
+        dtype = GoType(p[2], p[4])
     else:  # Type-less
         dtype = None
 
@@ -569,12 +517,8 @@ def p_AliasDecl(p):
         dtype = p[3]
     elif len(p) == 6:  # ID DOT ID
         dtype = GoFromModule(p[3], p[5])
-    # TODO: Enforce scope
-    elif p[3] in current_types:  # ID
+    else:  # ID
         dtype = GoType(p[3])
-        current_types.add(p[3])
-    else:  # ID not a type
-        raise_type_error(p.lexer, p[3])
     p[0] = GoTypeDefAlias("alias", p[1], dtype)
 
 
@@ -587,11 +531,8 @@ def p_TypeDef(p):
         dtype = p[2]
     elif len(p) == 5:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
-    elif p[2] in current_types:  # ID
+    else:  # ID
         dtype = GoType(p[2])
-        current_types.add(p[2])
-    else:  # ID not a type
-        raise_type_error(p.lexer, p[2])
     p[0] = GoTypeDefAlias("typedef", p[1], dtype)
 
 
@@ -628,10 +569,7 @@ def p_VarSpec(p):
     elif len(p) == 6:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
     elif type(p) is str:  # ID
-        if p[2] in current_types:
-            dtype = GoType(p[2])
-        else:  # ID not a type
-            raise_type_error(p.lexer, p[2])
+        dtype = GoType(p[2])
     else:  # No type given
         dtype = None
 
@@ -785,19 +723,14 @@ def p_CompositeLit(p):
             dtype = p[1]
         elif len(p) == 5:  # ID DOT ID
             dtype = GoFromModule(p[1], p[3])
-        elif p[1] in current_types:  # ID
+        else:  # ID
             dtype = GoType(p[1])
-        else:  # ID not a type
-            raise_type_error(p.lexer, p[1])
     elif isinstance(p[4], GoBaseType):  # Type
         dtype = GoArray("variable", p[4])
     elif len(p) == 8:  # ID DOT ID
         dtype = GoArray("variable", GoFromModule(p[4], p[6]))
     else:
-        if p[4] in current_types:
-            dtype = GoArray("variable", GoType(p[4]))
-        else:  # ID not a type
-            raise_type_error(p.lexer, p[4])
+        dtype = GoArray("variable", GoType(p[4]))
 
     p[0] = GoCompositeLit(dtype, p[len(p) - 1])
 
@@ -1406,8 +1339,9 @@ if __name__ == "__main__":
     if input_text[-1] != "\n":
         input_text += "\n"
 
-    # Storing filename for error reporting
+    # Storing filename and input text for error reporting
     lexer.filename = args.input
+    lexer.lines = input_text.split("\n")
 
     result = parser.parse(input_text)
     if args.verbose:

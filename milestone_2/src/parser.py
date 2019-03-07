@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 """Parser for Go."""
 from ply import yacc
-from argparse import ArgumentParser
 from lexer import tokens, lexer, t_error, go_traceback
 from go_classes import *
 
@@ -145,7 +143,7 @@ def p_FieldDecl(p):
     tag = p[len(p) - 1]
 
     # Explicit field
-    if type(p[1]) is list:
+    if len(p) in (4, 6):
         if len(p) == 4:
             if isinstance(p[2], GoBaseType):  # Type
                 field_type = p[2]
@@ -153,7 +151,10 @@ def p_FieldDecl(p):
                 field_type = GoType(p[2])
         else:  # ID DOT ID
             field_type = GoFromModule(p[2], p[4])
-        var_list = p[1]
+        if type(p[1]) is list:
+            var_list = p[1]
+        else:
+            var_list = [p[1]]
 
     # Embedded field
     else:
@@ -163,9 +164,9 @@ def p_FieldDecl(p):
         elif len(p) == 5:
             var_list = [GoFromModule(p[1], p[3])]
         elif len(p) == 4:
-            var_list = [GoDeref(GoVar(p[2]))]
+            var_list = [GoDeref(p[2])]
         else:
-            var_list = [GoVar(p[1])]
+            var_list = [p[1]]
 
     p[0] = GoStructField(var_list, field_type, tag)
 
@@ -800,10 +801,7 @@ def p_PrimaryExpr(p):
                    | PrimaryExpr Arguments
     """
     if len(p) == 2:  # Operand or ID
-        if type(p[1]) is str:
-            p[0] = GoVar(p[1])
-        else:
-            p[0] = p[1]
+        p[0] = p[1]
     else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
         p[0] = GoPrimaryExpr(p[1], p[2])
 
@@ -869,7 +867,7 @@ def p_ReceiverType(p):
     if len(p) == 7:  # Deferencing a package import
         p[0] = GoDeref(GoFromModule(p[3], p[5]))
     elif len(p) == 5:  # Deferencing a variable
-        p[0] = GoDeref(GoVar(p[3]))
+        p[0] = GoDeref(p[3])
     else:  # ReceiverType
         p[0] = p[2]
 
@@ -1146,14 +1144,14 @@ def p_assign_op(p):
 
 
 def p_IfStmt(p):
-    """IfStmt : IF Expression Block ElseBot
-              | IF SimpleStmt SEMICOLON Expression Block ElseBot
+    """IfStmt : IF LBRACK Expression RBRACK Block ElseBot
+              | IF LBRACK SimpleStmt SEMICOLON Expression RBRACK Block ElseBot
     """
-    if len(p) == 5:  # No SimpleStmt
+    if len(p) == 7:  # No SimpleStmt
         stmt = None
     else:
-        stmt = p[2]
-    p[0] = GoIf(stmt, p[len(p) - 3], p[len(p) - 2], p[len(p) - 1])
+        stmt = p[3]
+    p[0] = GoIf(stmt, p[len(p) - 4], p[len(p) - 2], p[len(p) - 1])
 
 
 def p_ElseBot(p):
@@ -1183,14 +1181,14 @@ def p_SwitchStmt(p):
 
 
 def p_ExprSwitchStmt(p):
-    """ExprSwitchStmt : SWITCH SimpleStmt SEMICOLON  ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
-                      | SWITCH ExpressionBot LCURLBR ExprCaseClauseList RCURLBR
+    """ExprSwitchStmt : SWITCH LBRACK SimpleStmt SEMICOLON  ExpressionBot RBRACK LCURLBR ExprCaseClauseList RCURLBR
+                      | SWITCH LBRACK ExpressionBot RBRACK LCURLBR ExprCaseClauseList RCURLBR
     """
-    if len(p) == 6:  # No SimpleStmt given
+    if len(p) == 8:  # No SimpleStmt given
         stmt = None
     else:
         stmt = p[2]
-    p[0] = GoSwitch(stmt, p[len(p) - 4], p[len(p) - 2])
+    p[0] = GoSwitch(stmt, p[len(p) - 5], p[len(p) - 2])
 
 
 def p_ExprCaseClauseList(p):
@@ -1224,15 +1222,15 @@ def p_ExprSwitchCase(p):
 
 
 def p_ForStmt(p):
-    """ForStmt : FOR ExpressionBot Block
-               | FOR ForClause Block
-               | FOR RangeClause Block
+    """ForStmt : FOR LBRACK ExpressionBot RBRACK Block
+               | FOR LBRACK ForClause RBRACK Block
+               | FOR LBRACK RangeClause RBRACK Block
     """
-    if isinstance(p[2], GoBaseExpr):  # while loop
-        clause = GoForClause(None, p[2], None)
+    if isinstance(p[3], GoBaseExpr):  # while loop
+        clause = GoForClause(None, p[3], None)
     else:
-        clause = p[2]
-    p[0] = GoFor(clause, p[3])
+        clause = p[3]
+    p[0] = GoFor(clause, p[5])
 
 
 def p_ForClause(p):
@@ -1358,97 +1356,4 @@ def p_ImportSpecList(p):
         p[0] = [p[1]] + p[3]
 
 
-# =============================================================================
-# Generating the ".dot" file
-# =============================================================================
-
-
-# Used for numbering of nodes in the output ".dot" file
-node_count = 0
-
-
-def escape_string(string):
-    """Escape a string for output into ".dot" file."""
-    string = string.encode("unicode-escape").decode("utf8")
-    string = string.replace('"', '\\"')
-    return string
-
-
-def get_dot(obj):
-    """Get a list of node and edge declarations."""
-    global node_count
-    if type(obj) in (int, float, complex):
-        obj = str(obj)
-
-    if type(obj) is str:
-        output = [
-            'N_{} [label="'.format(node_count) + escape_string(obj) + '"]'
-        ]
-    elif type(obj) is list:
-        output = ['N_{} [label="list"]'.format(node_count)]
-    else:
-        output = [
-            'N_{} [label="{}"]'.format(node_count, obj.__class__.__name__)
-        ]
-    own_count = node_count
-    node_count += 1
-
-    if type(obj) is list:
-        for child in obj:
-            # Avoid None child node and empty lists
-            if child is None or (type(child) is list and len(child) == 0):
-                continue
-            output.append("N_{} -> N_{}".format(own_count, node_count))
-            output += get_dot(child)
-    elif type(obj) is not str and obj is not None:
-        for attr in obj.__dict__:
-            child = getattr(obj, attr)
-            # Avoid None child node, empty lists, and "kind" attributes
-            if (
-                attr == "kind"
-                or child is None
-                or (type(child) is list and len(child) == 0)
-            ):
-                continue
-            output.append(
-                'N_{} -> N_{} [label="{}"]'.format(own_count, node_count, attr)
-            )
-            output += get_dot(child)
-
-    return output
-
-
 parser = yacc.yacc()
-
-if __name__ == "__main__":
-    argparser = ArgumentParser(description="Parser for Go")
-    argparser.add_argument("input", type=str, help="input file")
-    argparser.add_argument(
-        "-o", "--out", type=str, default=None, help="output file name"
-    )
-    argparser.add_argument(
-        "-v", "--verbose", action="store_true", help="enable debug output"
-    )
-    args = argparser.parse_args()
-    if args.out is None:
-        # Output filename is source filename (w/o extension) with the "dot"
-        # extension
-        args.out = args.input.split("/")[-1][:-3] + ".dot"
-
-    with open(args.input, "r") as go:
-        input_text = go.read()
-    if input_text[-1] != "\n":
-        input_text += "\n"
-
-    # Storing filename and input text for error reporting
-    lexer.filename = args.input
-    lexer.lines = input_text.split("\n")
-
-    result = parser.parse(input_text)
-    if args.verbose:
-        print(result)
-
-    with open(args.out, "w") as outf:
-        core_info = ";\n  ".join(get_dot(result))
-        outf.write("digraph syntax_tree {\n  " + core_info + ";\n}")
-    print('Output file "{}" generated'.format(args.out))

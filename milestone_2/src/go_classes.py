@@ -56,7 +56,21 @@ class GoStruct(GoBaseType):
 
     def __init__(self, fields):
         super().__init__("struct")
-        self.field = fields
+        self.vars = {}
+        self.tags = {}
+        self.embeds = {}
+        for field in fields:
+            if field.dtype.kind == "embedded":
+                name = field.vars[0]
+                if isinstance(name, GoDeref):
+                    name = name.var
+                if isinstance(name, GoFromModule):
+                    name = name.child
+                self.embeds[name] = field.vars[0]
+            else:
+                for var in field.vars:
+                    self.vars[var] = GoVar(field.dtype)
+                    self.tags[var] = field.tag
 
 
 class GoStructField:
@@ -78,8 +92,8 @@ class GoDeref:
 class GoVar:
     """For variables."""
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, dtype):
+        self.dtype = dtype
 
 
 class GoPointType(GoBaseType):

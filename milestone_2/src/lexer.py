@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Lexer for Go."""
 from ply import lex
 from ply.lex import TOKEN

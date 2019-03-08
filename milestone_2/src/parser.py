@@ -36,6 +36,7 @@ precedence = (
     ("left", "MULT", "DIV", "MODULO"),
 )
 
+INT_TYPES = ["INT","INT8","INT16","INT32","INT64","UINT","UINT8","UINT16","UINT32","UINT64","BYTE","RUNE"]   
 
 # =============================================================================
 # BASIC
@@ -204,11 +205,11 @@ def p_PointerType(p):
         point_to = GoType(p[2])
     p[0] = GoPointType(point_to)
 
-
+#XXXX p[1] or p[2] ????
 def p_FunctionType(p):
     """FunctionType : FUNC Signature
     """
-    p[0] = GoFuncType(*p[1])
+    p[0] = GoFuncType(*p[2])
 
 
 def p_Signature(p):
@@ -221,7 +222,7 @@ def p_Signature(p):
     else:
         p[0] = (p[1], p[2])
 
-
+#XXX Parameters, TypeLit unimplemented during type checking 
 def p_Result(p):
     """Result : Parameters
               | TypeLit
@@ -716,6 +717,7 @@ def p_BasicLit(p):
     p[0] = GoBasicLit(p[1], p.slice[1].type)
 
 
+#XXX remove from grammar
 def p_CompositeLit(p):
     """CompositeLit : LiteralType LiteralValue
                     | ID DOT ID LiteralValue
@@ -792,7 +794,7 @@ def p_FunctionLit(p):
     """
     p[0] = p[2]
 
-
+#XXX Operand skipped beacuse of methods 
 def p_PrimaryExpr(p):
     """PrimaryExpr : Operand
                    | ID
@@ -803,13 +805,22 @@ def p_PrimaryExpr(p):
     if len(p) == 2:  # Operand or ID
         p[0] = p[1]
     else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
-        p[0] = GoPrimaryExpr(p[1], p[2])
+    	error = False
+    	if isinstance(p[2],GoSelector):
+    	    p[0] = GoPrimaryExpr(p[1], p[2],p[2].dtype)
+    	elif isinstance(p[2],GoIndex):
+    		if p[2].index.dtype not in INT_TYPES:
+    			error = True
+    		#XXX Construct array type, Handling all incorrect cases of PrimayExpr 
+    	else:
+    		#XXX dont know what this is
 
-
+#XXX
 def p_Selector(p):
     """Selector : DOT ID
     """
-    p[0] = GoSelector(p[2])
+    dtype = " "
+    p[0] = GoSelector(p[2],dtype)
 
 
 def p_Index(p):
@@ -847,7 +858,7 @@ def p_Arguments(p):
 
     p[0] = GoArguments(expressions)
 
-
+#XXX
 def p_MethodExpr(p):
     """MethodExpr : ReceiverType DOT ID   %prec ID
                   | ID DOT ID        %prec ID
@@ -858,7 +869,7 @@ def p_MethodExpr(p):
     else:  # Double import from package/class
         p[0] = GoFromModule(GoFromModule(p[1], p[3]), p[5])
 
-
+#XXX
 def p_ReceiverType(p):
     """ReceiverType : LBRACK MULT ID DOT ID RBRACK
                     | LBRACK MULT ID RBRACK
@@ -950,8 +961,8 @@ def p_Expression(p):
                     'SyntaxError: Binary operator "{}" not applicable for '
                     'arguments of types "{}" and "{}" at position {}'.format(
                         p[2],
-                        p[1].tok_type.lower(),
-                        p[3].tok_type.lower(),
+                        p[1].dtype.lower(),
+                        p[3].dtype.lower(),
                         position,
                     )
                 )
@@ -959,8 +970,32 @@ def p_Expression(p):
             else:
                 p[0] = p[1]
         else:
+            error = False
             # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
-            p[0] = GoExpression(p[1], p[3], p[2])
+            if p[1].dtype == "BOOL" and p[3].dtype == "BOOL" and p[2] not in ["&&","||"]:
+                error = True    
+            elif (p[2] in ["&&","||"]) and (p[1].dtype != "BOOL" or p[3].dtype != "BOOL"):
+                error = True
+            elif p[2] in [">>","<<","&","&^","^","|","%"]:
+                if p[1].dtype not in INT_TYPES or p[3].dtype not in INT_TYPES:
+                    error = True
+            elif p[1].dtype != p[3].dtype:
+            	error = True		
+
+            if error:
+                position = go_traceback(p.slice[1])
+                print(
+                    "invalid operation:  "{}"  (mismatched types "{}" and "{}")".format(p[2],p[1].dtype,p[3].dtype)
+                )
+                exit()
+            else:
+            	if p[2] not in ["+","==","!=",">=","<=",">","<"] and p[1].dtype == "STRING":
+            		position = go_traceback(p.slice[1])
+                	print(
+                    	"invalid operation: "{}" on string ".format(p[2])
+                	)
+                	exit()
+                p[0] = GoExpression(p[1], p[3], p[2],p[1].dtype)
 
 
 def p_ExpressionBot(p):
@@ -993,7 +1028,7 @@ def p_UnaryExpr(p):
         if isinstance(p[2], GoBasicLit):  # Direct calculation
             error = False
             try:
-                if p[2].tok_type in ("STRING", "RUNE"):  # Error
+                if p[2].dtype in ("STRING", "RUNE"):  # Error
                     error = True
                 elif p[1] == "+":
                     pass
@@ -1002,7 +1037,7 @@ def p_UnaryExpr(p):
                 elif p[1] == "!":
                     p[2].item = not p[2].item
                 elif p[1] == "^":
-                    if p[2].tok_type == "INT":
+                    if p[2].dtype == "INT":
                         p[2].item = ~p[2].item
                     else:
                         error = True
@@ -1022,7 +1057,7 @@ def p_UnaryExpr(p):
                 print(
                     'SyntaxError: Unary operator "{}" not applicable for '
                     'argument of type "{}" at position {}'.format(
-                        p[1], p[2].tok_type.lower(), position
+                        p[1], p[2].dtype.lower(), position
                     )
                 )
                 exit()
@@ -1030,7 +1065,25 @@ def p_UnaryExpr(p):
                 p[0] = p[2]
         else:
             # 1st arg. is expression, 2nd arg. is unary_op
-            p[0] = GoUnaryExpr(p[2], p[1])
+            #XXX REC, LOGNOT, BITAND, MULT 
+            error = False
+            if p[2].dtype == "STRING":
+            	error = True
+            elif p[1] in ["+","-","++","--"]:
+            	dtype = p[2].dtype
+            elif p[1] == '^' and p[2].dtype in ["FLOAT32", "FLOAT64","COMPLEX64", "COMPLEX128","UINTPTR"]:
+            	error = True
+            if error:
+                position = go_traceback(p.slice[1])
+                print(
+                    'SyntaxError: Unary operator "{}" not applicable for '
+                    'argument of type "{}" at position {}'.format(
+                        p[1], p[2].dtype.lower(), position
+                    )
+                )
+                exit()	
+
+            p[0] = GoUnaryExpr(p[2], p[1], dtype)
 
 
 def p_addmul_op(p):
@@ -1243,6 +1296,7 @@ def p_ForClause(p):
                  | empty SEMICOLON empty SEMICOLON SimpleStmt
                  | empty SEMICOLON empty SEMICOLON empty
     """
+
     p[0] = GoForClause(p[1], p[3], p[5])
 
 

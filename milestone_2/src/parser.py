@@ -627,8 +627,8 @@ def p_VarSpecTopList(p):
 def p_ShortVarDecl(p):
     """ShortVarDecl : ExpressionList SHDECL ExpressionList
                     | ExpressionList SHDECL Expression
-                    | ID SHDECL ExpressionList
-                    | ID SHDECL Expression
+                    | Expression SHDECL ExpressionList
+                    | Expression SHDECL Expression
     """
     if type(p[1]) is list:  # IdentifierList
         id_list = p[1]
@@ -729,7 +729,6 @@ def p_BasicLit(p):
     elif p.slice[1].type == "IMAG":
         p[1] = complex(p[1][:-1] + "j")
     p[0] = GoBasicLit(p[1], p.slice[1].type)
-
 
 # XXX remove from grammar
 def p_CompositeLit(p):
@@ -927,7 +926,8 @@ def p_Expression(p):
     if len(p) == 2:  # UnaryExpr given
         p[0] = p[1]
     else:
-        if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBaseLit):
+    	#p[0] = GoExpression(p[1], p[3], p[2], p[1].dtype)
+        if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBasicLit):
             # Direct calculation
             error = False
             if isinstance(p[1].item, type(p[3].item)):
@@ -1004,39 +1004,40 @@ def p_Expression(p):
         else:
             error = False
             # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
-            if (
-                p[1].dtype == "BOOL"
-                and p[3].dtype == "BOOL"
-                and p[2] not in ["&&", "||"]
-            ):
-                error = True
-            elif (p[2] in ["&&", "||"]) and (
-                p[1].dtype != "BOOL" or p[3].dtype != "BOOL"
-            ):
-                error = True
-            elif p[2] in [">>", "<<", "&", "&^", "^", "|", "%"]:
-                if p[1].dtype not in INT_TYPES or p[3].dtype not in INT_TYPES:
-                    error = True
-            elif p[1].dtype != p[3].dtype:
-                error = True
+            # if (
+            #     p[1].dtype == "BOOL"
+            #     and p[3].dtype == "BOOL"
+            #     and p[2] not in ["&&", "||"]
+            # ):
+            #     error = True
+            # elif (p[2] in ["&&", "||"]) and (
+            #     p[1].dtype != "BOOL" or p[3].dtype != "BOOL"
+            # ):
+            #     error = True
+            # elif p[2] in [">>", "<<", "&", "&^", "^", "|", "%"]:
+            #     if p[1].dtype not in INT_TYPES or p[3].dtype not in INT_TYPES:
+            #         error = True
+            # elif p[1].dtype != p[3].dtype:
+            #     error = True
 
-            if error:
-                position = go_traceback(p.slice[1])
-                print(
-                    'invalid operation:  "{}"  (mismatched types "{}" and "{}")'.format(
-                        p[2], p[1].dtype, p[3].dtype
-                    )
-                )
-                exit()
-            else:
-                if (
-                    p[2] not in ["+", "==", "!=", ">=", "<=", ">", "<"]
-                    and p[1].dtype == "STRING"
-                ):
-                    position = go_traceback(p.slice[1])
-                    print('invalid operation: "{}" on string '.format(p[2]))
-                    exit()
-                p[0] = GoExpression(p[1], p[3], p[2], p[1].dtype)
+            # if error:
+            #     position = go_traceback(p.slice[1])
+            #     print(
+            #         'invalid operation:  "{}"  (mismatched types "{}" and "{}")'.format(
+            #             p[2], p[1].dtype, p[3].dtype
+            #         )
+            #     )
+            #     exit()
+            # else:
+            #     if (
+            #         p[2] not in ["+", "==", "!=", ">=", "<=", ">", "<"]
+            #         and p[1].dtype == "STRING"
+            #     ):
+            #         position = go_traceback(p.slice[1])
+            #         print('invalid operation: "{}" on string '.format(p[2]))
+            #         exit()
+            #     p[0] = GoExpression(p[1], p[3], p[2], p[1].dtype)
+            p[0] = GoExpression(p[1], p[3], p[2], "")
 
 
 def p_ExpressionBot(p):

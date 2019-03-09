@@ -46,9 +46,131 @@ class SymbTable:
         else:
             return False
 
+    def get_type(self, name):
+        if name in self.variables:
+            return self.variables[name]
+        return self.parent.get_type(name)
+
     def insert(self, name, dtype):
         if name not in self.variables:
             self.variables[name]=dtype
+
+def type_check(obj, table):
+    print (obj)
+    if isinstance(obj,GoBlock):
+        newtable = SymbTable(table)
+        for child in obj.statements:
+            if ( child is None or child == "" or (type(child) is list and len(child) == 0) ):
+                continue
+            type_check(child,newtable)
+    
+    elif isinstance(obj,GoAssign):
+        if len(obj.lhs) != len(obj.rhs):
+            error = True
+            print ("error")
+            exit()
+        for child in obj.lhs:
+            if table.lookup(child) == False:
+                error = True
+                print ("error")
+                exit()
+        for child in obj.rhs:
+            type_check(child,table)
+        for child1,child2 in zip(obj.lhs,obj.rhs):
+            if type(child2) is not str:
+                if table.get_type(child1) != child2.dtype:
+                    error = True
+                    print ("error")
+                    exit()
+            else:
+                if table.get_type(child1) != table.get_type(child2):
+                    error = True
+                    print ("error")
+                    exit()
+
+
+    elif isinstance(obj,GoShortDecl):
+        print ("hello")
+        if len(obj.id_list) != len(obj.expr_list):
+            error = True
+            print ("error")
+            exit()
+        for child in obj.id_list:
+            if type(child) is not str:
+                error = True
+                print ("error")
+                exit()
+        for child in obj.expr_list:
+            type_check(child,table)
+        
+        for child1,child2 in zip(obj.id_list,obj.expr_list):
+            print ("children=",child1,child2)
+            if type(child2) is not str:
+                if table.lookup(child1) == True and table.get_type(child1) != child2.dtype:
+                    error = True
+                    print ("error")
+                    exit()
+                else:
+                    table.insert(child1,child2.dtype)
+            else:
+                if table.lookup(child1) == True and table.get_type(child1) != table.get_type(child2):
+                    error = True
+                    print ("error")
+                    exit()
+                else:
+                    table.insert(child1,table.get_type(child2))
+
+    elif isinstance(obj,GoExpression):
+        type_check(obj.lhs,table)
+        type_check(obj.rhs,table)
+        
+        if type(obj.lhs) is not str:
+            dtype1 = obj.lhs.dtype
+        else:
+            dtype1 = table.get_type(obj.lhs)
+
+        if type(obj.rhs) is not str:
+            dtype2 = obj.rhs.dtype
+        else:
+            dtype2 = table.get_type(obj.rhs)
+
+        op = obj.op
+        if dtype1 != dtype2:
+            error = True
+            print ("error")
+            exit()
+        elif dtype1 == "BOOL" and op not in ["&&","||"]:
+            error = True
+            print ("error")
+            exit()
+        elif op in ["&&","||"] and dtype1 != "BOOL":
+            error = True
+            print ("error")
+            exit()
+        elif op in [">>", "<<", "&", "&^", "^", "|", "%"] and dtype1 not in INT_TYPES:
+            error = True
+            print ("error")
+            exit()
+        elif dtype1 == "STRING" and op not in ["+", "==", "!=", ">=", "<=", ">", "<"]:
+            error = True
+            print ("error")
+            exit()
+        else:
+            obj.dtype = dtype1
+
+
+    elif isinstance(obj,GoBasicLit):
+        obj.dtype = type(obj.item)
+
+    elif type(obj) is list:
+        for child in obj:
+            type_check(child,table)
+
+    elif type(obj) is not str and obj is not None:
+        for attr in obj.__dict__:
+            child = getattr(obj, attr)
+            type_check(child,table)    
+
 
 
 if __name__ == "__main__":
@@ -89,3 +211,6 @@ if __name__ == "__main__":
     tree = parser.parse(input_text)
     if args.verbose:
         print(tree)
+
+    table = SymbTable()
+    type_check(tree,table)

@@ -442,7 +442,7 @@ def p_ConstSpec(p):
     elif len(p) == 7:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
     elif len(p) == 5:  # ID
-        dtype = GoType(p[2], p[4])
+        dtype = GoType(p[2])
     else:  # Type-less
         dtype = None
 
@@ -583,7 +583,7 @@ def p_VarSpec(p):
         dtype = p[2]
     elif len(p) == 6:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
-    elif type(p) is str:  # ID
+    elif type(p[2]) is str:  # ID
         dtype = GoType(p[2])
     else:  # No type given
         dtype = None

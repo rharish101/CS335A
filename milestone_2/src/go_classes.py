@@ -237,10 +237,10 @@ class GoBaseLit:
 class GoBasicLit(GoBaseLit):
     """For literals like integers, strings and so on."""
 
-    def __init__(self, item, tok_type):
+    def __init__(self, item, dtype):
         super().__init__("basic")
         self.item = item
-        self.tok_type = tok_type
+        self.dtype = dtype
 
 
 class GoCompositeLit(GoBaseLit):
@@ -270,10 +270,11 @@ class GoBaseExpr:
 class GoPrimaryExpr(GoBaseExpr):
     """For primary expressions (operands for unary/binary expressions)."""
 
-    def __init__(self, lhs, rhs):
+    def __init__(self, lhs, rhs, dtype):
         super().__init__("primary")
         self.lhs = lhs
         self.rhs = rhs  # rhs may be none
+        self.dtype = dtype
 
 
 class GoSelector:
@@ -300,20 +301,22 @@ class GoArguments:
 class GoExpression(GoBaseExpr):
     """For expressions made using binary operators."""
 
-    def __init__(self, lhs, rhs, op):
+    def __init__(self, lhs, rhs, op, dtype):
         super().__init__("expression")
         self.lhs = lhs
         self.rhs = rhs
         self.op = op
+        self.dtype = dtype
 
 
 class GoUnaryExpr(GoBaseExpr):
     """For expressions made using unary operators."""
 
-    def __init__(self, expr, op):
+    def __init__(self, expr, op, dtype):
         super().__init__("unary")
         self.expr = expr
         self.op = op
+        self.dtype = dtype
 
 
 # =============================================================================

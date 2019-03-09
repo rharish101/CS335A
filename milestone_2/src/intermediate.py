@@ -159,6 +159,23 @@ def type_check(obj, table):
             else:
                 obj.dtype = dtype1
 
+    elif isinstance(obj,GoIf):
+        newtable = SymbTable(table)      #  New symbol table needed as stmt is in the scope of both if and else
+        type_check(obj.stmt,newtable)
+        type_check(obj.cond,newtable)
+        if obj.cond.dtype != "BOOL":
+            error = True
+            print ("error")
+            exit()
+        type_check(obj.inif,newtable)
+        type_check(obj.inelse,newtable)
+
+#XXX Issue with grammar when simple statement in switch case, incorrect parse tree bein generated    
+    elif isinstance(obj,GoCaseClause):
+        type_check(obj.kind,table)
+        type_check(obj.expr_list,table)
+        newtable = SymbTable(table)
+        type_check(obj.stmt_list,newtable)
 
     elif isinstance(obj,GoBasicLit):
         obj.dtype = type(obj.item)

@@ -90,7 +90,6 @@ def type_check(obj, table):
 
 
     elif isinstance(obj,GoShortDecl):
-        print ("hello")
         if len(obj.id_list) != len(obj.expr_list):
             error = True
             print ("error")
@@ -104,7 +103,6 @@ def type_check(obj, table):
             type_check(child,table)
         
         for child1,child2 in zip(obj.id_list,obj.expr_list):
-            print ("children=",child1,child2)
             if type(child2) is not str:
                 if table.lookup(child1) == True and table.get_type(child1) != child2.dtype:
                     error = True
@@ -156,7 +154,10 @@ def type_check(obj, table):
             print ("error")
             exit()
         else:
-            obj.dtype = dtype1
+            if op in [">","<",">=","<=","==","!="]:
+                obj.dtype = "BOOL"
+            else:
+                obj.dtype = dtype1
 
 
     elif isinstance(obj,GoBasicLit):

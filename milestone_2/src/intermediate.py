@@ -38,6 +38,21 @@ class SymbTable:
         self.types = []
         self.parent = parent
 
+    def lookup(self, name):
+        if name in self.variables:
+            return True
+        elif parent != None:
+            return parent.lookup(name)
+        else:
+            return False
+
+    def insert(self, name, dtype):
+        if name not in self.variables:
+            self.variables[name]=dtype
+
+    def newScope(self, name):
+        self.parent = name
+
 
 if __name__ == "__main__":
     argparser = ArgumentParser(description="IR generator for Go")

@@ -41,17 +41,14 @@ class SymbTable:
     def lookup(self, name):
         if name in self.variables:
             return True
-        elif parent != None:
-            return parent.lookup(name)
+        elif self.parent != None:
+            return self.parent.lookup(name)
         else:
             return False
 
     def insert(self, name, dtype):
         if name not in self.variables:
             self.variables[name]=dtype
-
-    def newScope(self, name):
-        self.parent = name
 
 
 if __name__ == "__main__":

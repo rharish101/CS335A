@@ -38,7 +38,7 @@ class SymbTable:
         self.functions = {}
         self.methods = {}
         self.scopes = []
-        self.types = {}
+        self.types = []
         self.used = set()
         self.constants  = {}
         self.parent = parent
@@ -76,9 +76,47 @@ class SymbTable:
             self.used.add(const)
         else:
             print("Error: already used constant name")
-            exit()                
-              
-                
+            exit() 
+    def insert_struct(self,name,struct):
+        if name not in self.used:
+            self.structures[name] = struct
+            self.used.add(name)
+        else:
+            print("Error: already used Struct name")
+            exit() 
+
+    #XXX INCOMPLETE need to check for other type classes        
+    def type_check(self,dtype1,dtype2):
+        if dtype1.__class__ is not dtype2.__class__:
+            print("Error: Operands in expression of different type classes '{}' and '{}'".format(dtype1.__class__,dtype2.__class__))
+            exit()
+        if isinstance(dtype1,GoType) and isinstance(dtype1,GoType):
+            name1 = dtype1.name
+            name2 = dtype2.name
+            if name1 != name2:
+                print("Error: Operands in expression of different types'{}' and '{}'".format(name1,name2))
+                exit()
+
+
+
+    def insert_func(self,name,params,result):
+        if name not in table.functions:
+            table.functions[name] = { }
+            table.functions[name]['params'] = params
+            table.functions[name]['result'] = result
+        else:
+            print("Error: already used function name")
+            exit()   
+
+    def insert_method(self,name,params,result,receiver):
+        if name not in table.methods:
+            table.methods[name] = {}
+            table.methods[name]['params'] = params
+            table.methods[name]['result'] = result
+            table.methods[name]['receiver'] = receiver
+        else:
+            print("Error: already used method name")
+            exit()   
 
 
 if __name__ == "__main__":
@@ -121,7 +159,7 @@ if __name__ == "__main__":
         print(tree)
 
 
-def symbol_table(tree,table):
+def symbol_table(tree,table,name=None,block_type=None):
 
     #============================
          #VISHWAS
@@ -129,56 +167,33 @@ def symbol_table(tree,table):
 
     error = False
     print (tree)
-    # UNIMPLEMENTED: package names and modules storing 
+    #XXX UNIMPLEMENTED: storing package names and modules  
     if isinstance(tree,GoSourceFile):
         #iteraing over TopLevelDeclList`
         for item in tree.declarations:
             symbol_table(item,table)
 
     # method declarations  
-    # UN-IMPLEMENTED: paramters and results
     elif isinstance(tree,GoMethDecl):
-        reciever = tree.receiver 
+        receiver = tree.receiver 
         name = tree.name
         params = tree.params
         result = tree.result
         body = tree.body
-
-        #moving into method body
-        child_table = SymbTable(table)
-        symbol_table(body,child_table)
-        table.scopes.append(child_table)
-
-        #iterating over paramter list
-        for item in params:
-            # Parameters contains tridot and Type 
-            pass
-        
-
-         
+        table.insert_method(name,params,result,receiver)
+        symbol_table(body,table,name,'method')
+       
 
     #function declarations   
-    # UN-IMPLEMENTED: paramters and results 
     elif isinstance(tree,GoFuncDecl):
         name = tree.name
-        params = tree.params #holds the parameter list (p_ParameterList)
+        params = tree.params 
         result = tree.result
         body = tree.body  #instance of GoBlock
+        table.insert_func(name,params,result)
+        symbol_table(body,table,name,'function')
+    
 
-        #moving into function body
-        child_table = SymbTable(table)
-        symbol_table(body,child_table)
-        table.scopes.append(child_table)
-
-        #iterating over paramter list
-        for item in params:
-            # contains tridot and Type 
-            pass
-        
-
-    #UNINPLEMETNED:
-    #               1. handle none types, in that case assign the type of the expression to the variable 
-    #               2. type checking: if the defined type of the variable is not same as the expected type 
     elif isinstance(tree,GoDecl) and tree.kind is "var":
         var_list = tree.declarations
         for item in var_list:
@@ -186,28 +201,36 @@ def symbol_table(tree,table):
             lhs = item.lhs
             dtype = item.dtype
             rhs = item.rhs
-            if (len(lhs) is not len(rhs) and len(rhs) is not 0
-                or len(rhs) is 0 and dtype is None):
+            if len(lhs) is not len(rhs) and len(rhs) is not 0:
                 error = True
+                print("Error: different number of variables and values in var declaration")
+                exit()
+            elif len(rhs) is 0 and dtype is None:
+                error = True
+                print("Error: neither data type nor values given in var declaration")
+                exit()   
             else:
-                #iterating over all expressions to evaluate their types
+                # iterating over all expressions to evaluate their types
                 evaluated_types = []
                 for expr in rhs:
-                    # print (expr)
-                    assert isinstance(expr,GoExpression) or isinstance(expr,GoBasicLit)
-                    symbol_table(expr,table)
-                    evaluated_types.append(expr.dtype)
-                # print('dtype : "{}"'.format(dtype.name))         
+                    # assert isinstance(expr,GoExpression) or isinstance(expr,GoBasicLit) or type(expr) is str  
+                    if type(expr) is str:
+                        eval_type = table.get_type(expr)
+                    elif isinstance(expr,GoBasicLit):
+                        eval_type = expr.dtype
+                    elif isinstance(expr,GoExpression):
+                        symbol_table(expr,table)
+                        eval_type = expr.dtype
+                            
+                    evaluated_types.append(eval_type)       
                 if len(rhs) is not 0: 
                     if dtype is None:
-                        for evel_type in evaluated_types:
+                        for var,eval_type in zip(var,evaluated_types):
                             table.insert_var(var,eval_type)
                     else:        
                         for var,eval_type in zip(lhs,evaluated_types):
                             #if defined type is not None then check if the evaluated type is same as the defined type
-                            # if eval_type is not dtype:
-                            #     error = True
-                            #     break
+                            table.type_check(dtype,eval_type)
                             print('var "{}":"{}"'.format(var,dtype))
                             table.insert_var(var,dtype)  
                 else:
@@ -217,7 +240,7 @@ def symbol_table(tree,table):
                 
 
     #typedef and aliases   
-    #still need to incorporate typedef alias during type checking                
+    #XXX still need to incorporate typedef alias during type checking                
     elif isinstance(tree,GoDecl) and tree.kind is "type":
         type_list = tree.declarations
         #iterating over AliasDecl and Typedef
@@ -225,7 +248,11 @@ def symbol_table(tree,table):
             # assert isinstance(item,GoTypeDefAlias)
             alias = item.alias
             actual = item.actual
-            table.insert_alias(alias,actual)
+            if isinstance(actual,GoStruct):
+                table.insert_struct(alias,actual)
+            else:    
+                table.insert_alias(alias,actual)
+            
             print('typedef/alias "{}" : "{}"'.format(alias,actual))
            
 
@@ -238,24 +265,28 @@ def symbol_table(tree,table):
             expr_list = item.expr
             if len(id_list) is not len(expr_list):
                 error = True 
+                print("Error: different number of variables and values in const declaration")
+                exit()
+
             else:
                 evaluated_types = []
                 for  expr in expr_list:
-                    assert isinstance(expr,GoExpression) or isinstance(expr,GoBasicLit)
-                    symbol_table(expr,table)
-                    evaluated_types.append(expr.dtype)
-                #if defined type is not None then check if the evaluated type is same as the defined type
-                #currently each type is a string i.e. "INT", "STRING",...
+                    if type(expr) is str:
+                        eval_type = table.get_type(expr)
+                    elif isinstance(expr,GoBasicLit):
+                        eval_type = expr.dtype
+                    elif isinstance(expr,GoExpression):
+                        symbol_table(expr,table)
+                        eval_type = expr.dtype   
+                    evaluated_types.append(eval_type)
+
                 if dtype is None:
-                    for eval_type in evaluated_types:
+                    for var,eval_type in (expr_list,evaluated_types):
                         table.insert_const(const,eval_type)
                 else:    
                     for const,eval_type in zip(id_list,evaluated_types):
-                        # if eval_type is not dtype:
-                        #     error = True
-                        #     break
+                        table.type_check(dtype,eval_type)
                         print('const "{}":"{}"'.format(const,dtype))
-
                         table.insert_const(const,dtype)
                         #adding to list of variables so that const can be used as variables except they can't be assigned to some other value. Need to implement this check 
                         #table.insert_var(const,dtype)
@@ -264,143 +295,153 @@ def symbol_table(tree,table):
     elif isinstance(tree,GoBlock):
         statement_list = tree.statements
         child_table = SymbTable(table)
-        table.scopes.append(child_table)
+        if not name:
+            table.scopes.append(child_table)
+        elif block_type is 'function':
+            table.functions[name]['body'] = child_table    
+        elif block_type is 'method':
+            table.methods[name]['body'] = child_table      
         for statement in statement_list:
             if statement is None or statement is "" or (type(statement) is list and len(statement) is 0):
                 continue
             symbol_table(statement,child_table) 
 
-
-    #Vishwas(above code) is storing the variable types as objects and Nohria is storing them as strings,
-    # so the code below needs to be changed to resolve this discrepancy.        
-    #====================================
-            #NOHRIA
-    #====================================
-    
     elif isinstance(tree,GoAssign):
-        if len(tree.lhs) != len(tree.rhs):
+        lhs = tree.lhs
+        rhs = tree.rhs
+        if len(lhs) != len(rhs):
             error = True
-            print ("error")
+            print ("Different number of variables and values in assign operation")
             exit()
-        for child in tree.lhs:
-            if table.lookup(child) == False:
+        for var in lhs:
+            if table.lookup(var) == False:
                 error = True
-                print ("error")
+                print ('"{}" not declared before use'.format(var))
                 exit()
-        for child in tree.rhs:
-            symbol_table(child,table)
-        for child1,child2 in zip(tree.lhs,tree.rhs):
-            if type(child2) is not str:
-                if table.get_type(child1) != child2.dtype:
-                    error = True
-                    print ("error")
-                    exit()
-            else:
-                if table.get_type(child1) != table.get_type(child2):
-                    error = True
-                    print ("error")
-                    exit()
+      
+        for var,expr in zip(lhs,rhs):
+            print('assign: "{}" : "{}"'.format(var,expr))
+            dtype1 = table.get_type(var)
 
+            if type(expr) is str:
+                dtype2 = table.get_type(expr)
+            elif isinstance(expr,GoBasicLit):
+                dtype2 = expr.dtype
+            elif isinstance(expr,GoExpression):
+                symbol_table(expr,table)
+                dtype2 = expr.dtype
+
+            table.type_check(dtype1,dtype2)        
 
     elif isinstance(tree,GoShortDecl):
-        if len(tree.id_list) != len(tree.expr_list):
+        id_list = tree.id_list
+        expr_list = tree.expr_list
+        if len(id_list) != len(expr_list):
             error = True
-            print ("error")
+            print ("Different number of variables and values in short declaration")
             exit()
-        for child in tree.id_list:
-            if type(child) is not str:
+        for var in id_list:
+            if type(var) is not str:
+                error = True
+                print ("Syntax error, '{}'".format(var))
+                exit()
+
+        for var,expr in zip(id_list,expr_list):
+            print('short decl: "{}" : "{}"'.format(var,expr))
+            if type(expr) is str:
+                table.insert_var(var,table.get_type(expr))
+            elif isinstance(expr,GoBasicLit):
+                table.insert_var(var,expr.dtype)
+            elif isinstance(expr,GoExpression):
+                symbol_table(expr,table)
+                # print(expr.dtype)
+                table.insert_var(var,expr.dtype)
+
+    elif isinstance(tree,GoExpression):
+        lhs = tree.lhs
+        op = tree.op
+        rhs = tree.rhs 
+        symbol_table(lhs,table)
+        symbol_table(rhs,table)
+        print('exp: lhs "{}", rhs "{}"'.format(lhs,rhs))
+
+        #XXX INCOMPLETE : need to handle cases for array types, struct types, interfaces, function, pointer
+        if type(lhs) is str: #variable
+            dtype1 = table.get_type(lhs)
+        elif isinstance(lhs,GoExpression):
+            dtype1 = lhs.dtype    
+        elif isinstance(lhs,GoBasicLit):
+            dtype1 = lhs.dtype
+
+        if type(rhs) is str: #variable
+            dtype2 = table.get_type(rhs)
+        elif isinstance(rhs,GoExpression):
+            dtype2 = rhs.dtype    
+        elif isinstance(rhs,GoBasicLit):
+            dtype2 = rhs.dtype    
+
+        print('exp lhs: "{}", rhs: "{}"'.format(dtype1,dtype2))
+
+        if dtype1.__class__ is not dtype2.__class__:
+            error = True
+            print("Error: Operands in expression of different type classes '{}' and '{}'".format(dtype1.__class__,dtype2.__class__))
+            exit()
+
+        #XXX INCOMPLETE need to check for other type classes    
+        if isinstance(dtype1,GoType) and isinstance(dtype2,GoType):
+            name1 = dtype1.name
+            name2 = dtype2.name
+            if name1 != name2:
+                print("Error: Operands in expression of different types'{}' and '{}'".format(name1,name2))
+                exit()
+            if name1 == "bool" and op not in ["&&","||"]:
+                error = True
+                print ("invalid operator for bool operands")
+                exit()
+            elif op in ["&&","||"] and name1 != "bool":
+                error = True
+                print ("invalid operand types '{}' and '{}' for bool operator".format(name1,name2))
+                exit()
+            elif op in [">>", "<<", "&", "&^", "^", "|", "%"] and name1 not in INT_TYPES:
                 error = True
                 print ("error")
                 exit()
-        for child in tree.expr_list:
-            symbol_table(child,table)
-        
-        for child1,child2 in zip(tree.id_list,tree.expr_list):
-            if type(child2) is not str:
-                if table.lookup(child1) == True and table.get_type(child1) != child2.dtype:
-                    error = True
-                    print ("error")
-                    exit()
-                else:
-                    table.insert_var(child1,child2.dtype)
+            elif name1 == "string" and op not in ["+", "==", "!=", ">=", "<=", ">", "<"]:
+                error = True
+                print ("invalid operator for string type")
+                exit()
             else:
-                if table.lookup(child1) == True and table.get_type(child1) != table.get_type(child2):
-                    error = True
-                    print ("error")
-                    exit()
+                if op in [">","<",">=","<=","==","!="]:
+                    tree.dtype = GoType('bool')
                 else:
-                    table.insert_var(child1,table.get_type(child2))
-
-    elif isinstance(tree,GoExpression):
-        symbol_table(tree.lhs,table)
-        symbol_table(tree.rhs,table)
-        print('exp: lhs "{}", rhs "{}"'.format(tree.lhs,tree.rhs))
-        if type(tree.lhs) is not str:
-            dtype1 = tree.lhs.dtype
-        else:
-            dtype1 = table.get_type(tree.lhs)
-
-        if type(tree.rhs) is not str:
-            dtype2 = tree.rhs.dtype
-        else:
-            dtype2 = table.get_type(tree.rhs)
-
-        op = tree.op
-        if dtype1 != dtype2:
-            error = True
-            print ("error")
-            exit()
-        elif dtype1 == "BOOL" and op not in ["&&","||"]:
-            error = True
-            print ("error")
-            exit()
-        elif op in ["&&","||"] and dtype1 != "BOOL":
-            error = True
-            print ("error")
-            exit()
-        elif op in [">>", "<<", "&", "&^", "^", "|", "%"] and dtype1 not in INT_TYPES:
-            error = True
-            print ("error")
-            exit()
-        elif dtype1 == "STRING" and op not in ["+", "==", "!=", ">=", "<=", ">", "<"]:
-            error = True
-            print ("error")
-            exit()
-        else:
-            if op in [">","<",">=","<=","==","!="]:
-                tree.dtype = "BOOL"
-            else:
-                tree.dtype = dtype1
+                    tree.dtype = GoType(name1)
 
     elif isinstance(tree,GoIf):
         newtable = SymbTable(table)      #  New symbol table needed as stmt is in the scope of both if and else
         symbol_table(tree.stmt,newtable)
         symbol_table(tree.cond,newtable)
-        if tree.cond.dtype != "BOOL":
+
+        if not isinstance(tree.cond,GoExpression) or not isinstance(tree.cond.dtype,GoType) or  tree.cond.dtype.name != "bool":
             error = True
-            print ("error")
+            print ("Error: If condition is not evaluating to bool")
             exit()
         symbol_table(tree.inif,newtable)
         symbol_table(tree.inelse,newtable)
+        table.scopes.append(newtable)
 
-#XXX Issue with grammar when simple statement in switch case, incorrect parse tree bein generated    
+
+# #XXX Issue with grammar when simple statement in switch case, incorrect parse tree bein generated    
     elif isinstance(tree,GoCaseClause):
         symbol_table(tree.kind,table)
         symbol_table(tree.expr_list,table)
         newtable = SymbTable(table)
         symbol_table(tree.stmt_list,newtable)
+        table.scopes.append(newtable)
 
-    elif isinstance(tree,GoBasicLit):
-        tree.dtype = type(tree.item)
-
-    elif type(tree) is list:
-        for child in tree:
-            symbol_table(child,table)
-
-    elif type(tree) is not str and tree is not None:
-        for attr in tree.__dict__:
-            child = getattr(tree, attr)
-            symbol_table(child,table)    
+    #XXX UN-IMPLEMENTED 
+    elif isinstance(tree, GoFor):
+        symbol_table(tree.clause)
+        symbol_table(tree.infor)
 
 
                 

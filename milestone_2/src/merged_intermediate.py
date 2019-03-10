@@ -12,7 +12,6 @@ class SymbTable:
 
     def __init__(self, parent=None):
         """Initialize data dictionaries containing information.
-
         The kinds of information stored are:
             * Variables (dict of `GoVar`): Their types
             * Structures (dict of `GoStruct`): The variables, their types and
@@ -314,14 +313,19 @@ def symbol_table(tree,table,name=None,block_type=None):
             print ("Different number of variables and values in assign operation")
             exit()
         for var in lhs:
-            if table.lookup(var) == False:
+            if isinstance(var,GoPrimaryExpr):
+                symbol_table(var,table)
+            elif table.lookup(var) == False:
                 error = True
                 print ('"{}" not declared before use'.format(var))
                 exit()
       
         for var,expr in zip(lhs,rhs):
             print('assign: "{}" : "{}"'.format(var,expr))
-            dtype1 = table.get_type(var)
+            if isinstance(var,GoPrimaryExpr):
+                dtype1 = table.get_type(var.lhs).dtype
+            else:
+                dtype1 = table.get_type(var)
 
             if type(expr) is str:
                 dtype2 = table.get_type(expr)
@@ -332,6 +336,7 @@ def symbol_table(tree,table,name=None,block_type=None):
                 dtype2 = expr.dtype
 
             table.type_check(dtype1,dtype2)        
+
 
     elif isinstance(tree,GoShortDecl):
         id_list = tree.id_list
@@ -356,6 +361,10 @@ def symbol_table(tree,table,name=None,block_type=None):
                 symbol_table(expr,table)
                 # print(expr.dtype)
                 table.insert_var(var,expr.dtype)
+            elif isinstance(expr,GoCompositeLit):  # Arrays
+                symbol_table(expr,table)
+                table.insert_var(var,expr.dtype)
+                print ("type = '{}' , {}'".format(var,expr.dtype))
 
     elif isinstance(tree,GoExpression):
         lhs = tree.lhs
@@ -443,6 +452,89 @@ def symbol_table(tree,table,name=None,block_type=None):
         symbol_table(tree.clause)
         symbol_table(tree.infor)
 
+
+    elif isinstance(tree,GoForClause):
+        symbol_table(tree.init,table)
+        symbol_table(tree.expr)
+        symbol_table(tree.post)
+
+        if not isinstance(tree.init,GoAssign) and not isinstance(tree.init,GoShortDecl):
+            error = True
+            print ("Error in for loop Initialization")
+            exit()
+
+    elif isinstance(tree,GoArray):
+        symbol_table(tree.length,table)
+        symbol_table(tree.dtype,table)
+
+        length = tree.length
+
+        if length == "variable":
+            return
+        elif type(length) is str: #variable
+            dtype = table.get_type(length)
+        elif isinstance(length,GoExpression):
+            dtype = length.dtype    
+        elif isinstance(length,GoBasicLit):
+            dtype = length.dtype
+
+
+        if isinstance(dtype,GoType) and dtype.name != "int":
+            print ("array length must be an integer")
+            exit()
+    
+    elif isinstance(tree,GoIndex):
+        symbol_table(tree.index,table)
+        index = tree.index
+        if type(index) is str: #variable
+            dtype = table.get_type(index)
+        elif isinstance(index,GoExpression):
+            dtype = index.dtype    
+        elif isinstance(index,GoBasicLit):
+            dtype = index.dtype
+
+        if dtype.name != "int":
+            print ("array index must be an integer")
+            exit()
+
+    elif isinstance(tree,GoPrimaryExpr):
+        
+        symbol_table(tree.lhs,table)
+        symbol_table(tree.rhs,table)
+
+        if isinstance(tree.rhs,GoIndex):
+            print ("a= '{}'".format(tree.lhs))
+            if not table.lookup(tree.lhs):
+                error = True
+                print ("'{}' array not declared".format(tree.lhs))
+                exit()
+            elif not isinstance(table.get_type(tree.lhs),GoArray):
+                error = True
+                print ("'{}' not array".format(table.get_type(tree.lhs)))
+                exit()
+            print ("dtype: '{}'".format(table.get_type(tree.lhs)))
+            tree.dtype = (table.get_type(tree.lhs)).dtype
+            print ("dtype: '{}'".format(table.get_type(tree.lhs)))
+
+#XXX To be done later : check number of elements in array same as that specified
+    elif isinstance(tree,GoCompositeLit):
+        symbol_table(tree.dtype,table)
+        symbol_table(tree.value,table)
+
+        if isinstance(tree.dtype,GoArray):
+            dtype = tree.dtype.dtype
+            for child in tree.value:
+                if type(child.element) is str: #variable
+                    element_type = table.get_type(child.element)
+                elif isinstance(child.element,GoExpression):
+                    element_type = child.element.dtype    
+                elif isinstance(child.element,GoBasicLit):
+                    element_type = child.element.dtype
+                
+                if dtype.name != element_type.name:
+                    error = True
+                    print ("Conflicting types in array, '{}', '{}'".format(dtype.name,element_type.name))
+                    exit()
 
                 
 table = SymbTable()            

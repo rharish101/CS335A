@@ -59,6 +59,7 @@ class GoStruct(GoBaseType):
         self.vars = {}
         self.tags = {}
         self.embeds = {}
+        used = set()
         for field in fields:
             if field.dtype.kind == "embedded":
                 name = field.vars[0]
@@ -69,9 +70,13 @@ class GoStruct(GoBaseType):
                 self.embeds[name] = field.vars[0]
             else:
                 for var in field.vars:
-                    self.vars[var] = GoVar(field.dtype)
-                    self.tags[var] = field.tag
-
+                    if var not in used:
+                        self.vars[var] = GoVar(field.dtype)
+                        self.tags[var] = field.tag
+                        used.add(var)
+                    else:
+                        print("Error: Already used variable name in Struct declaration")
+                        exit()    
 
 class GoStructField:
     """For a single field in a struct."""

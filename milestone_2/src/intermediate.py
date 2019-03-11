@@ -83,7 +83,7 @@ class SymbTable:
             self.variables[name] = dtype
             self.used.add(name)
         else:
-            print("Error: Already declared variable name")
+            print("Error: Already declared variable name '{}'".format(name))
             exit()
 
     def insert_alias(self, alias, actual):
@@ -91,7 +91,7 @@ class SymbTable:
             self.types[alias] = actual
             self.used.add(alias)
         else:
-            print("Error: Already used alias/typedef name")
+            print("Error: Already used alias/typedef name '{}'".format(name))
             exit()
 
     def insert_const(self, const, dtype):
@@ -99,7 +99,7 @@ class SymbTable:
             self.constants[const] = dtype
             self.used.add(const)
         else:
-            print("Error: Already used constant name")
+            print("Error: Already used constant name '{}'".format(name))
             exit()
 
     def insert_struct(self, name, struct):
@@ -107,7 +107,7 @@ class SymbTable:
             self.structures[name] = struct
             self.used.add(name)
         else:
-            print("Error: Already used struct name")
+            print("Error: Already used struct name '{}'".format(name))
             exit()
 
     def insert_interface(self, name, interface):
@@ -115,8 +115,9 @@ class SymbTable:
             self.interfaces[name] = interface
             self.used.add(name)
         else:
-            print("Error: Already used interface name")
+            print("Error: Already used interface name '{}'".format(name))
             exit()
+
 
     # XXX INCOMPLETE need to check for other type classes
     def type_check(self, dtype1, dtype2):

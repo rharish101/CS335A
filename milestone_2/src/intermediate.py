@@ -125,13 +125,13 @@ class SymbTable:
             exit()
 
     def insert_method(self, name, params, result, receiver):
-        if name not in table.methods:
-            # Indexing by name and 1st receiver
+        # Indexing by name and 1st receiver
+        key = (name, receiver[0])
+        if key not in table.methods:
             # Only handling single receiver
-            name = (name, receiver[0])
-            table.methods[name] = {}
-            table.methods[name]["params"] = params
-            table.methods[name]["result"] = result
+            table.methods[key] = {}
+            table.methods[key]["params"] = params
+            table.methods[key]["result"] = result
         else:
             print("Error: already used method name")
             exit()

@@ -824,8 +824,7 @@ def p_PrimaryExpr(p):
         if isinstance(p[2], GoSelector):
             p[0] = GoPrimaryExpr(p[1], p[2], p[2].dtype)
         elif isinstance(p[2], GoIndex):
-            if p[2].index.dtype not in INT_TYPES:
-                error = True
+            p[0] = GoPrimaryExpr(p[1], p[2], "")
             # XXX Construct array type, Handling all incorrect cases of PrimayExpr
         else:
             # XXX dont know what this is

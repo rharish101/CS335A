@@ -70,7 +70,11 @@ class SymbTable:
     def get_type(self, name):
         if name in self.variables:
             return self.variables[name]
-        return self.parent.get_type(name)
+        elif self.parent:
+            return self.parent.get_type(name)
+        else:
+            print("Error: Attempt to use '{}': undeclared variable/array name ".format(name)) 
+            exit()   
 
     def insert_var(self, name, dtype):
         if name not in self.used:

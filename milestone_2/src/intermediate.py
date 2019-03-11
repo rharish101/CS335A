@@ -547,20 +547,40 @@ def symbol_table(tree, table, name=None, block_type=None):
 
     # XXX UN-IMPLEMENTED
     elif isinstance(tree, GoFor):
-        symbol_table(tree.clause)
-        symbol_table(tree.infor)
+        print("Entered GoFor")
+        symbol_table(tree.clause, table)
+        symbol_table(tree.infor, table)
 
     elif isinstance(tree, GoForClause):
-        symbol_table(tree.init, table)
-        symbol_table(tree.expr)
-        symbol_table(tree.post)
-
-        if not isinstance(tree.init, GoAssign) and not isinstance(
-            tree.init, GoShortDecl
-        ):
+        print("Entered GoForClause")
+        
+        if (tree.init is not None) and not isinstance(tree.init, GoShortDecl) and not isinstance(tree.init, GoAssign):
             error = True
             print("Error in for loop Initialization")
             exit()
+
+        elif (tree.expr is not None) and not isinstance(tree.expr, GoBasicLit) and not isinstance(tree.expr, GoExpression):
+            error = True
+            print("Error in for loop Condition")
+            exit()
+
+        elif (tree.post is not None) and not isinstance(tree.post, GoAssign):
+            error = True
+            print("Error in for loop post expression")
+            exit()
+
+        symbol_table(tree.init, table)
+        symbol_table(tree.expr, table)
+        symbol_table(tree.post, table)
+
+        
+        if (tree.expr is not None) and tree.expr.dtype.name is not "bool":
+            error = True
+            print("loop Condition must be bool type")
+            exit()
+
+    elif isinstance(tree, GoRange):
+        pass
 
     elif isinstance(tree, GoArray):
         symbol_table(tree.length, table)

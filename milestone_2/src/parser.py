@@ -124,7 +124,12 @@ def p_ArrayLength(p):
 def p_StructType(p):
     """StructType : STRUCT LCURLBR FieldDeclList RCURLBR
     """
-    p[0] = GoStruct(p[3])
+    try:
+        p[0] = GoStruct(p[3])
+    except ValueError as msg:
+        position = go_traceback(p.slice[1])
+        print("{} at position {}".format(msg, position))
+        exit()
 
 
 def p_FieldDecl(p):
@@ -301,7 +306,12 @@ def p_ParameterDecl(p):
 def p_InterfaceType(p):
     """InterfaceType : INTERFACE LCURLBR MethodSpecList RCURLBR
     """
-    p[0] = GoInterfaceType(p[3])
+    try:
+        p[0] = GoInterfaceType(p[3])
+    except ValueError as msg:
+        position = go_traceback(p.slice[1])
+        print("{} at position {}".format(msg, position))
+        exit()
 
 
 def p_MethodSpecList(p):
@@ -713,7 +723,7 @@ def p_BasicLit(p):
         p[1] = float(p[1])
     elif p.slice[1].type == "IMAG":
         p[1] = complex(p[1][:-1] + "j")
-    p[0] = GoBasicLit(p[1], GoType(p.slice[1].type.lower(),True))
+    p[0] = GoBasicLit(p[1], GoType(p.slice[1].type.lower(), True))
 
 
 def p_CompositeLit(p):
@@ -1251,8 +1261,8 @@ def p_ForClause(p):
 def p_RangeClause(p):
     """RangeClause : ExpressionList assign_op RANGE Expression
                    | Expression assign_op RANGE Expression
-                   | IdentifierList SHDECL RANGE Expression
-                   | ID SHDECL RANGE Expression
+                   | ExpressionList SHDECL RANGE Expression
+                   | Expression SHDECL RANGE Expression
                    | empty RANGE Expression
     """
     if len(p) == 4:  # empty

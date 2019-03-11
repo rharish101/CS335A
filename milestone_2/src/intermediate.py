@@ -149,7 +149,7 @@ class SymbTable:
 
                        
             if name1 != name2:
-                print("'{}', '{}'".format(name1,name2))
+                # print("'{}', '{}'".format(name1,name2))
                 print("Error: Operands in expression of different types'{}' and '{}'".format(name1,name2))
                 exit()
 
@@ -173,6 +173,23 @@ class SymbTable:
         else:
             print("Error: already used method name")
             exit()
+
+    def eval_type(self,expr):
+        dtype = None
+        if isinstance(expr, GoPrimaryExpr): #for the time being just 1D arrays
+            dtype = self.get_type(expr.lhs).dtype 
+        elif type(expr) is str:  # variable
+            dtype = self.get_type(expr)
+        elif isinstance(expr, GoExpression):
+            symbol_table(expr, self)
+            dtype = expr.dtype
+        elif isinstance(expr, GoBasicLit):
+            dtype = expr.dtype         
+        if dtype is None:
+            print("Warning: getting None dtype")      
+        return dtype    
+
+
 
 
 if __name__ == "__main__":
@@ -272,15 +289,15 @@ def symbol_table(tree, table, name=None, block_type=None):
                 evaluated_types = []
                 for expr in rhs:
                     # assert isinstance(expr,GoExpression) or isinstance(expr,GoBasicLit) or type(expr) is str
-                    if type(expr) is str:
-                        eval_type = table.get_type(expr)
-                    elif isinstance(expr, GoBasicLit):
-                        eval_type = expr.dtype
-                    elif isinstance(expr, GoExpression):
-                        symbol_table(expr, table)
-                        eval_type = expr.dtype
+                    # if type(expr) is str:
+                    #     eval_type = table.get_type(expr)
+                    # elif isinstance(expr, GoBasicLit):
+                    #     eval_type = expr.dtype
+                    # elif isinstance(expr, GoExpression):
+                    #     symbol_table(expr, table)
+                    #     eval_type = expr.dtype
 
-                    evaluated_types.append(eval_type)
+                    evaluated_types.append(table.eval_type(expr))
                 if len(rhs) != 0:
                     if dtype is None:
                         # XXX: What is the second "var"??
@@ -334,18 +351,17 @@ def symbol_table(tree, table, name=None, block_type=None):
             else:
                 evaluated_types = []
                 for expr in expr_list:
-                    if type(expr) is str:
-                        eval_type = table.get_type(expr)
-                    elif isinstance(expr, GoBasicLit):
-                        eval_type = expr.dtype
-                    elif isinstance(expr, GoExpression):
-                        symbol_table(expr, table)
-                        eval_type = expr.dtype
-                    evaluated_types.append(eval_type)
+                    # if type(expr) is str:
+                    #     eval_type = table.get_type(expr)
+                    # elif isinstance(expr, GoBasicLit):
+                    #     eval_type = expr.dtype
+                    # elif isinstance(expr, GoExpression):
+                    #     symbol_table(expr, table)
+                    #     eval_type = expr.dtype
+                    evaluated_types.append(table.eval_type(expr))
 
                 if dtype is None:
                     for const, eval_type in (expr_list, evaluated_types):
-                        # XXX: What is "const"??
                         table.insert_const(const, eval_type)
                 else:
                     for const, eval_type in zip(id_list, evaluated_types):
@@ -397,13 +413,14 @@ def symbol_table(tree, table, name=None, block_type=None):
             else:
                 dtype1 = table.get_type(var)
 
-            if type(expr) is str:
-                dtype2 = table.get_type(expr)
-            elif isinstance(expr, GoBasicLit):
-                dtype2 = expr.dtype
-            elif isinstance(expr, GoExpression):
-                symbol_table(expr, table)
-                dtype2 = expr.dtype
+            # if type(expr) is str:
+            #     dtype2 = table.get_type(expr)
+            # elif isinstance(expr, GoBasicLit):
+            #     dtype2 = expr.dtype
+            # elif isinstance(expr, GoExpression):
+            #     symbol_table(expr, table)
+            #     dtype2 = expr.dtype
+            dtype2 = table.eval_type(expr)
 
             table.type_check(dtype1, dtype2)
 
@@ -441,25 +458,27 @@ def symbol_table(tree, table, name=None, block_type=None):
         lhs = tree.lhs
         op = tree.op
         rhs = tree.rhs
-        symbol_table(lhs, table)
-        symbol_table(rhs, table)
+        # symbol_table(lhs, table)
+        # symbol_table(rhs, table)
         print('exp: lhs "{}", rhs "{}"'.format(lhs, rhs))
 
         # XXX INCOMPLETE : need to handle cases for array types, struct types,
         # interfaces, function, pointer
-        if type(lhs) is str:  # variable
-            dtype1 = table.get_type(lhs)
-        elif isinstance(lhs, GoExpression):
-            dtype1 = lhs.dtype
-        elif isinstance(lhs, GoBasicLit):
-            dtype1 = lhs.dtype
+        # if type(lhs) is str:  # variable
+        #     dtype1 = table.get_type(lhs)
+        # elif isinstance(lhs, GoExpression):
+        #     dtype1 = lhs.dtype
+        # elif isinstance(lhs, GoBasicLit):
+        #     dtype1 = lhs.dtype
 
-        if type(rhs) is str:  # variable
-            dtype2 = table.get_type(rhs)
-        elif isinstance(rhs, GoExpression):
-            dtype2 = rhs.dtype
-        elif isinstance(rhs, GoBasicLit):
-            dtype2 = rhs.dtype
+        # if type(rhs) is str:  # variable
+        #     dtype2 = table.get_type(rhs)
+        # elif isinstance(rhs, GoExpression):
+        #     dtype2 = rhs.dtype
+        # elif isinstance(rhs, GoBasicLit):
+        #     dtype2 = rhs.dtype
+        dtype1 = table.eval_type(lhs)
+        dtype2 = table.eval_type(rhs)
 
         print('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
 
@@ -475,17 +494,18 @@ def symbol_table(tree, table, name=None, block_type=None):
         if isinstance(dtype1, GoType) and isinstance(dtype2, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
-            if name1 != name2:
-                print(
-                    "Error: Operands in expression of different types '{}' and"
-                    " '{}'".format(name1, name2)
-                )
-                exit()
-            if name1 == "bool" and op not in ["&&", "||"]:
+            table.type_check(dtype1,dtype2)
+            if dtype1.basic_lit is False:
+                name = dtype1.name    
+            elif dtype2.basic_lit is False:
+                name = dtype2.name    
+
+
+            if name == "bool" and op not in ["&&", "||"]:
                 error = True
                 print("invalid operator for bool operands")
                 exit()
-            elif op in ["&&", "||"] and name1 != "bool":
+            elif op in ["&&", "||"] and name != "bool":
                 error = True
                 print(
                     "invalid operand types '{}' and '{}' for bool operator".format(
@@ -493,15 +513,14 @@ def symbol_table(tree, table, name=None, block_type=None):
                     )
                 )
                 exit()
-            # XXX: What is INT_TYPES?
             elif (
                 op in [">>", "<<", "&", "&^", "^", "|", "%"]
-                and name1 not in INT_TYPES
+                and name not in INT_TYPES
             ):
                 error = True
                 print("error")
                 exit()
-            elif name1 == "string" and op not in [
+            elif name == "string" and op not in [
                 "+",
                 "==",
                 "!=",
@@ -514,10 +533,11 @@ def symbol_table(tree, table, name=None, block_type=None):
                 print("invalid operator for string type")
                 exit()
             else:
+                print('basic_lit "{}", "{}", "{}"'.format(dtype1, dtype2, dtype1.basic_lit & dtype2.basic_lit))
                 if op in [">", "<", ">=", "<=", "==", "!="]:
-                    tree.dtype = GoType("bool")
+                    tree.dtype = GoType("bool",dtype1.basic_lit & dtype2.basic_lit)
                 else:
-                    tree.dtype = GoType(name1)
+                    tree.dtype = GoType(name,dtype1.basic_lit & dtype2.basic_lit)
 
     elif isinstance(tree, GoIf):
         # New symbol table needed as stmt is in the scope of both if and else
@@ -644,20 +664,22 @@ def symbol_table(tree, table, name=None, block_type=None):
         if isinstance(tree.dtype, GoArray):
             dtype = tree.dtype.dtype
             for child in tree.value:
-                if type(child.element) is str:  # variable
-                    element_type = table.get_type(child.element)
-                elif isinstance(child.element, GoExpression):
-                    element_type = child.element.dtype
-                elif isinstance(child.element, GoBasicLit):
-                    element_type = child.element.dtype
+                # if type(child.element) is str:  # variable
+                #     element_type = table.get_type(child.element)
+                # elif isinstance(child.element, GoExpression):
+                #     element_type = child.element.dtype
+                # elif isinstance(child.element, GoBasicLit):
+                #     element_type = child.element.dtype
 
-                if dtype.name != element_type.name:
-                    print(
-                        "Conflicting types in array, '{}', '{}'".format(
-                            dtype.name, element_type.name
-                        )
-                    )
-                    exit()
+                # if dtype.name != element_type.name:
+                #     print(
+                #         "Conflicting types in array, '{}', '{}'".format(
+                #             dtype.name, element_type.name
+                #         )
+                #     )
+                #     exit()
+                element_type = table.eval_type(child.element)
+                table.type_check(element_type,dtype)
 
 
 table = SymbTable()

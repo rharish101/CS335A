@@ -1061,7 +1061,7 @@ def p_UnaryExpr(p):
                 error = True
 
             if error:
-                position = go_traceback(lexer, p.slice[1].value)
+                position = go_traceback(p.slice[1].value)
                 print(
                     'SyntaxError: Unary operator "{}" not applicable for '
                     'argument of type "{}" at position {}'.format(
@@ -1088,7 +1088,7 @@ def p_UnaryExpr(p):
             ]:
                 error = True
             if error:
-                position = go_traceback(lexer, p.slice[1].value)
+                position = go_traceback(p.slice[1].value)
                 print(
                     'SyntaxError: Unary operator "{}" not applicable for '
                     'argument of type "{}" at position {}'.format(

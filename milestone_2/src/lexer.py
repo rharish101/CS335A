@@ -199,7 +199,7 @@ def t_NEWLINES(t):
         return t
 
 
-def go_traceback(lexer, token_val):
+def go_traceback(token_val):
     """Print traceback for the custom error message and return position."""
     print(
         '  File "{}", line {}\n    {}'.format(

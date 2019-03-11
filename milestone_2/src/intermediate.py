@@ -16,11 +16,13 @@ class SymbTable:
             * Variables (dict of `GoVar`): Their types
             * Structures (dict of `GoStruct`): The variables, their types and
                 their tags
-            * Interfaces: The methods in the interfaces and their info
-            * Functions (dict of tuple (`GoFuncType`, `SymbTable`)): Their
-                params, return types, and their own symbol table
-            * Methods: Their params, return types, and their own symbol table
-                for each struct on which they're used
+            * Interfaces (dict of `GoInterfaceType`): The methods in the
+                interfaces and their info
+            * Functions (dict): Their params, return types, and their own
+                symbol table as a dict
+            * Methods (dict): Their params, return types, and their own symbol
+                table as a dict for each struct on which they're used. Indexing
+                is done by a tuple of (name, receiver).
             * Scopes (list of `SymbTable`): A list of the scope, using children
                 symbol tables
             * Types (dict of `GoBaseType`): A dictionary of typedefs/aliases
@@ -60,7 +62,7 @@ class SymbTable:
             self.variables[name] = dtype
             self.used.add(name)
         else:
-            print("Error: already declared variable name")
+            print("Error: Already declared variable name")
             exit()
 
     def insert_alias(self, alias, actual):
@@ -68,7 +70,7 @@ class SymbTable:
             self.types[alias] = actual
             self.used.add(alias)
         else:
-            print("Error: already used alias/typedef name")
+            print("Error: Already used alias/typedef name")
             exit()
 
     def insert_const(self, const, dtype):
@@ -76,7 +78,7 @@ class SymbTable:
             self.constants[const] = dtype
             self.used.add(const)
         else:
-            print("Error: already used constant name")
+            print("Error: Already used constant name")
             exit()
 
     def insert_struct(self, name, struct):
@@ -84,7 +86,15 @@ class SymbTable:
             self.structures[name] = struct
             self.used.add(name)
         else:
-            print("Error: already used Struct name")
+            print("Error: Already used struct name")
+            exit()
+
+    def insert_interface(self, name, interface):
+        if name not in self.used:
+            self.interfaces[name] = interface
+            self.used.add(name)
+        else:
+            print("Error: Already used interface name")
             exit()
 
     # XXX INCOMPLETE need to check for other type classes
@@ -116,10 +126,12 @@ class SymbTable:
 
     def insert_method(self, name, params, result, receiver):
         if name not in table.methods:
+            # Indexing by name and 1st receiver
+            # Only handling single receiver
+            name = (name, receiver[0])
             table.methods[name] = {}
             table.methods[name]["params"] = params
             table.methods[name]["result"] = result
-            table.methods[name]["receiver"] = receiver
         else:
             print("Error: already used method name")
             exit()
@@ -166,11 +178,6 @@ if __name__ == "__main__":
 
 
 def symbol_table(tree, table, name=None, block_type=None):
-
-    # ============================
-    # VISHWAS
-    # ============================
-
     error = False
     print(tree)
     # XXX UNIMPLEMENTED: storing package names and modules

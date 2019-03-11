@@ -728,7 +728,7 @@ def p_BasicLit(p):
         p[1] = float(p[1])
     elif p.slice[1].type == "IMAG":
         p[1] = complex(p[1][:-1] + "j")
-    p[0] = GoBasicLit(p[1], GoType(p.slice[1].type.lower()))
+    p[0] = GoBasicLit(p[1], GoType(p.slice[1].type.lower(),True))
 
 
 # XXX remove from grammar

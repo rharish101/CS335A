@@ -100,19 +100,24 @@ class SymbTable:
     # XXX INCOMPLETE need to check for other type classes
     def type_check(self, dtype1, dtype2):
         if dtype1.__class__ is not dtype2.__class__:
-            print(
-                'Error: Operands in expression of different type classes "{}" '
-                'and "{}"'.format(dtype1.__class__, dtype2.__class__)
-            )
+            print("Error: Operands in expression of different type classes '{}' and '{}'".format(dtype1.__class__,dtype2.__class__))
             exit()
-        if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
+        if isinstance(dtype1,GoType) and isinstance(dtype1,GoType):
             name1 = dtype1.name
-            name2 = dtype2.name
+            name2 = dtype2.name    
+            if dtype1.basic_lit or dtype2.basic_lit:
+                if name1 in ["int","int16","int32","int64","byte","rune"]:
+                    name1 = "int"        
+                elif name1 in ["float32","float64","float"]:
+                    name1 = "float"    
+
+                if name2 in ["int","int16","int32","int64","byte","rune"]:
+                    name2 = "int"        
+                elif name2 in ["float32","float64","float"]:
+                    name2 = "float"        
             if name1 != name2:
-                print(
-                    'Error: Operands in expression of different types "{}" and'
-                    ' "{}"'.format(name1, name2)
-                )
+                print("'{}', '{}'".format(name1,name2))
+                print("Error: Operands in expression of different types'{}' and '{}'".format(name1,name2))
                 exit()
 
     def insert_func(self, name, params, result):

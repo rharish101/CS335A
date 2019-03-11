@@ -29,10 +29,10 @@ class GoType(GoBaseType):
         into functions with the common type being specified only once.
     """
 
-    def __init__(self, name):
+    def __init__(self, name,basic_lit=False):
         super().__init__("inbuilt")
         self.name = name  # For storing name of this type
-
+        self.basic_lit = basic_lit
 
 class GoFromModule:
     """For module imports."""

@@ -4,7 +4,7 @@ package main
 /* Hello "world" program
    In Go*/
 
-var c float  =  2.5
+var c float32  =  2.5
 
 type person struct {
     name string

@@ -194,7 +194,7 @@ def symbol_table(tree, table, name=None, block_type=None):
         result = tree.result
         body = tree.body
         table.insert_method(name, params, result, receiver)
-        symbol_table(body, table, name, "method")
+        symbol_table(body, table, (name, receiver[0]), "method")
 
     # function declarations
     elif isinstance(tree, GoFuncDecl):

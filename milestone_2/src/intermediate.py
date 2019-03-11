@@ -718,10 +718,8 @@ def symbol_table(tree, table, name=None, block_type=None):
         print("Entered GoKeyedElement")
         #symbol_table(tree.element, table)
         if isinstance(tree.element,GoBasicLit) or isinstance(tree.element,GoExpression):
-            print("YO1")
             symbol_table(tree.element, table)
             element_type = tree.element.dtype
-            print("YO2")
             print(element_type)
         elif type(tree.element) is str:
             symbol_table(tree.element, table)
@@ -730,7 +728,6 @@ def symbol_table(tree, table, name=None, block_type=None):
             depth = 0
             for child in tree.element:
                 if isinstance(child,GoKeyedElement):
-                    print("hello2")
                     symbol_table(child,table)
                     if depth == 0:
                         depth = child.depth
@@ -740,13 +737,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                         exit(0)
                     print(child.dtype)
                     element_type = child.dtype
-                # elif type(child.element) is str:  # variable
-                #     element_type = table.get_type(child.element)
-                # elif isinstance(child.element, GoExpression):
-                #     element_type = child.element.dtype
-                # elif isinstance(child.element, GoBasicLit):
-                #     element_type = child.element.dtype
-
+                
                 if tree.dtype is None:
                     tree.dtype = element_type
                 elif tree.dtype.name != element_type.name:
@@ -759,7 +750,6 @@ def symbol_table(tree, table, name=None, block_type=None):
                             )
                         )
                     exit()
-                print("SUCCESS")
             tree.depth = depth + 1
         tree.dtype = element_type
         print(tree.dtype.name)
@@ -776,7 +766,6 @@ def symbol_table(tree, table, name=None, block_type=None):
             print("dtype = '{}'".format(dtype.name))
             for child in tree.value:
                 if isinstance(child,GoKeyedElement):
-                    print("hello")
                     symbol_table(child,table)
                     if depth == 0:
                         depth = child.depth
@@ -784,16 +773,9 @@ def symbol_table(tree, table, name=None, block_type=None):
                         error = True
                         print("Wrong array declaration")
                         exit()
-                    print("BYE")
                     element_type = child.dtype
                     print(element_type)
-                # elif type(child.element) is str:  # variable
-                #     element_type = table.get_type(child.element)
-                # elif isinstance(child.element, GoExpression):
-                #     element_type = child.element.dtype
-                # elif isinstance(child.element, GoBasicLit):
-                #     element_type = child.element.dtype
-
+                
                 if dtype.name != element_type.name:
                     print(
                         "Conflicting types in array, '{}', '{}'".format(

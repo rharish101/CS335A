@@ -332,7 +332,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                     evaluated_types.append(eval_type)
 
                 if dtype is None:
-                    for var, eval_type in (expr_list, evaluated_types):
+                    for const, eval_type in (expr_list, evaluated_types):
                         # XXX: What is "const"??
                         table.insert_const(const, eval_type)
                 else:

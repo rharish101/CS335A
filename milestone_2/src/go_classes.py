@@ -284,7 +284,7 @@ class GoBaseExpr:
 class GoPrimaryExpr(GoBaseExpr):
     """For primary expressions (operands for unary/binary expressions)."""
 
-    def __init__(self, lhs, rhs, dtype):
+    def __init__(self, lhs, rhs, dtype=None):
         super().__init__("primary")
         self.lhs = lhs
         self.rhs = rhs  # rhs may be none
@@ -315,7 +315,7 @@ class GoArguments:
 class GoExpression(GoBaseExpr):
     """For expressions made using binary operators."""
 
-    def __init__(self, lhs, rhs, op, dtype):
+    def __init__(self, lhs, rhs, op, dtype=None):
         super().__init__("expression")
         self.lhs = lhs
         self.rhs = rhs
@@ -326,7 +326,7 @@ class GoExpression(GoBaseExpr):
 class GoUnaryExpr(GoBaseExpr):
     """For expressions made using unary operators."""
 
-    def __init__(self, expr, op, dtype):
+    def __init__(self, expr, op, dtype=None):
         super().__init__("unary")
         self.expr = expr
         self.op = op

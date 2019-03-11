@@ -5,6 +5,21 @@ from parser import parser
 from go_classes import *
 from argparse import ArgumentParser
 
+INT_TYPES = [
+    "int",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "uint",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "byte",
+    "rune",
+]
+
 
 class SymbTable:
     """The class for all symbol tables."""

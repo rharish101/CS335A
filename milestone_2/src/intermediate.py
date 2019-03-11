@@ -191,15 +191,13 @@ class SymbTable:
             print("primary expr '{}'".format(expr))
             lhs = expr.lhs
             rhs = expr.rhs
+            
             if isinstance(rhs,GoIndex):
-                #the line below just handles 1 D arrays
-                dtype = self.get_type(expr.lhs).dtype
-
-                #doesn't handles multi dimensional ararys
-                # left = expr
-                # while isinstance(left.lhs,GoPrimaryExpr):
-                #     left = left.lhs
-                # dtype = table.get_type(left.lhs).dtype    
+                #handles multi dimensional ararys
+                left = expr
+                while isinstance(left.lhs,GoPrimaryExpr):
+                    left = left.lhs  
+                dtype = self.get_type(left.lhs).dtype 
 
             #XXX nested function calls with inner function having only one parameter are not working      
             elif isinstance(rhs,GoArguments): #fuction call
@@ -712,7 +710,6 @@ def symbol_table(tree, table, name=None, block_type=None):
         
 
     elif isinstance(tree, GoPrimaryExpr):
-
         rhs = tree.rhs
         lhs = tree.lhs    
         if isinstance(rhs, GoIndex): #array indexing 
@@ -736,10 +733,12 @@ def symbol_table(tree, table, name=None, block_type=None):
                 print("dtype: '{}'".format(table.get_type(lhs)))
                 tree.dtype = (table.get_type(lhs)).dtype
                 print("dtype: '{}'".format(table.get_type(lhs)))
-            
-            symbol_table(lhs, table)
-            symbol_table(rhs, table)
-
+        
+        #XXX the symbol_table function should be called in all cases as lhs/ rhs may be of expression type    
+            # symbol_table(lhs, table)
+            # symbol_table(rhs, table)
+        symbol_table(lhs, table)
+        symbol_table(rhs, table)    
         
         # elif isinstance(rhs,GoArguments): #fuction call
         #     print("FUNCTION CALL '{}'".format(lhs))

@@ -586,7 +586,10 @@ def symbol_table(tree, table, name=None, block_type=None):
     elif isinstance(tree, GoArray):
         symbol_table(tree.length, table)
         symbol_table(tree.dtype, table)
-
+        if isinstance(tree.dtype,GoArray):
+            tree.depth = tree.dtype.depth + 1
+            tree.dtype = tree.dtype.dtype
+        
         length = tree.length
 
         if length == "variable":
@@ -623,33 +626,103 @@ def symbol_table(tree, table, name=None, block_type=None):
 
         if isinstance(tree.rhs, GoIndex):
             print("a= '{}'".format(tree.lhs))
-            if not table.lookup(tree.lhs):
-                error = True
-                print("'{}' array not declared".format(tree.lhs))
-                exit()
-            elif not isinstance(table.get_type(tree.lhs), GoArray):
-                error = True
-                print("'{}' not array".format(table.get_type(tree.lhs)))
-                exit()
-            print("dtype: '{}'".format(table.get_type(tree.lhs)))
-            tree.dtype = (table.get_type(tree.lhs)).dtype
-            print("dtype: '{}'".format(table.get_type(tree.lhs)))
+            if isinstance(tree.lhs,GoPrimaryExpr):
+                pass
+            else:
+                if not table.lookup(tree.lhs):
+                    error = True
+                    print("'{}' array not declared".format(tree.lhs))
+                    exit()
+                elif not isinstance(table.get_type(tree.lhs), GoArray):
+                    error = True
+                    print("'{}' not array".format(table.get_type(tree.lhs)))
+                    exit()
+                print("dtype: '{}'".format(table.get_type(tree.lhs)))
+                tree.dtype = (table.get_type(tree.lhs)).dtype
+                print("dtype: '{}'".format(table.get_type(tree.lhs)))
 
     # XXX To be done later : check number of elements in array same as that
     # specified
+
+    elif isinstance(tree, GoKeyedElement):
+        print("Entered GoKeyedElement")
+        #symbol_table(tree.element, table)
+        if isinstance(tree.element,GoBasicLit) or isinstance(tree.element,GoExpression):
+            print("YO1")
+            symbol_table(tree.element, table)
+            element_type = tree.element.dtype
+            print("YO2")
+            print(element_type)
+        elif type(tree.element) is str:
+            symbol_table(tree.element, table)
+            element_type = table.get_type(tree.element)
+        else:
+            depth = 0
+            for child in tree.element:
+                if isinstance(child,GoKeyedElement):
+                    print("hello2")
+                    symbol_table(child,table)
+                    if depth == 0:
+                        depth = child.depth
+                    elif depth != child.depth:
+                        error = True
+                        print("Wrong array declaration")
+                        exit(0)
+                    print(child.dtype)
+                    element_type = child.dtype
+                # elif type(child.element) is str:  # variable
+                #     element_type = table.get_type(child.element)
+                # elif isinstance(child.element, GoExpression):
+                #     element_type = child.element.dtype
+                # elif isinstance(child.element, GoBasicLit):
+                #     element_type = child.element.dtype
+
+                if tree.dtype is None:
+                    tree.dtype = element_type
+                elif tree.dtype.name != element_type.name:
+                    print(tree.dtype.name)
+                    print(element_type.name)
+                    error = True
+                    print(
+                            "Conflicting1 types in array, '{}', '{}'".format(
+                                tree.dtype.name, element_type.name
+                            )
+                        )
+                    exit()
+                print("SUCCESS")
+            tree.depth = depth + 1
+        tree.dtype = element_type
+        print(tree.dtype.name)
+
+
     elif isinstance(tree, GoCompositeLit):
+        print("Entered GoCompositeLit")
         symbol_table(tree.dtype, table)
-        symbol_table(tree.value, table)
+        #symbol_table(tree.value, table)
 
         if isinstance(tree.dtype, GoArray):
             dtype = tree.dtype.dtype
+            depth = 0
+            print("dtype = '{}'".format(dtype.name))
             for child in tree.value:
-                if type(child.element) is str:  # variable
-                    element_type = table.get_type(child.element)
-                elif isinstance(child.element, GoExpression):
-                    element_type = child.element.dtype
-                elif isinstance(child.element, GoBasicLit):
-                    element_type = child.element.dtype
+                if isinstance(child,GoKeyedElement):
+                    print("hello")
+                    symbol_table(child,table)
+                    if depth == 0:
+                        depth = child.depth
+                    elif depth != child.depth:
+                        error = True
+                        print("Wrong array declaration")
+                        exit()
+                    print("BYE")
+                    element_type = child.dtype
+                    print(element_type)
+                # elif type(child.element) is str:  # variable
+                #     element_type = table.get_type(child.element)
+                # elif isinstance(child.element, GoExpression):
+                #     element_type = child.element.dtype
+                # elif isinstance(child.element, GoBasicLit):
+                #     element_type = child.element.dtype
 
                 if dtype.name != element_type.name:
                     print(
@@ -658,6 +731,11 @@ def symbol_table(tree, table, name=None, block_type=None):
                         )
                     )
                     exit()
+
+            if depth != tree.dtype.depth:
+                error = True
+                print("Wrong array declaration")
+                exit()
 
 
 table = SymbTable()

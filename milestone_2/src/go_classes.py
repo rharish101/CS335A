@@ -47,10 +47,11 @@ class GoFromModule:
 class GoArray(GoBaseType):
     """For array types."""
 
-    def __init__(self, length, dtype):
+    def __init__(self, length, dtype, depth=1):
         super().__init__("array")
         self.length = length
         self.dtype = dtype
+        self.depth = depth
         self.name = "*" + dtype.name  # For storing name of this type
 
 
@@ -287,9 +288,11 @@ class GoCompositeLit(GoBaseLit):
 class GoKeyedElement:
     """For keyed elements in composite literals."""
 
-    def __init__(self, key, element):
+    def __init__(self, key, element, dtype=None, depth = 1):
         self.key = key
         self.element = element
+        self.dtype = dtype
+        self.depth = depth
 
 
 class GoBaseExpr:

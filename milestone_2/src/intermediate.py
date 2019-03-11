@@ -782,22 +782,23 @@ def symbol_table(tree, table, name=None, block_type=None):
                         depth = child.depth
                     elif depth != child.depth:
                         error = True
-                        print("Wrong array declaration")
+                        print("Error: Wrong array declaration")
                         exit()
                     element_type = child.dtype
                     print(element_type)
                 
-                if dtype.name != element_type.name:
-                    print(
-                        "Conflicting types in array, '{}', '{}'".format(
-                            dtype.name, element_type.name
-                        )
-                    )
-                    exit()
+                # if dtype.name != element_type.name:
+                #     print(
+                #         "Conflicting types in array, '{}', '{}'".format(
+                #             dtype.name, element_type.name
+                #         )
+                #     )
+                #     exit()
+                table.type_check(element_type,dtype,"array initialization")
 
             if depth != tree.dtype.depth:
                 error = True
-                print("Wrong array declaration")
+                print("Error: Wrong array declaration")
                 exit()
 
 

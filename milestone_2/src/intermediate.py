@@ -77,6 +77,14 @@ class SymbTable:
         else:
             print("Error: Attempt to use '{}': undeclared variable/array name ".format(name)) 
             exit()   
+    def get_func(self,name,info):
+        if name in self.functions:
+            return self.functions[name][info]
+        elif self.parent:
+            return self.parent.get_func(name,info)
+        else:
+            print("Error: Attempt to use '{}': undeclared function".format(name))        
+
 
     def insert_var(self, name, dtype):
         if name not in self.used:
@@ -120,7 +128,7 @@ class SymbTable:
 
 
     # XXX INCOMPLETE need to check for other type classes
-    def type_check(self, dtype1, dtype2, use=""):
+    def type_check(self, dtype1, dtype2, use="",func_name = None, param_name=None):
         if dtype1.__class__ is not dtype2.__class__:
             print("Error: Operands in '{}' of different type classes '{}' and '{}'".format(use, dtype1.__class__,dtype2.__class__))
             exit()
@@ -150,7 +158,10 @@ class SymbTable:
                        
             if name1 != name2:
                 # print("'{}', '{}'".format(name1,name2))
-                print("Error: Operands in '{}' of different types'{}' and '{}'".format(use,name1,name2))
+                if use == 'function call':
+                    print("Error: Mismatch type of param '{}' in function call of '{}'".format(param_name,func_name))
+                else:    
+                    print("Error: Operands in '{}' of different types'{}' and '{}'".format(use,name1,name2))
                 exit()
 
     def insert_func(self, name, params, result):
@@ -176,8 +187,40 @@ class SymbTable:
 
     def eval_type(self,expr):
         dtype = None
-        if isinstance(expr, GoPrimaryExpr): #for the time being just 1D arrays
-            dtype = self.get_type(expr.lhs).dtype 
+        if isinstance(expr, GoPrimaryExpr): 
+            print("primary expr '{}'".format(expr))
+            lhs = expr.lhs
+            rhs = expr.rhs
+            if isinstance(rhs,GoIndex): #for the time being just 1D arrays
+                dtype = self.get_type(expr.lhs).dtype 
+
+            elif isinstance(rhs,GoArguments): #fuction call
+                print("FUNCTION CALL '{}'".format(lhs))
+                func_name = lhs
+                assert isinstance(rhs,GoArguments)
+                #type checking of arguments passed to function
+                argument_list = rhs.expr_list
+                params_list = self.get_func(func_name,'params')
+                if len(argument_list) is not len(params_list):
+                    print("Error: '{}' parameters passed to function '{}' instead of '{}'".format(len(argument_list),func_name,len(params_list)))
+                    exit()
+                for argument,param in zip(argument_list,params_list):
+                    assert isinstance(param,GoParam)
+                    #symbol_table(param,self)
+                    symbol_table(argument,self)
+                    actual_dtype = param.dtype
+                    given_dtype = self.eval_type(argument)
+                    self.type_check(actual_dtype,given_dtype,'function call',func_name, param.name)
+
+                result = self.get_func(func_name,'result')
+                assert isinstance(result,GoParam)
+                result_type = result.dtype
+
+                if type(result_type) is list:
+                    print("Warning: Returning list of types")
+                dtype  = result_type
+
+
         elif type(expr) is str:  # variable
             dtype = self.get_type(expr)
         elif isinstance(expr, GoExpression):
@@ -640,7 +683,7 @@ def symbol_table(tree, table, name=None, block_type=None):
             if name not in INT_TYPES:
                 print("Error: index of array is not integer")
                 exit()
-                
+
         
 
     elif isinstance(tree, GoPrimaryExpr):

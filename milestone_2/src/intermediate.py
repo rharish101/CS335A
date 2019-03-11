@@ -45,6 +45,7 @@ class SymbTable:
                 typedefs should have a copy)
             * Used (set of str): Set of used variable/alias/const names
             * Constants (dict of GoConstants) : Their types
+            * Imports (dict of `GoImportSpec`): The imports and their aliases
             * Parent (`SymbTable`): The reference to the parent scope (if it
                 exists)
         """
@@ -57,6 +58,7 @@ class SymbTable:
         self.types = []
         self.used = set()
         self.constants = {}
+        self.imports = {}
         self.parent = parent
 
     def lookup(self, name):
@@ -215,9 +217,12 @@ if __name__ == "__main__":
 def symbol_table(tree, table, name=None, block_type=None):
     error = False
     print(tree)
-    # XXX UNIMPLEMENTED: storing package names and modules
+    # TODO: Store modules
     if isinstance(tree, GoSourceFile):
-        # iteraing over TopLevelDeclList`
+        # iterating over package imports
+        for item in tree.imports:
+            table.imports[item.import_as] = item
+        # iteraing over TopLevelDeclList
         for item in tree.declarations:
             symbol_table(item, table)
 
@@ -298,11 +303,13 @@ def symbol_table(tree, table, name=None, block_type=None):
         type_list = tree.declarations
         # iterating over AliasDecl and Typedef
         for item in type_list:
-            # assert isinstance(item,GoTypeDefAlias)
+            assert isinstance(item, GoTypeDefAlias)
             alias = item.alias
             actual = item.actual
             if isinstance(actual, GoStruct):
                 table.insert_struct(alias, actual)
+            elif isinstance(actual, GoInterfaceType):
+                table.insert_interface(alias, actual)
             else:
                 table.insert_alias(alias, actual)
 

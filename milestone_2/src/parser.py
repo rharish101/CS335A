@@ -716,7 +716,6 @@ def p_BasicLit(p):
     p[0] = GoBasicLit(p[1], GoType(p.slice[1].type.lower(),True))
 
 
-# XXX remove from grammar
 def p_CompositeLit(p):
     """CompositeLit : LiteralType LiteralValue
                     | ID DOT ID LiteralValue
@@ -794,7 +793,6 @@ def p_FunctionLit(p):
     p[0] = p[2]
 
 
-# XXX Operand skipped beacuse of methods
 def p_PrimaryExpr(p):
     """PrimaryExpr : Operand
                    | ID
@@ -805,23 +803,13 @@ def p_PrimaryExpr(p):
     if len(p) == 2:  # Operand or ID
         p[0] = p[1]
     else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
-        error = False
-        if isinstance(p[2], GoSelector):
-            p[0] = GoPrimaryExpr(p[1], p[2], p[2].dtype)
-        elif isinstance(p[2], GoIndex):
-            p[0] = GoPrimaryExpr(p[1], p[2], "")
-            # XXX Construct array type, Handling all incorrect cases of PrimayExpr
-        else:
-            # XXX dont know what this is
-            pass
+        p[0] = GoPrimaryExpr(p[1], p[2])
 
 
-# XXX
 def p_Selector(p):
     """Selector : DOT ID
     """
-    dtype = " "
-    p[0] = GoSelector(p[2], dtype)
+    p[0] = GoSelector(p[2])
 
 
 def p_Index(p):
@@ -911,83 +899,70 @@ def p_Expression(p):
     if len(p) == 2:  # UnaryExpr given
         p[0] = p[1]
     else:
-        # if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBasicLit):
-        #     # Direct calculation
-        #     error = False
-        #     if isinstance(p[1].item, type(p[3].item)):
-        #         error = True
-        #     try:
-        #         if p[2] == "||":
-        #             # Only booleans allowed
-        #             if type(p[1].item) is bool:
-        #                 p[1].item = p[1].item or p[3].item
-        #             else:
-        #                 error = True
-        #         elif p[2] == "&&":
-        #             # Only booleans allowed
-        #             if type(p[1].item) is bool:
-        #                 p[1].item = p[1].item and p[3].item
-        #             else:
-        #                 error = True
-        #         # Booleans no further
-        #         elif type(p[1].item) is bool:
-        #             error = True
-        #         elif p[2] == "==":
-        #             p[1].item = p[1].item == p[3].item
-        #         elif p[2] == "!=":
-        #             p[1].item = p[1].item != p[3].item
-        #         elif p[2] == "<":
-        #             p[1].item = p[1].item < p[3].item
-        #         elif p[2] == "<=":
-        #             p[1].item = p[1].item <= p[3].item
-        #         elif p[2] == ">":
-        #             p[1].item = p[1].item > p[3].item
-        #         elif p[2] == ">=":
-        #             p[1].item = p[1].item >= p[3].item
-        #         elif p[2] == "+":
-        #             p[1].item += p[3].item
-        #         # Strings no further
-        #         elif type(p[1].item) is str:
-        #             error = True
-        #         elif p[2] == "-":
-        #             p[1].item -= p[3].item
-        #         elif p[2] == "|":
-        #             p[1].item |= p[3].item
-        #         elif p[2] == "^":
-        #             p[1].item ^= p[3].item
-        #         elif p[2] == "*":
-        #             p[1].item *= p[3].item
-        #         elif p[2] == "/":
-        #             p[1].item /= p[3].item
-        #         elif p[2] == "%":
-        #             p[1].item %= p[3].item
-        #         elif p[2] == "<<":
-        #             p[1].item <<= p[3].item
-        #         elif p[2] == ">>":
-        #             p[1].item >>= p[3].item
-        #         elif p[2] == "&":
-        #             p[1].item &= p[3].item
-        #         elif p[2] == "&^":
-        #             p[1].item &= ~p[3].item
-        #         else:
-        #             error = True
-        #     except Exception:
-        #         error = True
+        if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBaseLit):
+            # Direct calculation
+            error = False
+            try:
+                if p[2] == "||":
+                    p[1].item = p[1].item or p[3].item
+                elif p[2] == "&&":
+                    p[1].item = p[1].item and p[3].item
+                elif p[2] == "==":
+                    p[1].item = p[1].item == p[3].item
+                elif p[2] == "!=":
+                    p[1].item = p[1].item != p[3].item
+                elif p[2] == "<":
+                    p[1].item = p[1].item < p[3].item
+                elif p[2] == "<=":
+                    p[1].item = p[1].item <= p[3].item
+                elif p[2] == ">":
+                    p[1].item = p[1].item > p[3].item
+                elif p[2] == ">=":
+                    p[1].item = p[1].item >= p[3].item
+                elif p[2] == "+":
+                    p[1].item += p[3].item
+                elif p[2] == "-":
+                    p[1].item -= p[3].item
+                elif p[2] == "|":
+                    p[1].item |= p[3].item
+                elif p[2] == "^":
+                    p[1].item ^= p[3].item
+                elif p[2] == "*":
+                    p[1].item *= p[3].item
+                elif p[2] == "/":
+                    p[1].item /= p[3].item
+                elif p[2] == "%":
+                    p[1].item %= p[3].item
+                elif p[2] == "<<":
+                    p[1].item <<= p[3].item
+                elif p[2] == ">>":
+                    p[1].item >>= p[3].item
+                elif p[2] == "&":
+                    p[1].item &= p[3].item
+                elif p[2] == "&^":
+                    p[1].item &= ~p[3].item
+                else:
+                    error = True
+            except Exception:
+                error = True
 
-        #     if error:
-        #         position = go_traceback(p.slice[1])
-        #         print(
-        #             'SyntaxError: Binary operator "{}" not applicable for '
-        #             'arguments of types "{}" and "{}" at position {}'.format(
-        #                 p[2], p[1].dtype.name, p[3].dtype.name, position
-        #             )
-        #         )
-        #         exit()
-        #     else:
-        #         p[0] = p[1]
-        # else:
-        #     error = False
-        p[0] = GoExpression(p[1], p[3], p[2], "")
+            if error:
+                position = go_traceback(p.slice[1])
+                print(
+                    'SyntaxError: Binary operator "{}" not applicable for '
+                    'arguments of types "{}" and "{}" at position {}'.format(
+                        p[2],
+                        p[1].tok_type.lower(),
+                        p[3].tok_type.lower(),
+                        position,
+                    )
+                )
+                exit()
+            else:
+                p[0] = p[1]
+        else:
+            # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
+            p[0] = GoExpression(p[1], p[3], p[2])
 
 
 def p_ExpressionBot(p):
@@ -1057,31 +1032,7 @@ def p_UnaryExpr(p):
                 p[0] = p[2]
         else:
             # 1st arg. is expression, 2nd arg. is unary_op
-            # XXX REC, LOGNOT, BITAND, MULT
-            error = False
-            if p[2].dtype == "STRING":
-                error = True
-            elif p[1] in ["+", "-", "++", "--"]:
-                dtype = p[2].dtype
-            elif p[1] == "^" and p[2].dtype in [
-                "FLOAT32",
-                "FLOAT64",
-                "COMPLEX64",
-                "COMPLEX128",
-                "UINTPTR",
-            ]:
-                error = True
-            if error:
-                position = go_traceback(p.slice[1].value)
-                print(
-                    'SyntaxError: Unary operator "{}" not applicable for '
-                    'argument of type "{}" at position {}'.format(
-                        p[1], p[2].dtype.name.lower(), position
-                    )
-                )
-                exit()
-
-            p[0] = GoUnaryExpr(p[2], p[1], dtype)
+            p[0] = GoUnaryExpr(p[2], p[1])
 
 
 def p_addmul_op(p):
@@ -1294,7 +1245,6 @@ def p_ForClause(p):
                  | empty SEMICOLON empty SEMICOLON SimpleStmt
                  | empty SEMICOLON empty SEMICOLON empty
     """
-
     p[0] = GoForClause(p[1], p[3], p[5])
 
 

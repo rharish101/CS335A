@@ -215,7 +215,7 @@ def go_traceback(token_val):
 
 
 def t_error(t):
-    position = go_traceback(t)
+    position = go_traceback(t.value)
     print(
         'SyntaxError: Unexpected token "{}" at position {}'.format(
             t.value, position

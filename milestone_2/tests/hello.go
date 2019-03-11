@@ -4,7 +4,7 @@ package main
 /* Hello "world" program
    In Go*/
 
-var c float  =  2.5
+var c int64  =  2
 
 type person struct {
     name string
@@ -19,7 +19,7 @@ type T struct {
 }
 
 func temp(x int,y int ){
-	d := 4
+	d := 4.5
 	var b int = 3
 	c := d + b
 	a  := c

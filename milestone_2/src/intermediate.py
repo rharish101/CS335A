@@ -117,19 +117,35 @@ class SymbTable:
     # XXX INCOMPLETE need to check for other type classes
     def type_check(self, dtype1, dtype2):
         if dtype1.__class__ is not dtype2.__class__:
-            print(
-                'Error: Operands in expression of different type classes "{}" '
-                'and "{}"'.format(dtype1.__class__, dtype2.__class__)
-            )
+            print("Error: Operands in expression of different type classes '{}' and '{}'".format(dtype1.__class__,dtype2.__class__))
             exit()
-        if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
+
+        if isinstance(dtype1,GoType) and isinstance(dtype1,GoType):
             name1 = dtype1.name
-            name2 = dtype2.name
+            name2 = dtype2.name    
+            for name in [name1,name2]:
+                if name not in INT_TYPES and name not in ["float","float32","float64","complex","byte","complex64","complex128","string","unintptr"]:
+                    print("Error:'{}' is unregistered dtype".format(name))
+                    exit() 
+            if dtype1.basic_lit or dtype2.basic_lit:
+                if name1 in INT_TYPES:
+                    name1 = "int"        
+                elif name1 in ["float32","float64","float"]:
+                    name1 = "float"  
+                elif name1 in ["complex64","complex128","complex"]:
+                    name1 = "complex"      
+
+                if name2 in INT_TYPES:
+                    name2 = "int"        
+                elif name2 in ["float32","float64","float"]:
+                    name2 = "float"   
+                elif name2 in ["complex64","complex128","complex"]:
+                    name2 = "complex"       
+
+                       
             if name1 != name2:
-                print(
-                    'Error: Operands in expression of different types "{}" and'
-                    ' "{}"'.format(name1, name2)
-                )
+                print("'{}', '{}'".format(name1,name2))
+                print("Error: Operands in expression of different types'{}' and '{}'".format(name1,name2))
                 exit()
 
     def insert_func(self, name, params, result):
@@ -323,7 +339,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                     evaluated_types.append(eval_type)
 
                 if dtype is None:
-                    for var, eval_type in (expr_list, evaluated_types):
+                    for const, eval_type in (expr_list, evaluated_types):
                         # XXX: What is "const"??
                         table.insert_const(const, eval_type)
                 else:

@@ -300,8 +300,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                     evaluated_types.append(table.eval_type(expr))
                 if len(rhs) != 0:
                     if dtype is None:
-                        # XXX: What is the second "var"??
-                        for var, eval_type in zip(var, evaluated_types):
+                        for var, eval_type in zip(lhs, evaluated_types):
                             table.insert_var(var, eval_type)
                     else:
                         for var, eval_type in zip(lhs, evaluated_types):

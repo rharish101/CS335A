@@ -17,17 +17,31 @@ type T struct {
     f3     string `f `
     f4, f5 int64  `f four and five`
 }
+func add(x int, y int64)uint {
+	return x+y
+}
 
 func temp(x int,y int ){
-	d := 4.5
-	var b int = 3
+	var d uint= 4
+	var b uint = 3
 	c := d + b
 	a  := c
-	// var c int = 20
-	// // d = 3
+	var z uint = 20
+	d = 3
+	primes := [6]uint{2, 3, 5, 7, 11, 13}
 	s:= "string"
-	e := d + 4*5 + c
-	a = e
+	e := 4*5 + c + primes[2] + add(2,3)
+	primes1 := [2]int{2,3,4}
+	primes[primes1[2]] = z
+
+	primes[e] = 23
+
+
+
+	// var k int64 = 3
+	// k = primes[2]
+
+	// a = e
 	{
 
 		z := 4

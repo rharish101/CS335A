@@ -244,7 +244,8 @@ def p_Result(p):
             dtype = GoFromModule(p[1], p[3])
         else:  # ID
             dtype = GoType(p[1])
-        p[0] = [GoParam(dtype=dtype)]
+        p[0] = GoParam(dtype = dtype)    
+        # p[0] = [GoParam(dtype=dtype)]
 
 
 def p_Parameters(p):

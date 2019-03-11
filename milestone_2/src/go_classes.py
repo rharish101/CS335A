@@ -29,10 +29,11 @@ class GoType(GoBaseType):
         into functions with the common type being specified only once.
     """
 
-    def __init__(self, name,basic_lit=False):
+    def __init__(self, name, basic_lit=False):
         super().__init__("inbuilt")
         self.name = name  # For storing name of this type
         self.basic_lit = basic_lit
+
 
 class GoFromModule:
     """For module imports."""
@@ -70,7 +71,14 @@ class GoStruct(GoBaseType):
                     name = name.var
                 if isinstance(name, GoFromModule):
                     name = name.child
-                self.embeds[name] = field.vars[0]
+                if name not in used:
+                    self.embeds[name] = field.vars[0]
+                    used.add(name)
+                else:
+                    raise ValueError(
+                        'Error: Already used embedded field "{}" in struct '
+                        "declaration"
+                    )
             else:
                 for var in field.vars:
                     if var not in used:
@@ -78,10 +86,10 @@ class GoStruct(GoBaseType):
                         self.tags[var] = field.tag
                         used.add(var)
                     else:
-                        print(
-                            "Error: Already used variable name in Struct declaration"
+                        raise ValueError(
+                            'Error: Already used variable name "{}" in struct '
+                            "declaration"
                         )
-                        exit()
 
 
 class GoStructField:
@@ -139,8 +147,18 @@ class GoInterfaceType(GoBaseType):
 
     def __init__(self, methods):
         super().__init__("function")
-        self.methods = methods
         self.name = "interface"  # For storing name of this type
+        self.methods = {}
+        used = set()
+        for method in methods:
+            if method.name not in used:
+                self.methods[method.name] = method
+                used.add(method.name)
+            else:
+                raise ValueError(
+                    'Error: Already used method name "{}" in interface '
+                    "declaration"
+                )
 
 
 class GoMethodFunc:

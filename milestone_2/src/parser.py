@@ -124,7 +124,12 @@ def p_ArrayLength(p):
 def p_StructType(p):
     """StructType : STRUCT LCURLBR FieldDeclList RCURLBR
     """
-    p[0] = GoStruct(p[3])
+    try:
+        p[0] = GoStruct(p[3])
+    except ValueError as msg:
+        position = go_traceback(p.slice[1])
+        print("{} at position {}".format(msg, position))
+        exit()
 
 
 def p_FieldDecl(p):
@@ -301,7 +306,12 @@ def p_ParameterDecl(p):
 def p_InterfaceType(p):
     """InterfaceType : INTERFACE LCURLBR MethodSpecList RCURLBR
     """
-    p[0] = GoInterfaceType(p[3])
+    try:
+        p[0] = GoInterfaceType(p[3])
+    except ValueError as msg:
+        position = go_traceback(p.slice[1])
+        print("{} at position {}".format(msg, position))
+        exit()
 
 
 def p_MethodSpecList(p):

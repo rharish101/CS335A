@@ -191,22 +191,31 @@ class SymbTable:
             print("primary expr '{}'".format(expr))
             lhs = expr.lhs
             rhs = expr.rhs
-            if isinstance(rhs,GoIndex): #for the time being just 1D arrays
-                dtype = self.get_type(expr.lhs).dtype 
+            if isinstance(rhs,GoIndex):
+                #the line below just handles 1 D arrays
+                dtype = self.get_type(expr.lhs).dtype
 
+                #doesn't handles multi dimensional ararys
+                # left = expr
+                # while isinstance(left.lhs,GoPrimaryExpr):
+                #     left = left.lhs
+                # dtype = table.get_type(left.lhs).dtype    
+
+            #XXX nested function calls with inner function having only one parameter are not working      
             elif isinstance(rhs,GoArguments): #fuction call
-                print("FUNCTION CALL '{}'".format(lhs))
+                print("FUNCTION CALL '{}', ARGUMENTS '{}'".format(lhs,rhs))
                 func_name = lhs
                 assert isinstance(rhs,GoArguments)
                 #type checking of arguments passed to function
                 argument_list = rhs.expr_list
                 params_list = self.get_func(func_name,'params')
+                print("ARGUMENT LIST: '{}'".format(argument_list))
                 if len(argument_list) is not len(params_list):
                     print("Error: '{}' parameters passed to function '{}' instead of '{}'".format(len(argument_list),func_name,len(params_list)))
                     exit()
                 for argument,param in zip(argument_list,params_list):
                     assert isinstance(param,GoParam)
-                    #symbol_table(param,self)
+                    # symbol_table(param,self)
                     symbol_table(argument,self)
                     actual_dtype = param.dtype
                     given_dtype = self.eval_type(argument)
@@ -219,6 +228,12 @@ class SymbTable:
                 if type(result_type) is list:
                     print("Warning: Returning list of types")
                 dtype  = result_type
+
+            # handles selector operations on struct, returns the dtypes     
+            elif isinstance(rhs,GoSelector):
+                pass
+                
+                
 
 
         elif type(expr) is str:  # variable
@@ -450,6 +465,7 @@ def symbol_table(tree, table, name=None, block_type=None):
 
         for var, expr in zip(lhs, rhs):
             print('assign: "{}" : "{}"'.format(var, expr))
+            #can have only struct fields, variables, array on the LHS.
             if isinstance(var, GoPrimaryExpr):
                 #print(table.get_type(var.lhs))
                 #dtype1 = table.get_type(var.lhs).dtype
@@ -458,7 +474,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                     left = left.lhs
                 dtype1 = table.get_type(left.lhs).dtype
 
-            else:
+            elif type(var) is str:
                 dtype1 = table.get_type(var)
 
             # if type(expr) is str:
@@ -697,30 +713,60 @@ def symbol_table(tree, table, name=None, block_type=None):
 
     elif isinstance(tree, GoPrimaryExpr):
 
-        if isinstance(tree.rhs, GoIndex):
-            print("a= '{}'".format(tree.lhs))
-            if isinstance(tree.lhs,GoPrimaryExpr):
-                tree.lhs.depth = tree.depth + 1
+        rhs = tree.rhs
+        lhs = tree.lhs    
+        if isinstance(rhs, GoIndex): #array indexing 
+            print("array = '{}'".format(lhs))
+            if isinstance(lhs,GoPrimaryExpr):
+                lhs.depth = tree.depth + 1
             else:
-                if not table.lookup(tree.lhs):
+                if not table.lookup(lhs):
                     error = True
-                    print("'{}' array not declared".format(tree.lhs))
+                    print("'{}' array not declared".format(lhs))
                     exit()
-                elif not isinstance(table.get_type(tree.lhs), GoArray):
+                elif not isinstance(table.get_type(lhs), GoArray):
                     error = True
-                    print("'{}' not array".format(table.get_type(tree.lhs)))
+                    print("'{}' not array".format(table.get_type(lhs)))
                     exit()
-                elif tree.depth != table.get_type(tree.lhs).depth:
+                elif tree.depth != table.get_type(lhs).depth:
                     error = True
-                    print("Incorect number of indexes in array '{}'".format(tree.lhs));
+                    print("Incorect number of indexes in array '{}'".format(lhs));
                     exit()
 
-                print("dtype: '{}'".format(table.get_type(tree.lhs)))
-                tree.dtype = (table.get_type(tree.lhs)).dtype
-                print("dtype: '{}'".format(table.get_type(tree.lhs)))
+                print("dtype: '{}'".format(table.get_type(lhs)))
+                tree.dtype = (table.get_type(lhs)).dtype
+                print("dtype: '{}'".format(table.get_type(lhs)))
             
-            symbol_table(tree.lhs, table)
-            symbol_table(tree.rhs, table)
+            symbol_table(lhs, table)
+            symbol_table(rhs, table)
+
+        
+        # elif isinstance(rhs,GoArguments): #fuction call
+        #     print("FUNCTION CALL '{}'".format(lhs))
+        #     func_name = lhs
+        #     assert isinstance(rhs,GoArguments)
+        #     #type checking of arguments passed to function
+        #     argument_list = rhs.expr_list
+        #     params_list = table.get_func(func_name,'params')
+        #     if len(argument_list) is not len(params_list):
+        #         print("Error: '{}' parameters passed to function '{}' instead of '{}'".format(len(argument_list),func_name,len(params_list)))
+        #         exit()
+        #     for argument,param in zip(argument_list,params_list):
+        #         assert isinstance(param,GoParam)
+        #         symbol_table(param,table)
+        #         symbol_table(argument,table)
+        #         actual_dtype = table.eval_type(param)
+        #         given_dtype = table.eval_type(argument)
+        #         table.type_check(actual_dtype,given_dtype,'function call',func_name, param.name)
+
+        #     result = table.get_func(func_name,'result')
+        #     assert isinstance(result,GoParam)
+        #     result_type = result.dtype
+
+        #     if type(result_type) is list:
+        #         print("Warning: Returning list of types")
+        #     tree.dtype  = result_type    
+
 
     # XXX To be done later : check number of elements in array same as that
     # specified

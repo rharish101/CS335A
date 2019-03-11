@@ -120,9 +120,9 @@ class SymbTable:
 
 
     # XXX INCOMPLETE need to check for other type classes
-    def type_check(self, dtype1, dtype2):
+    def type_check(self, dtype1, dtype2, use=""):
         if dtype1.__class__ is not dtype2.__class__:
-            print("Error: Operands in expression of different type classes '{}' and '{}'".format(dtype1.__class__,dtype2.__class__))
+            print("Error: Operands in '{}' of different type classes '{}' and '{}'".format(use, dtype1.__class__,dtype2.__class__))
             exit()
 
         if isinstance(dtype1,GoType) and isinstance(dtype1,GoType):
@@ -150,7 +150,7 @@ class SymbTable:
                        
             if name1 != name2:
                 # print("'{}', '{}'".format(name1,name2))
-                print("Error: Operands in expression of different types'{}' and '{}'".format(name1,name2))
+                print("Error: Operands in '{}' of different types'{}' and '{}'".format(use,name1,name2))
                 exit()
 
     def insert_func(self, name, params, result):
@@ -306,7 +306,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                         for var, eval_type in zip(lhs, evaluated_types):
                             # If defined type is not None then check if the
                             # evaluated type is same as the defined type
-                            table.type_check(dtype, eval_type)
+                            table.type_check(dtype, eval_type, "variable declaration")
                             print('var "{}":"{}"'.format(var, dtype))
                             table.insert_var(var, dtype)
                 else:
@@ -364,7 +364,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                         table.insert_const(const, eval_type)
                 else:
                     for const, eval_type in zip(id_list, evaluated_types):
-                        table.type_check(dtype, eval_type)
+                        table.type_check(dtype, eval_type,"const declaration")
                         print('const "{}":"{}"'.format(const, dtype))
                         table.insert_const(const, dtype)
                         # adding to list of variables so that const can be used as variables except they can't be assigned to some other value. Need to implement this check
@@ -421,7 +421,7 @@ def symbol_table(tree, table, name=None, block_type=None):
             #     dtype2 = expr.dtype
             dtype2 = table.eval_type(expr)
 
-            table.type_check(dtype1, dtype2)
+            table.type_check(dtype1, dtype2,"assignment")
 
     elif isinstance(tree, GoShortDecl):
         id_list = tree.id_list
@@ -493,7 +493,7 @@ def symbol_table(tree, table, name=None, block_type=None):
         if isinstance(dtype1, GoType) and isinstance(dtype2, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
-            table.type_check(dtype1,dtype2)
+            table.type_check(dtype1,dtype2,"expression")
             if dtype1.basic_lit is False:
                 name = dtype1.name    
             elif dtype2.basic_lit is False:
@@ -624,16 +624,24 @@ def symbol_table(tree, table, name=None, block_type=None):
     elif isinstance(tree, GoIndex):
         symbol_table(tree.index, table)
         index = tree.index
-        if type(index) is str:  # variable
-            dtype = table.get_type(index)
-        elif isinstance(index, GoExpression):
-            dtype = index.dtype
-        elif isinstance(index, GoBasicLit):
-            dtype = index.dtype
+        # if type(index) is str:  # variable
+        #     dtype = table.get_type(index)
+        # elif isinstance(index, GoExpression):
+        #     dtype = index.dtype
+        # elif isinstance(index, GoBasicLit):
+        #     dtype = index.dtype
 
-        if dtype.name != "int":
-            print("array index must be an integer")
-            exit()
+        # if dtype.name != "int":
+        #     print("array index must be an integer")
+        #     exit()
+        dtype = table.eval_type(index)
+        if isinstance(dtype,GoType):
+            name = dtype.name
+            if name not in INT_TYPES:
+                print("Error: index of array is not integer")
+                exit()
+                
+        
 
     elif isinstance(tree, GoPrimaryExpr):
 
@@ -678,7 +686,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                 #     )
                 #     exit()
                 element_type = table.eval_type(child.element)
-                table.type_check(element_type,dtype)
+                table.type_check(element_type,dtype,"array initialization")
 
 
 table = SymbTable()

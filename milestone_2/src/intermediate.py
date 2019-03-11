@@ -451,7 +451,13 @@ def symbol_table(tree, table, name=None, block_type=None):
         for var, expr in zip(lhs, rhs):
             print('assign: "{}" : "{}"'.format(var, expr))
             if isinstance(var, GoPrimaryExpr):
-                dtype1 = table.get_type(var.lhs).dtype
+                #print(table.get_type(var.lhs))
+                #dtype1 = table.get_type(var.lhs).dtype
+                left = var
+                while isinstance(left.lhs,GoPrimaryExpr):
+                    left = left.lhs
+                dtype1 = table.get_type(left.lhs).dtype
+
             else:
                 dtype1 = table.get_type(var)
 
@@ -691,13 +697,10 @@ def symbol_table(tree, table, name=None, block_type=None):
 
     elif isinstance(tree, GoPrimaryExpr):
 
-        symbol_table(tree.lhs, table)
-        symbol_table(tree.rhs, table)
-
         if isinstance(tree.rhs, GoIndex):
             print("a= '{}'".format(tree.lhs))
             if isinstance(tree.lhs,GoPrimaryExpr):
-                pass
+                tree.lhs.depth = tree.depth + 1
             else:
                 if not table.lookup(tree.lhs):
                     error = True
@@ -707,9 +710,17 @@ def symbol_table(tree, table, name=None, block_type=None):
                     error = True
                     print("'{}' not array".format(table.get_type(tree.lhs)))
                     exit()
+                elif tree.depth != table.get_type(tree.lhs).depth:
+                    error = True
+                    print("Incorect number of indexes in array '{}'".format(tree.lhs));
+                    exit()
+
                 print("dtype: '{}'".format(table.get_type(tree.lhs)))
                 tree.dtype = (table.get_type(tree.lhs)).dtype
                 print("dtype: '{}'".format(table.get_type(tree.lhs)))
+            
+            symbol_table(tree.lhs, table)
+            symbol_table(tree.rhs, table)
 
     # XXX To be done later : check number of elements in array same as that
     # specified

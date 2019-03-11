@@ -305,11 +305,12 @@ class GoBaseExpr:
 class GoPrimaryExpr(GoBaseExpr):
     """For primary expressions (operands for unary/binary expressions)."""
 
-    def __init__(self, lhs, rhs, dtype=None):
+    def __init__(self, lhs, rhs, dtype=None, depth=1):
         super().__init__("primary")
         self.lhs = lhs
         self.rhs = rhs  # rhs may be none
         self.dtype = dtype
+        self.depth = depth
 
 
 class GoSelector:

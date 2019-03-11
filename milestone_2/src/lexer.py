@@ -199,23 +199,19 @@ def t_NEWLINES(t):
         return t
 
 
-#XXX Error: AttributeError: 'YaccSymbol' object has no attribute 'lexer'
-
-def go_traceback(t):
+def go_traceback(lexer, token_val):
     """Print traceback for the custom error message and return position."""
-
-    pass
-    # print(
-    #     '  File "{}", line {}\n    {}'.format(
-    #         t.lexer.filename, t.lineno, t.lexer.lines[t.lineno - 1]
-    #     )
-    # )
-    # return (
-    #     t.lexer.lexpos
-    #     - sum(map(lambda line: len(line) + 1, t.lexer.lines[: t.lineno - 1]))
-    #     - len(t.value)
-    #     + 1
-    # )
+    print(
+        '  File "{}", line {}\n    {}'.format(
+            lexer.filename, lexer.lineno, lexer.lines[lexer.lineno - 1]
+        )
+    )
+    return (
+        lexer.lexpos
+        - sum(map(lambda line: len(line) + 1, lexer.lines[: lexer.lineno - 1]))
+        - len(token_val)
+        + 1
+    )
 
 
 def t_error(t):

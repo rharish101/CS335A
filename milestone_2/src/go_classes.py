@@ -31,7 +31,7 @@ class GoType(GoBaseType):
 
     def __init__(self, name):
         super().__init__("inbuilt")
-        self.name = name
+        self.name = name  # For storing name of this type
 
 
 class GoFromModule:
@@ -40,6 +40,7 @@ class GoFromModule:
     def __init__(self, parent, child):
         self.parent = parent
         self.child = child
+        self.name = parent + "." + child  # For storing name of this type
 
 
 class GoArray(GoBaseType):
@@ -49,6 +50,7 @@ class GoArray(GoBaseType):
         super().__init__("array")
         self.length = length
         self.dtype = dtype
+        self.name = "*" + dtype.name  # For storing name of this type
 
 
 class GoStruct(GoBaseType):
@@ -59,6 +61,7 @@ class GoStruct(GoBaseType):
         self.vars = {}
         self.tags = {}
         self.embeds = {}
+        self.name = "struct"  # For storing name of this type
         used = set()
         for field in fields:
             if field.dtype.kind == "embedded":
@@ -75,8 +78,11 @@ class GoStruct(GoBaseType):
                         self.tags[var] = field.tag
                         used.add(var)
                     else:
-                        print("Error: Already used variable name in Struct declaration")
-                        exit()    
+                        print(
+                            "Error: Already used variable name in Struct declaration"
+                        )
+                        exit()
+
 
 class GoStructField:
     """For a single field in a struct."""
@@ -107,6 +113,7 @@ class GoPointType(GoBaseType):
     def __init__(self, dtype):
         super().__init__("pointer")
         self.dtype = dtype
+        self.name = "*" + dtype.name  # For storing name of this type
 
 
 class GoFuncType(GoBaseType):
@@ -116,6 +123,7 @@ class GoFuncType(GoBaseType):
         super().__init__("function")
         self.params = params
         self.result = result
+        self.name = "function"  # For storing name of this type
 
 
 class GoParam:
@@ -132,6 +140,7 @@ class GoInterfaceType(GoBaseType):
     def __init__(self, methods):
         super().__init__("function")
         self.methods = methods
+        self.name = "interface"  # For storing name of this type
 
 
 class GoMethodFunc:

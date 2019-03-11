@@ -36,18 +36,20 @@ precedence = (
     ("left", "MULT", "DIV", "MODULO"),
 )
 
-INT_TYPES =['int',
- 'int8',
- 'int16',
- 'int32',
- 'int64',
- 'uint',
- 'uint8',
- 'uint16',
- 'uint32',
- 'uint64',
- 'byte',
- 'rune']
+INT_TYPES = [
+    "int",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "uint",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "byte",
+    "rune",
+]
 
 # =============================================================================
 # BASIC
@@ -728,6 +730,7 @@ def p_BasicLit(p):
         p[1] = complex(p[1][:-1] + "j")
     p[0] = GoBasicLit(p[1], GoType(p.slice[1].type.lower()))
 
+
 # XXX remove from grammar
 def p_CompositeLit(p):
     """CompositeLit : LiteralType LiteralValue
@@ -1000,7 +1003,7 @@ def p_Expression(p):
         #         p[0] = p[1]
         # else:
         #     error = False
-            p[0] = GoExpression(p[1], p[3], p[2], "")
+        p[0] = GoExpression(p[1], p[3], p[2], "")
 
 
 def p_ExpressionBot(p):
@@ -1058,11 +1061,11 @@ def p_UnaryExpr(p):
                 error = True
 
             if error:
-                position = go_traceback(p.slice[1])
+                position = go_traceback(lexer, p.slice[1].value)
                 print(
                     'SyntaxError: Unary operator "{}" not applicable for '
                     'argument of type "{}" at position {}'.format(
-                        p[1], p[2].dtype.lower(), position
+                        p[1], p[2].dtype.name.lower(), position
                     )
                 )
                 exit()
@@ -1085,11 +1088,11 @@ def p_UnaryExpr(p):
             ]:
                 error = True
             if error:
-                position = go_traceback(p.slice[1])
+                position = go_traceback(lexer, p.slice[1].value)
                 print(
                     'SyntaxError: Unary operator "{}" not applicable for '
                     'argument of type "{}" at position {}'.format(
-                        p[1], p[2].dtype.lower(), position
+                        p[1], p[2].dtype.name.lower(), position
                     )
                 )
                 exit()
@@ -1126,15 +1129,15 @@ def p_mul_op(p):
 
 
 def p_unary_op(p):
-    """unary_op   : PLUS
-                  | MINUS
-                  | LOGNOT
-                  | BITXOR
-                  | MULT
-                  | BITAND
-                  | REC
-                  | DECR
-                  | INCR
+    """unary_op : PLUS
+                | MINUS
+                | LOGNOT
+                | BITXOR
+                | MULT
+                | BITAND
+                | REC
+                | DECR
+                | INCR
     """
     p[0] = p[1]
 

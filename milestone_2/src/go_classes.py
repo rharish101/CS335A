@@ -288,7 +288,7 @@ class GoCompositeLit(GoBaseLit):
 class GoKeyedElement:
     """For keyed elements in composite literals."""
 
-    def __init__(self, key, element, dtype=None, depth = 1):
+    def __init__(self, key, element, dtype=None, depth=1):
         self.key = key
         self.element = element
         self.dtype = dtype
@@ -360,7 +360,14 @@ class GoUnaryExpr(GoBaseExpr):
 # =============================================================================
 
 
-class GoAssign:
+class GoBaseStmt:
+    """The base class to inherit statements from."""
+
+    def __init__(self):
+        pass
+
+
+class GoAssign(GoBaseStmt):
     """For assignment statements."""
 
     def __init__(self, lhs, rhs, op):
@@ -369,7 +376,7 @@ class GoAssign:
         self.op = op  # op can be None, indicating a simple assignment
 
 
-class GoIf:
+class GoIf(GoBaseStmt):
     """For if/else statements."""
 
     def __init__(self, stmt, cond, inif, inelse):
@@ -379,7 +386,7 @@ class GoIf:
         self.inelse = inelse
 
 
-class GoSwitch:
+class GoSwitch(GoBaseStmt):
     """For switch/case statements."""
 
     def __init__(self, stmt, cond, case_list):
@@ -397,7 +404,7 @@ class GoCaseClause:
         self.stmt_list = stmt_list
 
 
-class GoFor:
+class GoFor(GoBaseStmt):
     """For loops (for/while/range)."""
 
     def __init__(self, clause, infor):
@@ -434,7 +441,7 @@ class GoRange(GoBaseForCl):
         self.rhs = rhs
 
 
-class GoControl:
+class GoControl(GoBaseStmt):
     """The base class to inherit control statements from.
 
     Control statements include return, break, continue, goto and fallthrough.
@@ -474,8 +481,12 @@ class GoSourceFile:
 
     def __init__(self, package, imports, declarations):
         self.package = package
-        self.imports = imports
         self.declarations = declarations
+
+        self.imports = []
+        for import_decl in imports:
+            for import_spec in import_decl.declarations:
+                self.imports.append(import_spec)
 
 
 class GoImportSpec:

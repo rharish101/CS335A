@@ -244,7 +244,7 @@ def p_Result(p):
             dtype = GoFromModule(p[1], p[3])
         else:  # ID
             dtype = GoType(p[1])
-        p[0] = GoParam(dtype = dtype)    
+        p[0] = GoParam(dtype=dtype)
         # p[0] = [GoParam(dtype=dtype)]
 
 
@@ -724,7 +724,12 @@ def p_BasicLit(p):
         p[1] = float(p[1])
     elif p.slice[1].type == "IMAG":
         p[1] = complex(p[1][:-1] + "j")
-    p[0] = GoBasicLit(p[1], GoType(p.slice[1].type.lower(), True))
+
+    dtype = p.slice[1].type.lower()
+    if dtype == "imag":
+        dtype = "complex"
+
+    p[0] = GoBasicLit(p[1], GoType(dtype, True))
 
 
 def p_CompositeLit(p):
@@ -914,63 +919,68 @@ def p_Expression(p):
             # Direct calculation
             error = False
             try:
+                p[0] = GoBasicLit(p[1].item, None)
+
                 if p[2] == "||":
-                    p[1].item = p[1].item or p[3].item
+                    p[0].item = p[1].item or p[3].item
                 elif p[2] == "&&":
-                    p[1].item = p[1].item and p[3].item
+                    p[0].item = p[1].item and p[3].item
                 elif p[2] == "==":
-                    p[1].item = p[1].item == p[3].item
+                    p[0].item = p[1].item == p[3].item
                 elif p[2] == "!=":
-                    p[1].item = p[1].item != p[3].item
+                    p[0].item = p[1].item != p[3].item
                 elif p[2] == "<":
-                    p[1].item = p[1].item < p[3].item
+                    p[0].item = p[1].item < p[3].item
                 elif p[2] == "<=":
-                    p[1].item = p[1].item <= p[3].item
+                    p[0].item = p[1].item <= p[3].item
                 elif p[2] == ">":
-                    p[1].item = p[1].item > p[3].item
+                    p[0].item = p[1].item > p[3].item
                 elif p[2] == ">=":
-                    p[1].item = p[1].item >= p[3].item
+                    p[0].item = p[1].item >= p[3].item
                 elif p[2] == "+":
-                    p[1].item += p[3].item
+                    p[0].item += p[3].item
                 elif p[2] == "-":
-                    p[1].item -= p[3].item
+                    p[0].item -= p[3].item
                 elif p[2] == "|":
-                    p[1].item |= p[3].item
+                    p[0].item |= p[3].item
                 elif p[2] == "^":
-                    p[1].item ^= p[3].item
+                    p[0].item ^= p[3].item
                 elif p[2] == "*":
-                    p[1].item *= p[3].item
+                    p[0].item *= p[3].item
                 elif p[2] == "/":
-                    p[1].item /= p[3].item
+                    p[0].item /= p[3].item
                 elif p[2] == "%":
-                    p[1].item %= p[3].item
+                    p[0].item %= p[3].item
                 elif p[2] == "<<":
-                    p[1].item <<= p[3].item
+                    p[0].item <<= p[3].item
                 elif p[2] == ">>":
-                    p[1].item >>= p[3].item
+                    p[0].item >>= p[3].item
                 elif p[2] == "&":
-                    p[1].item &= p[3].item
+                    p[0].item &= p[3].item
                 elif p[2] == "&^":
-                    p[1].item &= ~p[3].item
+                    p[0].item &= ~p[3].item
                 else:
                     error = True
+
+                precedence = ["complex", "float", "int"]
+                if p[1].dtype == p[3].dtype or precedence.index(
+                    p[1].dtype.name
+                ) > precedence.index(p[3].dtype.name):
+                    p[0].dtype = p[1].dtype
+                else:
+                    p[0].dtype = p[3].dtype
             except Exception:
                 error = True
 
             if error:
-                position = go_traceback(p.slice[1])
+                go_traceback("")
                 print(
                     'SyntaxError: Binary operator "{}" not applicable for '
-                    'arguments of types "{}" and "{}" at position {}'.format(
-                        p[2],
-                        p[1].tok_type.lower(),
-                        p[3].tok_type.lower(),
-                        position,
+                    'arguments of types "{}" and "{}"'.format(
+                        p[2], p[1].dtype.name, p[3].dtype.name
                     )
                 )
                 exit()
-            else:
-                p[0] = p[1]
         else:
             # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
             p[0] = GoExpression(p[1], p[3], p[2])
@@ -1006,7 +1016,7 @@ def p_UnaryExpr(p):
         if isinstance(p[2], GoBasicLit):  # Direct calculation
             error = False
             try:
-                if p[2].dtype in ("STRING", "RUNE"):  # Error
+                if p[2].dtype.name in ("string", "rune"):  # Error
                     error = True
                 elif p[1] == "+":
                     pass
@@ -1015,7 +1025,7 @@ def p_UnaryExpr(p):
                 elif p[1] == "!":
                     p[2].item = not p[2].item
                 elif p[1] == "^":
-                    if p[2].dtype == "INT":
+                    if p[2].dtype.name == "int":
                         p[2].item = ~p[2].item
                     else:
                         error = True

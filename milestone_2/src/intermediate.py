@@ -282,7 +282,7 @@ class SymbTable:
             assert isinstance(dtype, GoType)
 
         elif isinstance(expr, GoUnaryExpr):
-            if expr.op == "&":
+            if expr.op == "&" or expr.op == "*":
                 symbol_table(expr, self)
                 dtype = expr.dtype
 
@@ -492,6 +492,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             elif isinstance(var, GoExpression):
                 print('Expression "{}" cannot be assigned value'.format(var))
                 exit()
+            elif isinstance(var, GoUnaryExpr) and var.op == "*":
+                symbol_table(var, table)
+
             elif not table.lookup(var):
                 print('"{}" not declared before use'.format(var))
                 exit()
@@ -510,6 +513,12 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             elif type(var) is str:
                 dtype1 = table.get_type(var)
 
+            elif isinstance(var, GoUnaryExpr) and var.op == "*":
+                if not isinstance(table.get_type(var.expr), GoPointType):
+                    error = True
+                    print("{} not pointer type".format(var.expr))
+                    exit()
+                dtype1 = table.get_type(var.expr).dtype
             # if type(expr) is str:
             #     dtype2 = table.get_type(expr)
             # elif isinstance(expr, GoBasicLit):
@@ -666,9 +675,11 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         ir_code += symbol_table(tree.cond, newtable, store_var="__cond")
         # What should the labels be?
         ir_code += "if __cond goto {}\n".format(if_label)
-
         if (
-            not isinstance(tree.cond, GoExpression)
+            not (
+                isinstance(tree.cond, GoExpression)
+                or isinstance(tree.cond, GoBasicLit)
+            )
             or not isinstance(tree.cond.dtype, GoType)
             or tree.cond.dtype.name != "bool"
         ):
@@ -943,6 +954,13 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         if type(tree.expr) is str:
             if tree.op == "&":
                 tree.dtype = GoPointType(table.get_type(tree.expr))
+            elif tree.op == "*":
+                if not isinstance(table.get_type(tree.expr), GoPointType):
+                    error = True
+                    print("{} not pointer type".format(tree.expr))
+                    exit()
+                print(table.get_type(tree.expr).dtype)
+                tree.dtype = table.get_type(tree.expr).dtype
 
     return ir_code
 

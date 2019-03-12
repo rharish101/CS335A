@@ -194,6 +194,7 @@ class SymbTable:
             
             if isinstance(rhs,GoIndex):
                 #handles multi dimensional ararys
+                # symbol_table(expr,self)
                 left = expr
                 while isinstance(left.lhs,GoPrimaryExpr):
                     left = left.lhs  
@@ -239,7 +240,9 @@ class SymbTable:
             print(expr.dtype)
             dtype = expr.dtype
         elif isinstance(expr, GoBasicLit):
-            dtype = expr.dtype         
+            dtype = expr.dtype
+            assert isinstance(dtype,GoType)         
+
         
         elif isinstance(expr,GoUnaryExpr):
             if expr.op == "&":
@@ -331,6 +334,7 @@ def symbol_table(tree, table, name=None, block_type=None):
             lhs = item.lhs
             dtype = item.dtype
             rhs = item.rhs
+            # print("var dtype {}".format(dtype.name))
             if len(lhs) != len(rhs) and len(rhs) != 0:
                 error = True
                 print(
@@ -557,6 +561,7 @@ def symbol_table(tree, table, name=None, block_type=None):
         #     dtype2 = rhs.dtype
         # elif isinstance(rhs, GoBasicLit):
         #     dtype2 = rhs.dtype
+
         dtype1 = table.eval_type(lhs)
         dtype2 = table.eval_type(rhs)
 
@@ -574,11 +579,12 @@ def symbol_table(tree, table, name=None, block_type=None):
         if isinstance(dtype1, GoType) and isinstance(dtype2, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
+        
             table.type_check(dtype1,dtype2,"expression")
             if dtype1.basic_lit is False:
                 name = dtype1.name    
-            elif dtype2.basic_lit is False:
-                name = dtype2.name    
+            else:
+                name = dtype2.name        
 
 
             if name == "bool" and op not in ["&&", "||"]:
@@ -618,6 +624,7 @@ def symbol_table(tree, table, name=None, block_type=None):
                     tree.dtype = GoType("bool",dtype1.basic_lit & dtype2.basic_lit)
                 else:
                     tree.dtype = GoType(name,dtype1.basic_lit & dtype2.basic_lit)
+
 
     elif isinstance(tree, GoIf):
         # New symbol table needed as stmt is in the scope of both if and else
@@ -752,30 +759,31 @@ def symbol_table(tree, table, name=None, block_type=None):
                 tree.dtype = (table.get_type(lhs)).dtype
                 print("dtype: '{}'".format(table.get_type(lhs)))
         
-        #XXX the symbol_table function should be called in all cases as lhs/ rhs may be of expression type    
-            # symbol_table(lhs, table)
-            # symbol_table(rhs, table)
-        symbol_table(lhs, table)
-        symbol_table(rhs, table)    
+        #XXX the symbol_table function should be called for all cases as lhs/ rhs may be of expression type    
+            symbol_table(lhs, table)
+            symbol_table(rhs, table)
+        # symbol_table(lhs, table)
+        # symbol_table(rhs, table)    
         
-        # elif isinstance(rhs,GoArguments): #fuction call
-        #     print("FUNCTION CALL '{}'".format(lhs))
-        #     func_name = lhs
-        #     assert isinstance(rhs,GoArguments)
-        #     #type checking of arguments passed to function
-        #     argument_list = rhs.expr_list
-        #     params_list = table.get_func(func_name,'params')
-        #     if len(argument_list) is not len(params_list):
-        #         print("Error: '{}' parameters passed to function '{}' instead of '{}'".format(len(argument_list),func_name,len(params_list)))
-        #         exit()
-        #     for argument,param in zip(argument_list,params_list):
-        #         assert isinstance(param,GoParam)
-        #         symbol_table(param,table)
-        #         symbol_table(argument,table)
-        #         actual_dtype = table.eval_type(param)
-        #         given_dtype = table.eval_type(argument)
-        #         table.type_check(actual_dtype,given_dtype,'function call',func_name, param.name)
+        elif isinstance(rhs,GoArguments): #fuction call
+            print("FUNCTION CALL '{}'".format(lhs))
+            func_name = lhs
+            assert isinstance(rhs,GoArguments)
+            #type checking of arguments passed to function
+            argument_list = rhs.expr_list
+            params_list = table.get_func(func_name,'params')
+            if len(argument_list) is not len(params_list):
+                print("Error: '{}' parameters passed to function '{}' instead of '{}'".format(len(argument_list),func_name,len(params_list)))
+                exit()
+            for argument,param in zip(argument_list,params_list):
+                assert isinstance(param,GoParam)
+                # symbol_table(param,table)
+                symbol_table(argument,table)
+                actual_dtype = param.dtype
+                given_dtype = table.eval_type(argument)
+                table.type_check(actual_dtype,given_dtype,'function call',func_name, param.name)
 
+        # no requirement to check result dtype in case of isolated function call        
         #     result = table.get_func(func_name,'result')
         #     assert isinstance(result,GoParam)
         #     result_type = result.dtype

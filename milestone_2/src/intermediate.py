@@ -647,9 +647,8 @@ def symbol_table(tree, table, name=None, block_type=None):
         newtable = SymbTable(table)
         symbol_table(tree.stmt, newtable)
         symbol_table(tree.cond, newtable)
-
         if (
-            not isinstance(tree.cond, GoExpression)
+            not (isinstance(tree.cond, GoExpression) or isinstance(tree.cond, GoBasicLit)) 
             or not isinstance(tree.cond.dtype, GoType)
             or tree.cond.dtype.name != "bool"
         ):

@@ -194,7 +194,7 @@ class SymbTable:
             
             if isinstance(rhs,GoIndex):
                 #handles multi dimensional ararys
-                # symbol_table(expr,self)
+                symbol_table(expr,self)
                 left = expr
                 while isinstance(left.lhs,GoPrimaryExpr):
                     left = left.lhs  
@@ -248,6 +248,10 @@ class SymbTable:
             if expr.op == "&":
                 symbol_table(expr,self)
                 dtype = expr.dtype
+
+        elif isinstance(expr, GoCompositeLit):  # Arrays
+            symbol_table(expr, self)
+            dtype = expr.dtype   
 
         if dtype is None:
             print("Warning: getting None dtype")      
@@ -518,24 +522,26 @@ def symbol_table(tree, table, name=None, block_type=None):
 
         for var, expr in zip(id_list, expr_list):
             print('short decl: "{}" : "{}"'.format(var, expr))
-            if type(expr) is str:
-                table.insert_var(var, table.get_type(expr))
-            elif isinstance(expr, GoBasicLit):
-                table.insert_var(var, expr.dtype)
-            elif isinstance(expr, GoExpression):
-                symbol_table(expr, table)
-                # print(expr.dtype)
-                table.insert_var(var, expr.dtype)
-            elif isinstance(expr, GoCompositeLit):  # Arrays
-                symbol_table(expr, table)
-                table.insert_var(var, expr.dtype)
-                print("type = '{}' , {}'".format(var, expr.dtype))
+            # if type(expr) is str:
+            #     table.insert_var(var, table.get_type(expr))
+            # elif isinstance(expr, GoBasicLit):
+            #     table.insert_var(var, expr.dtype)
+            # elif isinstance(expr, GoExpression):
+            #     symbol_table(expr, table)
+            #     # print(expr.dtype)
+            #     table.insert_var(var, expr.dtype)
+            # elif isinstance(expr, GoCompositeLit):  # Arrays
+            #     symbol_table(expr, table)
+            #     table.insert_var(var, expr.dtype)
+            #     print("type = '{}' , {}'".format(var, expr.dtype))
 
-            elif isinstance(expr, GoUnaryExpr):
-                symbol_table(expr, table)
-                if expr.op == "&":
-                    table.insert_var(var,expr.dtype)
-                    print("type = '{}' , {}'".format(var, expr.dtype))
+            # elif isinstance(expr, GoUnaryExpr):
+            #     symbol_table(expr, table)
+            #     if expr.op == "&":
+            #         table.insert_var(var,expr.dtype)
+            #         print("type = '{}' , {}'".format(var, expr.dtype))
+            dtype = table.eval_type(expr)
+            table.insert_var(var,dtype)
 
 
     elif isinstance(tree, GoExpression):

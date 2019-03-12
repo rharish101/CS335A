@@ -245,7 +245,7 @@ class SymbTable:
 
         
         elif isinstance(expr,GoUnaryExpr):
-            if expr.op == "&":
+            if expr.op == "&" or expr.op == "*":
                 symbol_table(expr,self)
                 dtype = expr.dtype
 
@@ -473,6 +473,9 @@ def symbol_table(tree, table, name=None, block_type=None):
                 error = True
                 print("Expression '{}' cannot be assigned value".format(var))
                 exit()
+            elif isinstance(var,GoUnaryExpr) and var.op == "*":
+                symbol_table(var, table)
+
             elif not table.lookup(var):
                 error = True
                 print('"{}" not declared before use'.format(var))
@@ -492,6 +495,13 @@ def symbol_table(tree, table, name=None, block_type=None):
             elif type(var) is str:
                 dtype1 = table.get_type(var)
 
+            elif isinstance(var,GoUnaryExpr) and var.op == "*":
+                if not isinstance(table.get_type(var.expr), GoPointType):
+                    error = True
+                    print("{} not pointer type".format(var.expr))
+                    exit()
+                dtype1 = table.get_type(var.expr).dtype
+
 
             # if type(expr) is str:
             #     dtype2 = table.get_type(expr)
@@ -502,7 +512,7 @@ def symbol_table(tree, table, name=None, block_type=None):
             #     dtype2 = expr.dtype
 
             dtype2 = table.eval_type(expr)
-
+            
             table.type_check(dtype1, dtype2,"assignment")
 
     elif isinstance(tree, GoShortDecl):
@@ -884,6 +894,13 @@ def symbol_table(tree, table, name=None, block_type=None):
         if type(tree.expr) is str:
             if tree.op == "&":
                 tree.dtype = GoPointType(table.get_type(tree.expr))
+            elif tree.op == "*":
+                if not isinstance(table.get_type(tree.expr), GoPointType):
+                    error = True
+                    print("{} not pointer type".format(tree.expr))
+                    exit()
+                print(table.get_type(tree.expr).dtype)
+                tree.dtype = table.get_type(tree.expr).dtype
 
 
 

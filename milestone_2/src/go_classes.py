@@ -122,8 +122,8 @@ class GoPointType(GoBaseType):
     def __init__(self, dtype):
         super().__init__("pointer")
         self.dtype = dtype
-        self.name = "*" + dtype.name  # For storing name of this type
-
+        #self.name = "*" + dtype.name  # For storing name of this type
+# dtype can be of class GoPrimarayExpr, which has no name attribute
 
 class GoFuncType(GoBaseType):
     """For function types."""

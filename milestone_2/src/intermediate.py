@@ -233,16 +233,21 @@ class SymbTable:
             elif isinstance(rhs,GoSelector):
                 pass
                 
-                
-
 
         elif type(expr) is str:  # variable
             dtype = self.get_type(expr)
         elif isinstance(expr, GoExpression):
             symbol_table(expr, self)
+            print(expr.dtype)
             dtype = expr.dtype
         elif isinstance(expr, GoBasicLit):
             dtype = expr.dtype         
+        
+        elif isinstance(expr,GoUnaryExpr):
+            if expr.op == "&":
+                print(expr.dtype)
+                dtype = expr.dtype
+
         if dtype is None:
             print("Warning: getting None dtype")      
         return dtype    
@@ -458,6 +463,10 @@ def symbol_table(tree, table, name=None, block_type=None):
         for var in lhs:
             if isinstance(var, GoPrimaryExpr):
                 symbol_table(var, table)
+            elif isinstance(var, GoExpression):
+                error = True
+                print("Expression '{}' cannot be assigned value".format(var))
+                exit()
             elif not table.lookup(var):
                 error = True
                 print('"{}" not declared before use'.format(var))
@@ -477,6 +486,7 @@ def symbol_table(tree, table, name=None, block_type=None):
             elif type(var) is str:
                 dtype1 = table.get_type(var)
 
+
             # if type(expr) is str:
             #     dtype2 = table.get_type(expr)
             # elif isinstance(expr, GoBasicLit):
@@ -484,6 +494,7 @@ def symbol_table(tree, table, name=None, block_type=None):
             # elif isinstance(expr, GoExpression):
             #     symbol_table(expr, table)
             #     dtype2 = expr.dtype
+
             dtype2 = table.eval_type(expr)
 
             table.type_check(dtype1, dtype2,"assignment")
@@ -517,6 +528,13 @@ def symbol_table(tree, table, name=None, block_type=None):
                 symbol_table(expr, table)
                 table.insert_var(var, expr.dtype)
                 print("type = '{}' , {}'".format(var, expr.dtype))
+
+            elif isinstance(expr, GoUnaryExpr):
+                symbol_table(expr, table)
+                if expr.op == "&":
+                    table.insert_var(var,expr.dtype)
+                    print("type = '{}' , {}'".format(var, expr.dtype))
+
 
     elif isinstance(tree, GoExpression):
         lhs = tree.lhs
@@ -846,6 +864,14 @@ def symbol_table(tree, table, name=None, block_type=None):
                 error = True
                 print("Error: Wrong array declaration")
                 exit()
+
+    elif isinstance(tree,GoUnaryExpr):
+        symbol_table(tree.expr,table)
+        
+        if type(tree.expr) is str:
+            if tree.op == "&":
+                tree.dtype = GoPointType(table.get_type(tree.expr))
+
 
 
 table = SymbTable()

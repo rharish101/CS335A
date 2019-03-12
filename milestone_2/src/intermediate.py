@@ -69,18 +69,15 @@ class SymbTable:
         else:
             return False
 
-    def get_type(self, name):
+    
+    def get_type(self, name,use="variable/array/struct"):
         if name in self.variables:
             return self.variables[name]
         elif self.parent:
             return self.parent.get_type(name)
         else:
-            print(
-                "Error: Attempt to use '{}': undeclared variable/array name ".format(
-                    name
-                )
-            )
-            exit()
+            print("Error: Attempt to use '{}': undeclared '{}' name ".format(name,use)) 
+            exit()   
 
     def get_func(self, name, info):
         if name in self.functions:
@@ -92,12 +89,21 @@ class SymbTable:
                 "Error: Attempt to use '{}': undeclared function".format(name)
             )
 
-    def insert_var(self, name, dtype):
+    def get_method(self,name,info):
+        if name in self.methods:
+            return self.methods[name][info]
+        elif self.parent:
+            return self.parent.get_method(name,info)
+        else:
+            print("Error: Attempt to use undeclared method '{}' on struct '{}'".format(name[0],name[1])) 
+            exit()               
+
+    def insert_var(self, name, dtype,use="variable"):
         if name not in self.used:
             self.variables[name] = dtype
             self.used.add(name)
         else:
-            print("Error: Already declared variable name '{}'".format(name))
+            print("Error: Already declared '{}' name '{}'".format(use,name))
             exit()
 
     def insert_alias(self, alias, actual):
@@ -133,63 +139,42 @@ class SymbTable:
             exit()
 
     # XXX INCOMPLETE need to check for other type classes
-    def type_check(
-        self, dtype1, dtype2, use="", func_name=None, param_name=None
-    ):
+    def type_check(self, dtype1, dtype2, use="",use_name = None, param_name=None):
         if dtype1.__class__ is not dtype2.__class__:
-            print(
-                "Error: Operands in '{}' of different type classes '{}' and '{}'".format(
-                    use, dtype1.__class__, dtype2.__class__
-                )
-            )
+            print("Error: Operands in '{}' of different type classes '{}' and '{}'".format(use, dtype1.__class__,dtype2.__class__))
             exit()
 
-        if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
+        if isinstance(dtype1,GoType) and isinstance(dtype1,GoType):
             name1 = dtype1.name
-            name2 = dtype2.name
-            for name in [name1, name2]:
-                if name not in INT_TYPES and name not in [
-                    "float",
-                    "float32",
-                    "float64",
-                    "complex",
-                    "byte",
-                    "complex64",
-                    "complex128",
-                    "string",
-                    "unintptr",
-                ]:
+            name2 = dtype2.name    
+            for name in [name1,name2]:
+                if name not in INT_TYPES and name not in ["float","float32","float64","complex","byte","complex64","complex128","string","unintptr"]:
                     print("Error:'{}' is unregistered dtype".format(name))
-                    exit()
+                    exit() 
             if dtype1.basic_lit or dtype2.basic_lit:
                 if name1 in INT_TYPES:
-                    name1 = "int"
-                elif name1 in ["float32", "float64", "float"]:
-                    name1 = "float"
-                elif name1 in ["complex64", "complex128", "complex"]:
-                    name1 = "complex"
+                    name1 = "int"        
+                elif name1 in ["float32","float64","float"]:
+                    name1 = "float"  
+                elif name1 in ["complex64","complex128","complex"]:
+                    name1 = "complex"      
 
                 if name2 in INT_TYPES:
-                    name2 = "int"
-                elif name2 in ["float32", "float64", "float"]:
-                    name2 = "float"
-                elif name2 in ["complex64", "complex128", "complex"]:
-                    name2 = "complex"
+                    name2 = "int"        
+                elif name2 in ["float32","float64","float"]:
+                    name2 = "float"   
+                elif name2 in ["complex64","complex128","complex"]:
+                    name2 = "complex"       
 
+                       
             if name1 != name2:
                 # print("'{}', '{}'".format(name1,name2))
-                if use == "function call":
-                    print(
-                        "Error: Mismatch type of param '{}' in function call of '{}'".format(
-                            param_name, func_name
-                        )
-                    )
-                else:
-                    print(
-                        "Error: Operands in '{}' of different types'{}' and '{}'".format(
-                            use, name1, name2
-                        )
-                    )
+                if use == 'function call':
+                    print("Error: Mismatch type of param '{}' in function call of '{}'".format(param_name,use_name))
+                elif use == 'array conflicts' :
+                    print("Error: Value of '{}' type given to array '{}' instead of '{}' type".format(dtype2,use_name,dtype1))    
+                else:    
+                    print("Error: Operands in '{}' of different types'{}' and '{}'".format(use,name1,name2))
                 exit()
 
     def insert_func(self, name, params, result):
@@ -202,74 +187,121 @@ class SymbTable:
             exit()
 
     def insert_method(self, name, params, result, receiver):
-        # Indexing by name and 1st receiver
-        key = (name, receiver[0])
-        if key not in table.methods:
-            # Only handling single receiver
-            table.methods[key] = {}
-            table.methods[key]["params"] = params
-            table.methods[key]["result"] = result
-        else:
-            print("Error: already used method name")
-            exit()
+        for rec in receiver:
+            # Indexing by name and receiver
+            assert isinstance(rec,GoParam)
+            key = (name, rec.dtype.name)
+            # print("struct key: '{}', '{}'".format(name,rec.name))
+            if key not in table.methods:
+                table.methods[key] = {}
+                table.methods[key]["params"] = params
+                table.methods[key]["result"] = result
+            else:
+                print("Error: already used method name")
+                exit()
+
 
     # TODO: 3AC
     def eval_type(self, expr, store_var="temp"):
         dtype = None
-        if isinstance(expr, GoPrimaryExpr):
+        if isinstance(expr, GoPrimaryExpr): 
             print("primary expr '{}'".format(expr))
             lhs = expr.lhs
             rhs = expr.rhs
-
-            if isinstance(rhs, GoIndex):
-                # handles multi dimensional ararys
-                symbol_table(expr, self)
+            
+            if isinstance(rhs,GoIndex):
+                #handles multi dimensional ararys
+                symbol_table(expr,self)
                 left = expr
-                while isinstance(left.lhs, GoPrimaryExpr):
-                    left = left.lhs
-                dtype = self.get_type(left.lhs).dtype
+                while isinstance(left.lhs,GoPrimaryExpr):
+                    left = left.lhs  
+                dtype = self.get_type(left.lhs).dtype 
 
-            # XXX nested function calls with inner function having only one parameter are not working
-            elif isinstance(rhs, GoArguments):  # fuction call
-                print("FUNCTION CALL '{}', ARGUMENTS '{}'".format(lhs, rhs))
-                func_name = lhs
-                assert isinstance(rhs, GoArguments)
-                # type checking of arguments passed to function
-                argument_list = rhs.expr_list
-                params_list = self.get_func(func_name, "params")
-                print("ARGUMENT LIST: '{}'".format(argument_list))
-                if len(argument_list) is not len(params_list):
-                    print(
-                        "Error: '{}' parameters passed to function '{}' instead of '{}'".format(
-                            len(argument_list), func_name, len(params_list)
-                        )
-                    )
-                    exit()
-                for argument, param in zip(argument_list, params_list):
-                    assert isinstance(param, GoParam)
-                    # symbol_table(param,self)
-                    symbol_table(argument, self)
-                    actual_dtype = param.dtype
-                    given_dtype = self.eval_type(argument)
-                    self.type_check(
-                        actual_dtype,
-                        given_dtype,
-                        "function call",
-                        func_name,
-                        param.name,
-                    )
+                 
+            elif isinstance(rhs,GoArguments): 
 
-                result = self.get_func(func_name, "result")
-                assert isinstance(result, GoParam)
-                result_type = result.dtype
+                                      #fuction call      
+                #XXX nested function calls with inner function having only one parameter are not working                  
+                #======================================================
+                if type(lhs) is str:   
+                    print("FUNCTION CALL '{}', ARGUMENTS '{}'".format(lhs,rhs))
+                    func_name = lhs
+                    assert isinstance(rhs,GoArguments)
+                    #type checking of arguments passed to function
+                    argument_list = rhs.expr_list
+                    params_list = self.get_func(func_name,'params')
+                    # print("ARGUMENT LIST: '{}'".format(argument_list))
+                    if len(argument_list) is not len(params_list):
+                        print("Error: '{}' parameters passed to function '{}' instead of '{}'".format(len(argument_list),func_name,len(params_list)))
+                        exit()
+                    for argument,param in zip(argument_list,params_list):
+                        assert isinstance(param,GoParam)
+                        # symbol_table(param,self)
+                        symbol_table(argument,self)
+                        actual_dtype = param.dtype
+                        given_dtype,_ = self.eval_type(argument)
+                        self.type_check(actual_dtype,given_dtype,'function call',func_name, param.name)
 
-                if type(result_type) is list:
-                    print("Warning: Returning list of types")
-                dtype = result_type
+                    result = self.get_func(func_name,'result')
+                    assert isinstance(result,GoParam)
+                    result_type = result.dtype
 
-            # handles selector operations on struct, returns the dtypes
-            elif isinstance(rhs, GoSelector):
+                    if type(result_type) is list:
+                        print("Warning: Returning list of types")
+                    dtype  = result_type
+
+                                    #method expression    
+                #========================================================
+                elif isinstance(lhs,GoFromModule):
+                    parent = lhs.parent
+                    child = lhs.child
+                    #double imports
+                    print("METHOD parent: '{}',child: '{}'".format(parent,child))
+                    if isinstance(parent,GoFromModule):
+                        pass
+                    #single imports    
+                    else:
+                        # ID DOT ID
+                        if type(parent) is str: 
+                            #check if the child is actually a method defined for parent (struct)
+                            # check is the type of arguments passed to child are same as that defined in method declaration
+                            method_name =  child
+                            struct_name = (self.get_type(parent)).name
+                            print("method call'{}' on struct '{}' with arguments '{}'".format(method_name,struct_name,rhs))
+                            # func_name = lhs
+                            key = (method_name,struct_name)
+                            assert isinstance(rhs,GoArguments)
+                            #type checking of arguments passed to function
+                            argument_list = rhs.expr_list
+                            params_list = self.get_method(key,'params')
+                            # print("ARGUMENT LIST: '{}'".format(argument_list))
+                            if len(argument_list) is not len(params_list):
+                                print("Error: '{}' parameters passed to method '{}' instead of '{}'".format(len(argument_list),method_name,len(params_list)))
+                                exit()
+                            for argument,param in zip(argument_list,params_list):
+                                assert isinstance(param,GoParam)
+                                # symbol_table(param,self)
+                                symbol_table(argument,self)
+                                actual_dtype = param.dtype
+                                given_dtype,_ = self.eval_type(argument)
+                                self.type_check(actual_dtype,given_dtype,'function call',func_name, param.name)
+
+                            result = self.get_method(key,'result')
+                            assert isinstance(result,GoParam)
+                            result_type = result.dtype
+
+                            if type(result_type) is list:
+                                print("Warning: Returning list of types")
+                            dtype  = result_type
+
+
+
+            # handles selector operations on struct, returns the dtypes     
+            elif isinstance(rhs,GoSelector):
                 pass
+
+                
+                
 
         elif type(expr) is str:  # variable
             dtype = self.get_type(expr)
@@ -279,7 +311,8 @@ class SymbTable:
             dtype = expr.dtype
         elif isinstance(expr, GoBasicLit):
             dtype = expr.dtype
-            assert isinstance(dtype, GoType)
+            assert isinstance(dtype,GoType)         
+
 
         elif isinstance(expr, GoUnaryExpr):
             if expr.op == "&" or expr.op == "*":
@@ -292,7 +325,7 @@ class SymbTable:
 
         if dtype is None:
             print("Warning: getting None dtype")
-        return dtype
+        return dtype, ""
 
 
 def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
@@ -328,10 +361,14 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         result = tree.result
         body = tree.body
         table.insert_method(name, params, result, receiver)
+        for rec in receiver:
+            class_name = rec.dtype.name
+            # print("XXX '{}' '{}'".format(rec.name,rec.dtype.name))
+            symbol_table(body, table, (name, class_name), "method")
 
         for rec in receiver:
             ir_code = "func begin {}_{}\n".format(name, rec.name)
-            ir_code += symbol_table(body, table, (name, rec), "method")
+            ir_code += symbol_table(body, table, (name, rec.dtype.name), "method")
             ir_code += "func end\n"
 
     # function declarations
@@ -381,7 +418,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     #     symbol_table(expr, table)
                     #     eval_type = expr.dtype
 
-                    evaluated_types.append(table.eval_type(expr))
+                    evaluated_types.append(table.eval_type(expr)[0])
                 if len(rhs) != 0:
                     if dtype is None:
                         for var, eval_type in zip(lhs, evaluated_types):
@@ -445,7 +482,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     # elif isinstance(expr, GoExpression):
                     #     symbol_table(expr, table)
                     #     eval_type = expr.dtype
-                    evaluated_types.append(table.eval_type(expr))
+                    evaluated_types.append(table.eval_type(expr)[0])
 
                 if dtype is None:
                     for const, eval_type in (expr_list, evaluated_types):
@@ -786,7 +823,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         # if dtype.name != "int":
         #     print("array index must be an integer")
         #     exit()
-        dtype = table.eval_type(index)
+        dtype,_ = table.eval_type(index)
         if isinstance(dtype, GoType):
             name = dtype.name
             if name not in INT_TYPES:
@@ -846,14 +883,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 # symbol_table(param,table)
                 symbol_table(argument, table)
                 actual_dtype = param.dtype
-                given_dtype = table.eval_type(argument)
-                table.type_check(
-                    actual_dtype,
-                    given_dtype,
-                    "function call",
-                    func_name,
-                    param.name,
-                )
+                given_dtype,_ = table.eval_type(argument)
+                table.type_check(actual_dtype,given_dtype,"function call",func_name,param.name,)
 
         # no requirement to check result dtype in case of isolated function call
         #     result = table.get_func(func_name,'result')
@@ -896,16 +927,18 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
                 if tree.dtype is None:
                     tree.dtype = element_type
-                elif tree.dtype.name != element_type.name:
-                    print(tree.dtype.name)
-                    print(element_type.name)
-                    error = True
-                    print(
-                        "Conflicting1 types in array, '{}', '{}'".format(
-                            tree.dtype.name, element_type.name
-                        )
-                    )
-                    exit()
+                else:    
+                    table.type_check(tree.dtype,element_type,"array conflicts")        
+                # elif tree.dtype.name != element_type.name:
+                #     print(tree.dtype.name)
+                #     print(element_type.name)
+                #     error = True
+                #     print(
+                #         "Conflicting1 types in array, '{}', '{}'".format(
+                #             tree.dtype.name, element_type.name
+                #         )
+                #     )
+                #     exit()
             tree.depth = depth + 1
         tree.dtype = element_type
         print(tree.dtype.name)
@@ -946,6 +979,17 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 error = True
                 print("Error: Wrong array declaration")
                 exit()
+
+        elif type(tree.dtype) is str: #handles 
+            struct_name = tree.dtype
+            print('Struct name {}'.format(struct_name))
+            field_list = tree.value
+            for field in field_list:
+                assert isinstance(field,GoKeyedElement)
+                #need to do type checking in structs declaration
+            struct_obj = GoStruct([])
+            struct_obj.name = struct_name    
+            table.variables(insert_var(struct_name,struct_obj,"struct"))             
 
     elif isinstance(tree, GoUnaryExpr):
         ir_code += symbol_table(tree.expr, table, store_var="__opd")

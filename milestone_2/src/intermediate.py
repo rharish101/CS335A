@@ -105,6 +105,18 @@ class SymbTable:
             )
             exit()
 
+    def get_struct(self,struct_name,field):
+        if struct_name in self.structures:
+            if field in self.structures[struct_name].vars:
+                return self.structures[struct_name].vars[field]
+            else:
+                print("Error: Attempt to access unexisting field '{}' on struct '{}'".format(field,struct_name))    
+        elif self.parent:
+            return self.parent.get_struct(struct_name,field)
+        else:
+            print("Error : Attempt to access undeclared struct '{}'".format(struct_name)) 
+            exit()                  
+
     def insert_var(self, name, dtype, use="variable"):
         if name not in self.used:
             self.variables[name] = dtype
@@ -269,6 +281,20 @@ class SymbTable:
                 print("Error: already used method name")
                 exit()
 
+    def nested_module(self,module): 
+        parent = module.parent
+        child = module.child 
+        assert type(child) is str
+        print("child '{}', parent '{}'".format(child,parent))
+        if isinstance(parent,GoFromModule):
+            assert isinstance(struct_name,GoVar)
+            struct_name = (self.nested_module(parent)).dtype
+            return self.get_struct(struct_name,child)
+        elif type(parent) is str:
+            struct_object = self.get_type(parent)      
+            struct_name = struct_object.name
+            return self.get_struct(struct_name,child)            
+
     # TODO: 3AC
     def eval_type(self, expr, store_var="temp"):
         dtype = None
@@ -407,6 +433,25 @@ class SymbTable:
             dtype = expr.dtype
             assert isinstance(dtype, GoType)
 
+          # accessing struct fields with nesting of structs    
+        elif isinstance(expr,GoFromModule):
+            parent = expr.parent
+            child  = expr.child
+             #currently handles acessing the a field of a struct 
+            if type(parent) is str:
+                assert type(child) is str
+                struct_name = self.get_type(parent).name
+                dtype = self.get_struct(struct_name,child).dtype
+
+            #handles nesting of structs     
+            elif isinstance(parent,GoFromModule):
+                print("parent '{}', child '{}'".format(parent,child))
+                struct_name = (self.nested_module(parent)).dtype.name
+                print("struct name '{}'".format(struct_name))
+                dtype = self.get_struct(struct_name,child).dtype
+
+    
+
         elif isinstance(expr, GoUnaryExpr):
             if expr.op == "&" or expr.op == "*":
                 symbol_table(expr, self)
@@ -444,7 +489,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             table.imports[item.import_as] = item
         # iteraing over TopLevelDeclList
         for item in tree.declarations:
-            ir_code = symbol_table(item, table)
+            ir_code += symbol_table(item, table)
 
     # method declarations
     elif isinstance(tree, GoMethDecl):
@@ -475,6 +520,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         table.insert_func(name, params, result)
         ir_code = "func begin {}\n".format(name)
         ir_code += symbol_table(body, table, name, "function")
+        if result is None:
+            ir_code += "return\n"
         ir_code += "func end\n"
 
     # TODO: 3AC

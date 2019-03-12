@@ -243,7 +243,7 @@ class SymbTable:
         
         elif isinstance(expr,GoUnaryExpr):
             if expr.op == "&":
-                print(expr.dtype)
+                symbol_table(expr,self)
                 dtype = expr.dtype
 
         if dtype is None:

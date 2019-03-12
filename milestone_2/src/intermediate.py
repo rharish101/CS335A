@@ -331,7 +331,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
         for rec in receiver:
             ir_code = "func begin {}_{}\n".format(name, rec.name)
-            ir_code += symbol_table(body, table, (name, rec), "method")
+            ir_code += symbol_table(
+                body, table, (name, rec.dtype.name), "method"
+            )
             ir_code += "func end\n"
 
     # function declarations
@@ -476,7 +478,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 continue
             ir_code += symbol_table(statement, child_table)
 
-    # TODO: 3AC doubts
     elif isinstance(tree, GoAssign):
         lhs = tree.lhs
         rhs = tree.rhs
@@ -485,21 +486,60 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 "Different number of variables and values in assign operation"
             )
             exit()
+        lhs_3ac = []
         for var in lhs:
-            # TODO: Strict checking of LHS
-            if isinstance(var, GoPrimaryExpr):
-                symbol_table(var, table)
-            elif isinstance(var, GoExpression):
-                print('Expression "{}" cannot be assigned value'.format(var))
-                exit()
-            elif isinstance(var, GoUnaryExpr) and var.op == "*":
-                symbol_table(var, table)
+            loc_lhs = ""
+            loc_rhs = ""
+            curr = var
+            while True:
+                should_break = True
+                error = False
+                if isinstance(curr, GoPrimaryExpr):
+                    if isinstance(curr.rhs, GoSelector):
+                        loc_rhs += "." + curr.rhs.child
+                    elif isinstance(curr.rhs, GoIndex):
+                        # XXX: symbol_table, or eval_type ???
+                        dtype, index_code = table.eval_type(
+                            curr.rhs, store_var="__index"
+                        )
+                        table.type_check(dtype, GoType("int", True))
+                        ir_code = index_code
+                        loc_rhs += "[__index]"
+                    else:
+                        error = True
+                    curr = curr.lhs
+                    should_break = False
+                elif isinstance(var, GoExpression):
+                    error = True
+                elif isinstance(var, GoUnaryExpr):
+                    if var.op == "*":
+                        if not isinstance(
+                            table.get_type(var.expr), GoPointType
+                        ):
+                            print(
+                                "Error: {} not pointer type".format(var.expr)
+                            )
+                            exit()
+                        else:
+                            loc_lhs += "*"
+                        curr = curr.expr
+                        should_break = False
+                    else:
+                        error = True
+                elif not table.lookup(var):
+                    print('Error: "{}" not declared before use'.format(var))
+                    exit()
 
-            elif not table.lookup(var):
-                print('"{}" not declared before use'.format(var))
-                exit()
+                if error:
+                    print(
+                        'Error: Expression "{}" cannot be assigned '
+                        "value".format(var)
+                    )
+                if should_break:
+                    break
+            lhs_3ac.append(loc_lhs + loc_rhs)
 
-        for var, expr in zip(lhs, rhs):
+        for i, (var, expr) in enumerate(zip(lhs, rhs)):
             print('assign: "{}" : "{}"'.format(var, expr))
             # can have only struct fields, variables, array on the LHS.
             if isinstance(var, GoPrimaryExpr):
@@ -527,9 +567,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             #     symbol_table(expr, table)
             #     dtype2 = expr.dtype
 
-            dtype2, rhs_code = table.eval_type(expr, store_var="__rhs")
+            dtype2, rhs_code = table.eval_type(expr, store_var=lhs_3ac[i])
             ir_code += rhs_code
-            # TODO: Where to store 3AC results ???
 
             table.type_check(dtype1, dtype2, "assignment")
 
@@ -956,7 +995,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 tree.dtype = GoPointType(table.get_type(tree.expr))
             elif tree.op == "*":
                 if not isinstance(table.get_type(tree.expr), GoPointType):
-                    error = True
                     print("{} not pointer type".format(tree.expr))
                     exit()
                 print(table.get_type(tree.expr).dtype)

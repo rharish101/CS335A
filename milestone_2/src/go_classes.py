@@ -308,7 +308,7 @@ class GoPrimaryExpr(GoBaseExpr):
     def __init__(self, lhs, rhs, dtype=None, depth=1):
         super().__init__("primary")
         self.lhs = lhs
-        self.rhs = rhs  # rhs may be none
+        self.rhs = rhs
         self.dtype = dtype
         self.depth = depth
 

@@ -149,15 +149,47 @@ class SymbTable:
     def type_check(
         self, dtype1, dtype2, use="", use_name=None, param_name=None
     ):
-        if dtype1.__class__ is not dtype2.__class__:
-            print(
-                "Error: Operands in '{}' of different type classes '{}' and '{}'".format(
-                    use, dtype1.__class__, dtype2.__class__
-                )
-            )
-            exit()
+        print("Entered with {}, {}".format(dtype1.__class__, dtype2.__class__))
+        # if dtype1.__class__ is not dtype2.__class__:
+        #     print(
+        #         "Error: Operands in '{}' of different type classes '{}' and '{}'".format(
+        #             use, dtype1.__class__, dtype2.__class__
+        #         )
+        #     )
+        #     exit()
 
-        if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
+        expr_check1 = False
+        expr_check2 = False
+
+        if isinstance(dtype1, GoExpression):
+            expr_check1 = True
+        elif isinstance(dtype1, GoUnaryExpr):
+            expr_check1 = True
+        elif isinstance(dtype1, GoPrimaryExpr):
+            expr_check1 = True
+        elif isinstance(dtype1, GoBasicLit):
+            expr_check1 = True
+        elif isinstance(dtype1, GoType):
+            expr_check1 = True
+
+        if isinstance(dtype2, GoExpression):
+            expr_check2 = True
+        elif isinstance(dtype2, GoUnaryExpr):
+            expr_check2 = True
+        elif isinstance(dtype2, GoPrimaryExpr):
+            expr_check2 = True
+        elif isinstance(dtype2, GoBasicLit):
+            expr_check2 = True
+        elif isinstance(dtype2, GoType):
+            expr_check2 = True
+
+        if expr_check1 == True and expr_check2 == True:
+            if not isinstance(dtype1, GoType):
+                dtype1 = dtype1.dtype
+            
+            if not isinstance(dtype2, GoType):
+                dtype2 = dtype2.dtype
+            
             name1 = dtype1.name
             name2 = dtype2.name
             for name in [name1, name2]:

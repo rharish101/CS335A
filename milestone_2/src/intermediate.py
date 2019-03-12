@@ -158,50 +158,118 @@ class SymbTable:
             exit()
 
     # XXX INCOMPLETE need to check for other type classes
+    # def type_check(
+    #     self, dtype1, dtype2, use="", use_name=None, param_name=None
+    # ):
+    #     print("Entered with {}, {}".format(dtype1.__class__, dtype2.__class__))
+    #     # if dtype1.__class__ is not dtype2.__class__:
+    #     #     print(
+    #     #         "Error: Operands in '{}' of different type classes '{}' and '{}'".format(
+    #     #             use, dtype1.__class__, dtype2.__class__
+    #     #         )
+    #     #     )
+    #     #     exit()
+
+    #     expr_check1 = False
+    #     expr_check2 = False
+
+    #     if isinstance(dtype1, GoExpression):
+    #         expr_check1 = True
+    #     elif isinstance(dtype1, GoUnaryExpr):
+    #         expr_check1 = True
+    #     elif isinstance(dtype1, GoPrimaryExpr):
+    #         expr_check1 = True
+    #     elif isinstance(dtype1, GoBasicLit):
+    #         expr_check1 = True
+    #     elif isinstance(dtype1, GoType):
+    #         expr_check1 = True
+
+    #     if isinstance(dtype2, GoExpression):
+    #         expr_check2 = True
+    #     elif isinstance(dtype2, GoUnaryExpr):
+    #         expr_check2 = True
+    #     elif isinstance(dtype2, GoPrimaryExpr):
+    #         expr_check2 = True
+    #     elif isinstance(dtype2, GoBasicLit):
+    #         expr_check2 = True
+    #     elif isinstance(dtype2, GoType):
+    #         expr_check2 = True
+
+    #     if expr_check1 == True and expr_check2 == True:
+    #         if not isinstance(dtype1, GoType):
+    #             dtype1 = dtype1.dtype
+            
+    #         if not isinstance(dtype2, GoType):
+    #             dtype2 = dtype2.dtype
+            
+    #         name1 = dtype1.name
+    #         name2 = dtype2.name
+    #         for name in [name1, name2]:
+    #             if name not in INT_TYPES and name not in [
+    #                 "float",
+    #                 "float32",
+    #                 "float64",
+    #                 "complex",
+    #                 "byte",
+    #                 "complex64",
+    #                 "complex128",
+    #                 "string",
+    #                 "unintptr",
+    #             ]:
+    #                 print("Error:'{}' is unregistered dtype".format(name))
+    #                 exit()
+    #         if dtype1.basic_lit or dtype2.basic_lit:
+    #             if name1 in INT_TYPES:
+    #                 name1 = "int"
+    #             elif name1 in ["float32", "float64", "float"]:
+    #                 name1 = "float"
+    #             elif name1 in ["complex64", "complex128", "complex"]:
+    #                 name1 = "complex"
+
+    #             if name2 in INT_TYPES:
+    #                 name2 = "int"
+    #             elif name2 in ["float32", "float64", "float"]:
+    #                 name2 = "float"
+    #             elif name2 in ["complex64", "complex128", "complex"]:
+    #                 name2 = "complex"
+
+    #         if name1 != name2:
+    #             # print("'{}', '{}'".format(name1,name2))
+    #             if use == "function call":
+    #                 print(
+    #                     "Error: Mismatch type of param '{}' in function call of '{}'".format(
+    #                         param_name, use_name
+    #                     )
+    #                 )
+    #             elif use == "array conflicts":
+    #                 print(
+    #                     "Error: Value of '{}' type given to array '{}' instead of '{}' type".format(
+    #                         dtype2, use_name, dtype1
+    #                     )
+    #                 )
+    #             else:
+    #                 print(
+    #                     "Error: Operands in '{}' of different types'{}' and '{}'".format(
+    #                         use, name1, name2
+    #                     )
+    #                 )
+    #             exit()
+
+    #     if isinstance(dtype1, GoPointType) and isinstance(dtype2, GoPointType):
+    #         self.type_check(dtype1.dtype,dtype2.dtype)
+
     def type_check(
         self, dtype1, dtype2, use="", use_name=None, param_name=None
     ):
-        print("Entered with {}, {}".format(dtype1.__class__, dtype2.__class__))
-        # if dtype1.__class__ is not dtype2.__class__:
-        #     print(
-        #         "Error: Operands in '{}' of different type classes '{}' and '{}'".format(
-        #             use, dtype1.__class__, dtype2.__class__
-        #         )
-        #     )
-        #     exit()
+        if dtype1.__class__ is not dtype2.__class__:
+            print(
+                "Error: Operands in '{}' of different type classes '{}' and '{}'".format(
+                    use, dtype1.__class__, dtype2.__class__
+                )
+            )
+            exit()
 
-        expr_check1 = False
-        expr_check2 = False
-
-        if isinstance(dtype1, GoExpression):
-            expr_check1 = True
-        elif isinstance(dtype1, GoUnaryExpr):
-            expr_check1 = True
-        elif isinstance(dtype1, GoPrimaryExpr):
-            expr_check1 = True
-        elif isinstance(dtype1, GoBasicLit):
-            expr_check1 = True
-        elif isinstance(dtype1, GoType):
-            expr_check1 = True
-
-        if isinstance(dtype2, GoExpression):
-            expr_check2 = True
-        elif isinstance(dtype2, GoUnaryExpr):
-            expr_check2 = True
-        elif isinstance(dtype2, GoPrimaryExpr):
-            expr_check2 = True
-        elif isinstance(dtype2, GoBasicLit):
-            expr_check2 = True
-        elif isinstance(dtype2, GoType):
-            expr_check2 = True
-
-        if expr_check1 == True and expr_check2 == True:
-            if not isinstance(dtype1, GoType):
-                dtype1 = dtype1.dtype
-            
-            if not isinstance(dtype2, GoType):
-                dtype2 = dtype2.dtype
-            
+        if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
             for name in [name1, name2]:
@@ -451,7 +519,7 @@ class SymbTable:
                 dtype = self.get_struct(struct_name,child).dtype
 
     
-
+        # XXX need to be modified to handle other kinds of unarry expression       
         elif isinstance(expr, GoUnaryExpr):
             if expr.op == "&" or expr.op == "*":
                 symbol_table(expr, self)
@@ -463,6 +531,7 @@ class SymbTable:
 
         if dtype is None:
             print("Warning: getting None dtype")
+            exit()
         return dtype, ""
 
 
@@ -1190,43 +1259,49 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         ir_code += "{} = {} __opd".format(store_var, tree.op)
 
         if type(tree.expr) is str:
+            # print("XXXXXXXXX1")
             if tree.op == "&":
                 tree.dtype = GoPointType(table.get_type(tree.expr))
             elif tree.op == "*":
                 if not isinstance(table.get_type(tree.expr), GoPointType):
                     error = True
-                    print("{} not pointer type".format(tree.expr))
+                    print("Error : {} not pointer type".format(tree.expr))
                     exit()
                 else:
                     tree.dtype = table.get_type(tree.expr).dtype
 
         elif isinstance(tree.expr, GoPrimaryExpr):
+            eval_type,_ = table.eval_type(tree.expr)
             if tree.op == "&":
-                tree.dtype = GoPointType(tree.expr)
+                tree.dtype = GoPointType(eval_type)
             elif tree.op == "*":
-                if not isinstance(tree.expr.dtype, GoPointType):
+                if not isinstance(eval_type, GoPointType):
                     error = True
-                    print("{} not pointer type".format(tree.expr))
+                    print("Error: {} not pointer type".format(eval_type))
                     exit()
                 else:
-                    tree.dtype = tree.expr.dtype.dtype
+                    tree.dtype = eval_type.dtype
 
         elif isinstance(tree.expr,GoUnaryExpr):
+            # print("XXXXXXXXX3")
+            eval_type,_ = table.eval_type(tree.expr)
+
             if tree.op == "&":
                 if tree.expr.op == "&":
                     error = True
-                    print("Cannot take address of address")
+                    print("Error: Cannot take address of address")
                     exit()
                 elif tree.expr.op == "*":
-                    tree.dtype = GoPointType(tree.expr.dtype)
+                    tree.dtype = GoPointType(eval_type)
+                    # tree.dtype = GoPointType(tree.expr.dtype)
             
             elif tree.op == "*":
-                if not isinstance(tree.expr.dtype,GoPointType):
+                if not isinstance(eval_type,GoPointType):
                     error = True
-                    print("{} not pointer type".format(tree.expr))
+                    print("{} not pointer type".format(eval_type))
                     exit()
                 else:
-                    tree.dtype = tree.expr.dtype.dtype
+                    tree.dtype = eval_type.dtype
 
 
 

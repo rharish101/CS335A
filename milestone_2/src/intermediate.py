@@ -624,12 +624,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                                 loc_lhs += "*"
                             curr = curr.expr
                             should_break = False
-                        
-                        elif isinstance(var.expr, GoUnaryExpr):
-                            if var.expr.op == "&":
-                                pass
-                            elif var.expr == "*":
-                                pass
                     
                     else:
                         error = True

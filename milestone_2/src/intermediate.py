@@ -211,6 +211,9 @@ class SymbTable:
                     )
                 exit()
 
+        if isinstance(dtype1, GoPointType) and isinstance(dtype2, GoPointType):
+            self.type_check(dtype1.dtype,dtype2.dtype)
+
     def insert_func(self, name, params, result):
         if name not in table.functions:
             table.functions[name] = {}
@@ -582,6 +585,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             )
             exit()
         lhs_3ac = []
+        
         for var in lhs:
             loc_lhs = ""
             loc_rhs = ""
@@ -608,17 +612,25 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     error = True
                 elif isinstance(curr, GoUnaryExpr):
                     if var.op == "*":
-                        if not isinstance(
-                            table.get_type(var.expr), GoPointType
-                        ):
-                            print(
-                                "Error: {} not pointer type".format(var.expr)
-                            )
-                            exit()
-                        else:
-                            loc_lhs += "*"
-                        curr = curr.expr
-                        should_break = False
+                        if type(var.expr) is str:
+                            if not isinstance(
+                                table.get_type(var.expr), GoPointType
+                            ):
+                                print(
+                                    "Error: {} not pointer type".format(var.expr)
+                                )
+                                exit()
+                            else:
+                                loc_lhs += "*"
+                            curr = curr.expr
+                            should_break = False
+                        
+                        elif isinstance(var.expr, GoUnaryExpr):
+                            if var.expr.op == "&":
+                                pass
+                            elif var.expr == "*":
+                                pass
+                    
                     else:
                         error = True
                 elif not table.lookup(curr):
@@ -649,18 +661,22 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 dtype1 = table.get_type(var)
 
             elif isinstance(var, GoUnaryExpr) and var.op == "*":
-                if not isinstance(table.get_type(var.expr), GoPointType):
-                    error = True
-                    print("{} not pointer type".format(var.expr))
-                    exit()
-                dtype1 = table.get_type(var.expr).dtype
-            # if type(expr) is str:
-            #     dtype2 = table.get_type(expr)
-            # elif isinstance(expr, GoBasicLit):
-            #     dtype2 = expr.dtype
-            # elif isinstance(expr, GoExpression):
-            #     symbol_table(expr, table)
-            #     dtype2 = expr.dtype
+                symbol_table(var.expr,table)
+                if type(var.expr) is str:
+                    if not isinstance(table.get_type(var.expr), GoPointType):
+                        error = True
+                        print("{} not pointer type".format(var.expr))
+                        exit()
+                    var.dtype = table.get_type(var.expr).dtype
+                    dtype1 = var.dtype
+                
+                elif isinstance(var.expr, GoUnaryExpr) and var.expr.op == "*":
+                    if not isinstance(var.expr.dtype, GoPointType):
+                        error = True
+                        print("{} not pointer type".format(var.expr))
+                        exit()
+                    var.dtype = var.expr.dtype.dtype
+                    dtype1 = var.dtype
 
             dtype2, rhs_code = table.eval_type(expr, store_var=lhs_3ac[i])
             ir_code += rhs_code
@@ -1105,10 +1121,41 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 tree.dtype = GoPointType(table.get_type(tree.expr))
             elif tree.op == "*":
                 if not isinstance(table.get_type(tree.expr), GoPointType):
+                    error = True
                     print("{} not pointer type".format(tree.expr))
                     exit()
-                print(table.get_type(tree.expr).dtype)
-                tree.dtype = table.get_type(tree.expr).dtype
+                else:
+                    tree.dtype = table.get_type(tree.expr).dtype
+
+        elif isinstance(tree.expr, GoPrimaryExpr):
+            if tree.op == "&":
+                tree.dtype = GoPointType(tree.expr)
+            elif tree.op == "*":
+                if not isinstance(tree.expr.dtype, GoPointType):
+                    error = True
+                    print("{} not pointer type".format(tree.expr))
+                    exit()
+                else:
+                    tree.dtype = tree.expr.dtype.dtype
+
+        elif isinstance(tree.expr,GoUnaryExpr):
+            if tree.op == "&":
+                if tree.expr.op == "&":
+                    error = True
+                    print("Cannot take address of address")
+                    exit()
+                elif tree.expr.op == "*":
+                    tree.dtype = GoPointType(tree.expr.dtype)
+            
+            elif tree.op == "*":
+                if not isinstance(tree.expr.dtype,GoPointType):
+                    error = True
+                    print("{} not pointer type".format(tree.expr))
+                    exit()
+                else:
+                    tree.dtype = tree.expr.dtype.dtype
+
+
 
     return ir_code
 

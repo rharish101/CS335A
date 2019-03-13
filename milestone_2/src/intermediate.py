@@ -105,26 +105,6 @@ class SymbTable:
             )
             exit()
 
-    def get_struct(self, struct_name, field):
-        if struct_name in self.structures:
-            if field in self.structures[struct_name].vars:
-                return self.structures[struct_name].vars[field]
-            else:
-                print(
-                    "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
-                        field, struct_name
-                    )
-                )
-                exit()
-        elif self.parent:
-            return self.parent.get_struct(struct_name, field)
-        else:
-            print(
-                "Error : Attempt to access undeclared struct '{}'".format(
-                    struct_name
-                )
-            )
-            exit()
 
     def insert_var(self, name, dtype, use="variable"):
         if name not in self.used:
@@ -148,7 +128,36 @@ class SymbTable:
         elif self.parent:
             return self.parent.get_actual(alias)
         else:
-            return None         
+            return None    
+
+
+    def helper_get_struct(self, struct_name, field):
+        if struct_name in self.structures:
+            if field in self.structures[struct_name].vars:
+                return self.structures[struct_name].vars[field]
+            else:
+                print(
+                    "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
+                        field, struct_name
+                    )
+                )
+                exit()
+        elif self.parent:
+            return self.parent.get_struct(struct_name, field)
+        else:
+            print(
+                "Error : Attempt to access undeclared struct '{}'".format(
+                    struct_name
+                )
+            )
+            exit()
+
+    def get_struct(self,struct_name,field):
+        actual_name = self.get_actual(struct_name)
+        if actual_name is not None:
+            if isinstance(actual_name,GoType):
+                struct_name = actual_name.name
+        return  self.helper_get_struct(struct_name,field)                  
             
     def insert_const(self, const, dtype):
         if const not in self.used:

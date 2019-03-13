@@ -1094,6 +1094,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             exit()
 
     # TODO: 3AC
+    # Is this necessary?
     elif isinstance(tree, GoIndex):
         symbol_table(tree.index, table)
         index = tree.index
@@ -1151,7 +1152,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         elif isinstance(rhs, GoArguments):  # fuction call
             print("FUNCTION CALL '{}'".format(lhs))
             func_name = lhs
-            assert isinstance(rhs, GoArguments)
             # type checking of arguments passed to function
             argument_list = rhs.expr_list
             params_list = table.get_func(func_name, "params")
@@ -1162,12 +1162,17 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     )
                 )
                 exit()
-            for argument, param in zip(argument_list, params_list):
+            for i, (argument, param) in enumerate(
+                zip(argument_list, params_list)
+            ):
                 assert isinstance(param, GoParam)
                 # symbol_table(param,table)
-                symbol_table(argument, table)
+                ir_code += symbol_table(
+                    argument, table, store_var="__arg{}".format(i)
+                )
                 actual_dtype = param.dtype
-                given_dtype, _ = table.eval_type(argument)
+                given_dtype, eval_code = table.eval_type(argument)
+                ir_code += eval_code
                 table.type_check(
                     actual_dtype,
                     given_dtype,
@@ -1175,6 +1180,14 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     func_name,
                     param.name,
                 )
+
+            # Get function name/location in memory
+            func_loc = None
+            ir_code += "{} = {}(".format(store_var, func_loc)
+            ir_code += ",".join(
+                ["__arg{}".format(i) for i in range(len(argument_list))]
+            )
+            ir_code += ")\n"
 
         # no requirement to check result dtype in case of isolated function call
         #     result = table.get_func(func_name,'result')

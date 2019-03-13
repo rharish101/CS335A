@@ -1039,14 +1039,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         ir_code += "{}: ".format(endif_label)
         table.scopes.append(newtable)
 
-    # TODO: 3AC
-    # XXX Issue with grammar when simple statement in switch case, incorrect
-    # parse tree bein generated
-    elif isinstance(tree, GoCaseClause):
-        symbol_table(tree.expr_list, table)
-        newtable = SymbTable(table)
-        symbol_table(tree.stmt_list, newtable)
-        table.scopes.append(newtable)
 
     # XXX: Range UN-IMPLEMENTED
     elif isinstance(tree, GoFor):
@@ -1097,6 +1089,27 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         ir_code += symbol_table(tree.infor, table)
         ir_code += post_code
         ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
+
+    elif isinstance(tree, GoSwitch):
+        newtable = SymbTable(table)
+        symbol_table(tree.stmt, newtable)
+        symbol_table(tree.cond, newtable)
+        for child in tree.case_list:
+            symbol_table(child, newtable)
+        table.scopes.append(newtable)
+
+
+    # TODO: 3AC
+    # XXX Issue with grammar when simple statement in switch case, incorrect
+    # parse tree bein generated
+    elif isinstance(tree, GoCaseClause):
+        for child in tree.expr_list:
+            symbol_table(child, table)
+        newtable = SymbTable(table)
+        for child in tree.stmt_list:
+            symbol_table(child, newtable)
+        table.scopes.append(newtable)
+
 
     # TODO: 3AC
     elif isinstance(tree, GoArray):

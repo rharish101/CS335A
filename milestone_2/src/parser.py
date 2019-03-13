@@ -1215,7 +1215,7 @@ def p_ExprSwitchStmt(p):
     if len(p) == 8:  # No SimpleStmt given
         stmt = None
     else:
-        stmt = p[2]
+        stmt = p[3]
     p[0] = GoSwitch(stmt, p[len(p) - 5], p[len(p) - 2])
 
 

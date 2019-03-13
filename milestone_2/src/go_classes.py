@@ -66,8 +66,10 @@ class GoStruct(GoBaseType):
 
     def __init__(self, fields):
         super().__init__("struct")
-        self.vars = {}
-        self.tags = {}
+        # vars and tags should be lists so as to enforce order on the inputs given to the struct 
+        self.vars = []
+        self.tags = []
+        #XXX don't know about this 
         self.embeds = {}
         self.name = "struct"  # For storing name of this type
         used = set()
@@ -89,8 +91,8 @@ class GoStruct(GoBaseType):
             else:
                 for var in field.vars:
                     if var not in used:
-                        self.vars[var] = GoVar(field.dtype)
-                        self.tags[var] = field.tag
+                        self.vars.append((var, GoVar(field.dtype)))
+                        self.tags.append((var,field.tag))
                         used.add(var)
                     else:
                         raise ValueError(

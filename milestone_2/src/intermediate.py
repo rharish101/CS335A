@@ -536,8 +536,8 @@ class SymbTable:
         return dtype, ir_code
 
 
-# Global variable for labelling statements
-label_count = 0
+# Global variable for labelling statements, ensuring unique variables, etc.
+global_count = 0
 
 
 def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
@@ -599,6 +599,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         ir_code += "func end\n"
 
     elif isinstance(tree, GoDecl) and tree.kind == "var":
+        global global_count
+        depth_num = global_count
+        global_count += 1
+
         var_list = tree.declarations
         for item in var_list:
             # assert isinstance(item,GoVarSpec)
@@ -632,7 +636,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     #     eval_type = expr.dtype
 
                     expr_dtype, expr_code = table.eval_type(
-                        expr, store_var="__decl{}".format(i)
+                        expr, store_var="__decl{}_{}".format(i, depth_num)
                     )
                     ir_code += expr_code
                     evaluated_types.append(expr_dtype)
@@ -640,7 +644,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     for i, (var, eval_type) in enumerate(
                         zip(lhs, evaluated_types)
                     ):
-                        ir_code += "{} = __decl{}\n".format(var, i)
+                        ir_code += "{} = __decl{}_{}\n".format(
+                            var, i, depth_num
+                        )
                         if dtype is None:
                             # If defined type is not None then check if the
                             # evaluated type is same as the defined type
@@ -676,6 +682,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             print('typedef/alias "{}" : "{}"'.format(alias, actual))
 
     elif isinstance(tree, GoDecl) and tree.kind == "constant":
+        global global_count
+        depth_num = global_count
+        global_count += 1
+
         const_list = tree.declarations
         for item in const_list:
             # assert isinstance(item,GoConstSpec)
@@ -700,7 +710,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     #     symbol_table(expr, table)
                     #     eval_type = expr.dtype
                     expr_dtype, expr_code = table.eval_type(
-                        expr, store_var="__const{}".format(i)
+                        expr, store_var="__const{}_{}".format(i, depth_num)
                     )
                     ir_code += expr_code
                     evaluated_types.append(expr_dtype)
@@ -713,7 +723,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     else:
                         table.type_check(dtype, eval_type, "const declaration")
                         # Treating constant declarations as variable assignment
-                        ir_code += "{} = __const{}".format(const, i)
+                        ir_code += "{} = __const{}_{}".format(
+                            const, i, depth_num
+                        )
                         print('const "{}":"{}"'.format(const, dtype))
                         table.insert_const(const, dtype)
                         # adding to list of variables so that const can be used
@@ -740,6 +752,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             ir_code += symbol_table(statement, child_table)
 
     elif isinstance(tree, GoAssign):
+        global global_count
+        depth_num = global_count
+        global_count += 1
+
         lhs = tree.lhs
         rhs = tree.rhs
         if len(lhs) != len(rhs):
@@ -763,11 +779,17 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                         loc_rhs = "." + curr.rhs.child + loc_rhs
                     elif isinstance(curr.rhs, GoIndex):
                         dtype, index_code = table.eval_type(
-                            curr.rhs.index, store_var="__index" + str(ind_cnt)
+                            curr.rhs.index,
+                            store_var="__index{}_{}".format(
+                                ind_cnt, depth_num
+                            ),
                         )
                         table.type_check(dtype, GoType("int", True))
                         ir_code += index_code
-                        loc_rhs = "[__index{}]".format(ind_cnt) + loc_rhs
+                        loc_rhs = (
+                            "[__index{}_{}]".format(ind_cnt, depth_num)
+                            + loc_rhs
+                        )
                         ind_cnt += 1
                     else:
                         error = True
@@ -915,6 +937,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             table.insert_var(var, dtype)
 
     elif isinstance(tree, GoExpression):
+        global global_count
+        depth_num = global_count
+        global_count += 1
+
         lhs = tree.lhs
         op = tree.op
         rhs = tree.rhs
@@ -938,9 +964,15 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         # elif isinstance(rhs, GoBasicLit):
         #     dtype2 = rhs.dtype
 
-        dtype1, lhs_code = table.eval_type(lhs, store_var="__lhs")
-        dtype2, rhs_code = table.eval_type(rhs, store_var="__rhs")
-        ir_code += "{} = __lhs {} __rhs\n".format(store_var, op)
+        dtype1, lhs_code = table.eval_type(
+            lhs, store_var="__lhs_{}".format(depth_num)
+        )
+        dtype2, rhs_code = table.eval_type(
+            rhs, store_var="__rhs_{}".format(depth_num)
+        )
+        ir_code += "{} = __lhs_{} {} __rhs_{}\n".format(
+            store_var, depth_num, op, depth_num
+        )
 
         print('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
 
@@ -1016,10 +1048,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         ir_code += symbol_table(tree.cond, newtable, store_var="__cond")
 
         # Choosing the labels
-        global label_count
-        if_label = "If{}".format(label_count)
-        endif_label = "EndIf{}".format(label_count + 1)
-        label_count += 2
+        global global_count
+        if_label = "If{}".format(global_count)
+        endif_label = "EndIf{}".format(global_count + 1)
+        global_count += 2
 
         ir_code += "if __cond goto {}\n".format(if_label)
         if (
@@ -1051,11 +1083,11 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
     # XXX: Range UN-IMPLEMENTED
     elif isinstance(tree, GoFor):
         print("Entered GoFor")
-        global label_count
-        cond_label = "For{}".format(label_count)
-        for_label = "For{}".format(label_count + 1)
-        endfor_label = "EndFor{}".format(label_count + 2)
-        label_count += 3
+        global global_count
+        cond_label = "For{}".format(global_count)
+        for_label = "For{}".format(global_count + 1)
+        endfor_label = "EndFor{}".format(global_count + 2)
+        global_count += 3
 
         if isinstance(tree, GoForClause):
             print("Entered GoForClause")
@@ -1098,7 +1130,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         ir_code += post_code
         ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
 
-    # TODO: 3AC
     elif isinstance(tree, GoArray):
         symbol_table(tree.length, table)
         symbol_table(tree.dtype, table)
@@ -1118,10 +1149,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             dtype = length.dtype
 
         if isinstance(dtype, GoType) and dtype.name != "int":
-            print("array length must be an integer")
+            print("Error: Array length must be an integer")
             exit()
 
-    # TODO: 3AC
+    # TODO: 3AC necessary??
     # Is this necessary?
     elif isinstance(tree, GoIndex):
         symbol_table(tree.index, table)
@@ -1264,29 +1295,43 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
     # XXX To be done later : check number of elements in array same as that
     # specified
 
-    # TODO: 3AC
     elif isinstance(tree, GoKeyedElement):
         print("Entered GoKeyedElement")
         # symbol_table(tree.element, table)
         if isinstance(tree.element, GoBasicLit) or isinstance(
             tree.element, GoExpression
         ):
-            symbol_table(tree.element, table)
+            if isinstance(tree.element, GoExpression):
+                ir_code += symbol_table(
+                    tree.element, table, store_var=store_var
+                )
             element_type = tree.element.dtype
             print(element_type)
         elif type(tree.element) is str:
-            symbol_table(tree.element, table)
+            ir_code = "{} = {}".format(store_var, element)
             element_type = table.get_type(tree.element)
         else:
+            # LiteralValue is a list
+            global global_count
+            depth_num = global_count
+            global_count += 1
+
             depth = 0
+            child_count = 0
             for child in tree.element:
                 if isinstance(child, GoKeyedElement):
-                    symbol_table(child, table)
+                    ir_code += symbol_table(
+                        child,
+                        table,
+                        store_var="__child{}_{}".format(
+                            child_count, depth_num
+                        ),
+                    )
+                    child_count += 1
                     if depth == 0:
                         depth = child.depth
                     elif depth != child.depth:
-                        error = True
-                        print("Wrong array declaration")
+                        print("Error: Wrong array declaration")
                         exit(0)
                     print(child.dtype)
                     element_type = child.dtype
@@ -1308,27 +1353,50 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 #     )
                 #     exit()
             tree.depth = depth + 1
+
+            ir_code += (
+                "{} = {"
+                + ",".join(
+                    [
+                        "__child{}_{}".format(i, depth_num)
+                        for i in range(child_count)
+                    ]
+                )
+                + "}"
+            )
         tree.dtype = element_type
         print(tree.dtype.name)
 
-    # TODO: 3AC
+    # TODO: 3AC for structs
     # XXX UN-IMPLEMENTED
     elif isinstance(tree, GoCompositeLit):
         print("Entered GoCompositeLit")
         symbol_table(tree.dtype, table)
         # symbol_table(tree.value, table)
 
+        global global_count
+        depth_num = global_count
+        global_count += 1
+
+        keys = []
+        elem_num = 0
         if isinstance(tree.dtype, GoArray):
             dtype = tree.dtype.dtype
             depth = 0
             print("dtype = '{}'".format(dtype.name))
             for child in tree.value:
                 if isinstance(child, GoKeyedElement):
-                    symbol_table(child, table)
+                    ir_code += symbol_table(
+                        child,
+                        table,
+                        store_var="__elem{}_{}".format(elem_num, depth_num),
+                    )
+                    elem_num += 1
+                    keys.append(child.key)
+
                     if depth == 0:
                         depth = child.depth
                     elif depth != child.depth:
-                        error = True
                         print("Error: Wrong array declaration")
                         exit()
                     element_type = child.dtype
@@ -1344,7 +1412,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 table.type_check(element_type, dtype, "array initialization")
 
             if depth != tree.dtype.depth:
-                error = True
                 print("Error: Wrong array declaration")
                 exit()
 
@@ -1354,10 +1421,22 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             field_list = tree.value
             for field in field_list:
                 assert isinstance(field, GoKeyedElement)
-                # need to do type checking in structs declaration
+                # Need to do type checking in structs declaration
+                # Then add them to elements
             struct_obj = GoStruct([])
             struct_obj.name = struct_name
             table.variables(insert_var(struct_name, struct_obj, "struct"))
+
+        ir_code += "{0} = {1}{".format(store_var, tree.dtype.name)
+        ir_code += ",".join(
+            [
+                "{}:__elem{}_{}".format(key, i, depth_num)
+                if key is not None
+                else "__elem{}_{}".format(i, depth_num)
+                for i, key in enumerate(keys)
+            ]
+        )
+        ir_code += "}\n"
 
     elif isinstance(tree, GoUnaryExpr):
         ir_code += symbol_table(tree.expr, table, store_var="__opd")
@@ -1369,7 +1448,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 tree.dtype = GoPointType(table.get_type(tree.expr))
             elif tree.op == "*":
                 if not isinstance(table.get_type(tree.expr), GoPointType):
-                    error = True
                     print("Error : {} not pointer type".format(tree.expr))
                     exit()
                 else:
@@ -1381,7 +1459,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 tree.dtype = GoPointType(eval_type)
             elif tree.op == "*":
                 if not isinstance(eval_type, GoPointType):
-                    error = True
                     print("Error: {} not pointer type".format(eval_type))
                     exit()
                 else:
@@ -1393,7 +1470,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
             if tree.op == "&":
                 if tree.expr.op == "&":
-                    error = True
                     print("Error: Cannot take address of address")
                     exit()
                 elif tree.expr.op == "*":
@@ -1402,7 +1478,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
             elif tree.op == "*":
                 if not isinstance(eval_type, GoPointType):
-                    error = True
                     print("{} not pointer type".format(eval_type))
                     exit()
                 else:

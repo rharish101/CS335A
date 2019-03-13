@@ -297,11 +297,12 @@ class GoCompositeLit(GoBaseLit):
 class GoKeyedElement:
     """For keyed elements in composite literals."""
 
-    def __init__(self, key, element, dtype=None, depth=1):
+    def __init__(self, key, element, dtype=None, depth=1,use=None):
         self.key = key
         self.element = element
         self.dtype = dtype
         self.depth = depth
+        self.use = use
 
 
 class GoBaseExpr:

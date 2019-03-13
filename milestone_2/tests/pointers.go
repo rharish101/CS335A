@@ -11,7 +11,9 @@ func main() {
 	d := *b
 	e := **c
 	**c = 1
-	*b = 1
+	*b = 1 
+
+	z := 4 + **c
 
 	var x [3]int
 	x[1] = 3
@@ -19,11 +21,11 @@ func main() {
 	var y *int
 	y = &x[1]
 
-	/*a := 2
-	b := &a
+	// a := 2
+	// b := &a
 
-	c := 1.5
-	d := &c
+	// c := 1
+	// d := &c
 
-	b = d*/
+	// b = d
 }

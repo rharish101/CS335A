@@ -26,6 +26,12 @@ func add(x uint, y int)uint {
 }
 
 func temp(x int,y int ){
+	m := 2
+	n := &m
+	t := person{"string",2}
+	t.age = 2
+	k := ++t.age + ++(*n)
+ 	
 	var d uint= 4
 	var b uint = 3
 	c := d + b
@@ -39,6 +45,8 @@ func temp(x int,y int ){
 	primes1 := [2]int{2,3,4}
 	primes[primes1[2]] = z
 	var val uint = add(2,3)
+
+
 
 	primes[e] = 23
 	// var temp int  = person{name: "Alice", age: 30}

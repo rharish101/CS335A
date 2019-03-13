@@ -6,9 +6,12 @@ package main
 
 var c int64  =  2
 
+type help struct{
+	b string
+}
 
 type person struct {
-    name string
+    name help
     age  int
 }
 type custom person
@@ -30,14 +33,15 @@ func add(x uint, y int)uint {
 }
 
 func temp(x int,y int ){
-	r := custom{"vishwas",2}
+	r := person{{"vishwas"},2}
 	f := r.age
 	m := 2
 	n := &m
-	t := person{"string",2}
+	t := person{{"string"},2}
 	t.age = 2
-	k := ++t.age + ++(*n)
+	k := ++t.age + *n
  	
+
 	var d uint= 4
 	var b uint = 3
 	c := d + b

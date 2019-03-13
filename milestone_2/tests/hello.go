@@ -6,10 +6,13 @@ package main
 
 var c int64  =  2
 
+
 type person struct {
     name string
     age  int
 }
+type custom person
+type custom1 custom
 
 type T struct {
     f1     string "f one"
@@ -17,6 +20,7 @@ type T struct {
     f3     string `f `
     f4, f5 int64  `f four and five`
 }
+
 func temp1(x uint, y uint)uint{
 	return x
 }
@@ -26,6 +30,8 @@ func add(x uint, y int)uint {
 }
 
 func temp(x int,y int ){
+	r := custom{"vishwas",2}
+	f := r.age
 	m := 2
 	n := &m
 	t := person{"string",2}
@@ -49,6 +55,7 @@ func temp(x int,y int ){
 
 
 	primes[e] = 23
+
 	// var temp int  = person{name: "Alice", age: 30}
 	// s1 := person{name: "Sean", age: 50}
 	// var temp1 int = s1.age
@@ -59,11 +66,11 @@ func temp(x int,y int ){
 	// k = primes[2]
 
 	// a = e
-	{
+	// {
 
-		z := 4
-		s = "string1"
-	}
+	// 	z := 4
+	// 	s = "string1"
+	// }
 }
 
 func main() {

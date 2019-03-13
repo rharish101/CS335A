@@ -105,7 +105,6 @@ class SymbTable:
             )
             exit()
 
-
     def insert_var(self, name, dtype, use="variable"):
         if name not in self.used:
             self.variables[name] = dtype
@@ -122,14 +121,13 @@ class SymbTable:
             print("Error: Already used alias/typedef name '{}'".format(name))
             exit()
 
-    def get_actual(self,alias):
+    def get_actual(self, alias):
         if alias in self.types:
             return self.types[alias]
         elif self.parent:
             return self.parent.get_actual(alias)
         else:
-            return None    
-
+            return None
 
     def helper_get_struct(self, struct_name, field):
         if struct_name in self.structures:
@@ -152,13 +150,13 @@ class SymbTable:
             )
             exit()
 
-    def get_struct(self,struct_name,field):
+    def get_struct(self, struct_name, field):
         actual_name = self.get_actual(struct_name)
         if actual_name is not None:
-            if isinstance(actual_name,GoType):
+            if isinstance(actual_name, GoType):
                 struct_name = actual_name.name
-        return  self.helper_get_struct(struct_name,field)                  
-            
+        return self.helper_get_struct(struct_name, field)
+
     def insert_const(self, const, dtype):
         if const not in self.used:
             self.constants[const] = dtype
@@ -197,21 +195,21 @@ class SymbTable:
         if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
-            print("name1 '{}', name2 '{}'".format(name1,name2))
-            
-            #handles recursive typdef/aliases
+            print("name1 '{}', name2 '{}'".format(name1, name2))
+
+            # handles recursive typdef/aliases
             actual1 = self.get_actual(name1)
             actual2 = self.get_actual(name2)
 
             while actual1 is not None:
-                if isinstance(actual1,GoType):
+                if isinstance(actual1, GoType):
                     name1 = actual1.name
-                    actual1 = self.get_actual(actual1.name)        
+                    actual1 = self.get_actual(actual1.name)
 
             while actual2 is not None:
-                if isinstance(actual2,GoType):
+                if isinstance(actual2, GoType):
                     name2 = actual2.name
-                    actual2 = self.get_actual(actual2.name)  
+                    actual2 = self.get_actual(actual2.name)
 
             for name in [name1, name2]:
                 if name not in INT_TYPES and name not in [
@@ -307,6 +305,7 @@ class SymbTable:
     # TODO: 3AC
     def eval_type(self, expr, store_var="temp"):
         dtype = None
+        ir_code = ""
         if isinstance(expr, GoPrimaryExpr):
             print("primary expr '{}'".format(expr))
             lhs = expr.lhs
@@ -534,7 +533,11 @@ class SymbTable:
         if dtype is None:
             print("Warning: getting None dtype")
             exit()
-        return dtype, ""
+        return dtype, ir_code
+
+
+# Global variable for labelling statements
+label_count = 0
 
 
 def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
@@ -1006,13 +1009,18 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                         name, dtype1.basic_lit & dtype2.basic_lit
                     )
 
-    # TODO: 3AC labels
     elif isinstance(tree, GoIf):
         # New symbol table needed as stmt is in the scope of both if and else
         newtable = SymbTable(table)
         ir_code += symbol_table(tree.stmt, newtable)
         ir_code += symbol_table(tree.cond, newtable, store_var="__cond")
-        # What should the labels be?
+
+        # Choosing the labels
+        global label_count
+        if_label = "If{}".format(label_count)
+        endif_label = "EndIf{}".format(label_count + 1)
+        label_count += 2
+
         ir_code += "if __cond goto {}\n".format(if_label)
         if (
             not (
@@ -1040,53 +1048,55 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
         symbol_table(tree.stmt_list, newtable)
         table.scopes.append(newtable)
 
-    # TODO: 3AC
-    # XXX UN-IMPLEMENTED
+    # XXX: Range UN-IMPLEMENTED
     elif isinstance(tree, GoFor):
         print("Entered GoFor")
-        symbol_table(tree.clause, table)
-        symbol_table(tree.infor, table)
+        global label_count
+        cond_label = "For{}".format(label_count)
+        for_label = "For{}".format(label_count + 1)
+        endfor_label = "EndFor{}".format(label_count + 2)
+        label_count += 3
 
-    # TODO: 3AC
-    elif isinstance(tree, GoForClause):
-        print("Entered GoForClause")
+        if isinstance(tree, GoForClause):
+            print("Entered GoForClause")
+            if (
+                (tree.init is not None)
+                and not isinstance(tree.init, GoShortDecl)
+                and not isinstance(tree.init, GoAssign)
+            ):
+                print("Error in for loop Initialization")
+                exit()
+            elif (
+                (tree.expr is not None)
+                and not isinstance(tree.expr, GoBasicLit)
+                and not isinstance(tree.expr, GoExpression)
+            ):
+                print("Error in for loop Condition")
+                exit()
+            elif (tree.post is not None) and not isinstance(
+                tree.post, GoAssign
+            ):
+                print("Error in for loop post expression")
+                exit()
 
-        if (
-            (tree.init is not None)
-            and not isinstance(tree.init, GoShortDecl)
-            and not isinstance(tree.init, GoAssign)
-        ):
-            error = True
-            print("Error in for loop Initialization")
-            exit()
+            ir_code += symbol_table(tree.init, table)
+            ir_code += "{}: ".format(cond_label)
+            symbol_table(tree.expr, table, store_var="__fcond")
+            ir_code += "if __fcond goto {}\ngoto {}\n{}: ".format(
+                for_label, endfor_label, for_label
+            )
+            post_code = symbol_table(tree.post, table)
 
-        elif (
-            (tree.expr is not None)
-            and not isinstance(tree.expr, GoBasicLit)
-            and not isinstance(tree.expr, GoExpression)
-        ):
-            error = True
-            print("Error in for loop Condition")
-            exit()
+            if (tree.expr is not None) and tree.expr.dtype.name is not "bool":
+                print("loop Condition must be bool type")
+                exit()
 
-        elif (tree.post is not None) and not isinstance(tree.post, GoAssign):
-            error = True
-            print("Error in for loop post expression")
-            exit()
+        elif isinstance(tree, GoRange):
+            raise NotImplementedError("Range not implemented")
 
-        symbol_table(tree.init, table)
-        symbol_table(tree.expr, table)
-        symbol_table(tree.post, table)
-
-        if (tree.expr is not None) and tree.expr.dtype.name is not "bool":
-            error = True
-            print("loop Condition must be bool type")
-            exit()
-
-    # TODO: 3AC
-    # XXX UN-IMPLEMENTED
-    elif isinstance(tree, GoRange):
-        pass
+        ir_code += symbol_table(tree.infor, table)
+        ir_code += post_code
+        ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
 
     # TODO: 3AC
     elif isinstance(tree, GoArray):

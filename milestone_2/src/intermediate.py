@@ -140,7 +140,7 @@ class SymbTable:
 
             for item in self.structures[struct_name].vars:
                 if field == item[0]:
-                    return self.structures[struct_name].vars[1]
+                    return item[1]
 
             # if field is not None and field in self.structures[struct_name].vars:
             #     return self.structures[struct_name].vars[field]

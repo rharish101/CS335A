@@ -131,8 +131,21 @@ class SymbTable:
 
     def helper_get_struct(self, struct_name, field):
         if struct_name in self.structures:
-            if field in self.structures[struct_name].vars:
-                return self.structures[struct_name].vars[field]
+            if field is None:
+                types = []
+                for item in self.structures[struct_name].vars:
+                    print("item {}".format(item))
+                    types.append(item[1])
+                return types
+
+            for item in self.structures[struct_name].vars:
+                if field == item[0]:
+                    return self.structures[struct_name].vars[1]
+
+            # if field is not None and field in self.structures[struct_name].vars:
+            #     return self.structures[struct_name].vars[field]
+            # elif field is None:
+            #     return self.structures[struct_name].vars    
             else:
                 print(
                     "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
@@ -150,7 +163,7 @@ class SymbTable:
             )
             exit()
 
-    def get_struct(self, struct_name, field):
+    def get_struct(self, struct_name, field = None):
         actual_name = self.get_actual(struct_name)
         if actual_name is not None:
             if isinstance(actual_name, GoType):
@@ -301,6 +314,32 @@ class SymbTable:
 
         if isinstance(dtype1, GoPointType) and isinstance(dtype2, GoPointType):
             self.type_check(dtype1.dtype, dtype2.dtype)
+
+    def check_struct(self,struct_name,type_list):
+        actual_types = self.get_struct(struct_name)
+
+        if len(actual_types) is not len(type_list):
+            print("Error: Invalid number of values given for structure initialization")
+            exit()
+        for actual,given in zip(actual_types,type_list):
+            print("actual type'{}', give types '{}'".format(actual.dtype.name,given))
+
+            # if type(actual) is list and type(given) is not list or (
+            #     type(actual) is not list and type(given) is list 
+            # ):
+            #     print("Error: Invalid structure initialization")
+            #     exit()
+            # elif type(actual) is list:
+            #     pass
+            if type(given) is list:
+                self.check_struct(actual.dtype.name,given)
+                
+            else:
+                assert isinstance(actual,GoVar)
+                assert isinstance(given,GoType)  
+                self.type_check(actual.dtype,given,"structure initialization")   
+                
+                
 
 
 # Global variable for labelling statements, ensuring unique variables, etc.
@@ -1086,64 +1125,86 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
     elif isinstance(tree, GoKeyedElement):
         print("Entered GoKeyedElement")
         # symbol_table(tree.element, table)
-        if isinstance(tree.element, GoBasicLit) or isinstance(
-            tree.element, GoExpression
-        ):
-            if isinstance(tree.element, GoExpression):
-                ir_code += symbol_table(
-                    tree.element, table, store_var=store_var
-                )[1]
-            element_type = tree.element.dtype
-            print(element_type)
-        elif type(tree.element) is str:
-            ir_code = "{} = {}".format(store_var, element)
-            element_type = table.get_type(tree.element)
-        else:
-            # LiteralValue is a list
-            depth_num = global_count
-            global_count += 1
-
-            depth = 0
-            child_count = 0
-            for child in tree.element:
-                if isinstance(child, GoKeyedElement):
+        if tree.use == "array":
+            if isinstance(tree.element, GoBasicLit) or isinstance(
+                tree.element, GoExpression
+            ):
+                if isinstance(tree.element, GoExpression):
                     ir_code += symbol_table(
-                        child,
-                        table,
-                        store_var="__child{}_{}".format(
-                            child_count, depth_num
-                        ),
+                        tree.element, table, store_var=store_var
                     )[1]
-                    child_count += 1
-                    if depth == 0:
-                        depth = child.depth
-                    elif depth != child.depth:
-                        print("Error: Wrong array declaration")
-                        exit(0)
-                    # print(child.dtype)
-                    element_type = child.dtype
+                element_type = tree.element.dtype
+                # print(element_type)
+            elif type(tree.element) is str:
+                ir_code = "{} = {}".format(store_var, element)
+                element_type = table.get_type(tree.element)
+            else:
+                # LiteralValue is a list
+                depth_num = global_count
+                global_count += 1
 
-                if tree.dtype is None:
-                    tree.dtype = element_type
-                else:
-                    table.type_check(
-                        tree.dtype, element_type, "array conflicts"
+                depth = 0
+                child_count = 0
+                for child in tree.element:
+                    if isinstance(child, GoKeyedElement):
+                        ir_code += symbol_table(
+                            child,
+                            table,
+                            store_var="__child{}_{}".format(
+                                child_count, depth_num
+                            ),
+                        )[1]
+                        child_count += 1
+                        if depth == 0:
+                            depth = child.depth
+                        elif depth != child.depth:
+                            print("Error: Wrong array declaration")
+                            exit(0)
+                        # print(child.dtype)
+                        element_type = child.dtype
+
+                    if tree.dtype is None:
+                        tree.dtype = element_type
+                    else:
+                        table.type_check(
+                            tree.dtype, element_type, "array conflicts"
+                        )
+
+                tree.depth = depth + 1
+
+                ir_code += (
+                    "{} = {"
+                    + ",".join(
+                        [
+                            "__child{}_{}".format(i, depth_num)
+                            for i in range(child_count)
+                        ]
                     )
-
-            tree.depth = depth + 1
-
-            ir_code += (
-                "{} = {"
-                + ",".join(
-                    [
-                        "__child{}_{}".format(i, depth_num)
-                        for i in range(child_count)
-                    ]
+                    + "}"
                 )
-                + "}"
-            )
-        tree.dtype = element_type
-        print("tree.dtype '{}'".format(tree.dtype))
+            tree.dtype = element_type
+            print("tree.dtype '{}'".format(tree.dtype))
+
+       #TODO 3AC      
+        elif tree.use == "struct":
+            element = tree.element
+            print("struct element '{}'".format(element))
+            if isinstance(element,GoBasicLit) :
+                element_type = element.dtype
+            elif isinstance(element,GoExpression):    
+                element_type,_ = symbol_table(element,table)
+                element_type = element_type
+            elif type(element) is str:
+                element_type = table.get_type(element)
+  
+            elif type(element) is list:
+                element_type = []  
+                for item in element:
+                    item.use = "struct"
+                    item_type,_ = symbol_table(item,table)
+                    element_type.append(item_type)
+                print("LIST {}".format(list(element_type)))   
+            tree.dtype = element_type        
 
         # XXX
         DTYPE = tree.dtype
@@ -1163,6 +1224,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
         keys = []
         elem_num = 0
+        #XXX How does this handle array of structs
         if isinstance(tree.dtype, GoArray):
             symbol_table(tree.dtype, table)
             # symbol_table(tree.value, table)
@@ -1171,6 +1233,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             print("array_dtype = '{}'".format(dtype.name))
             for child in tree.value:
                 if isinstance(child, GoKeyedElement):
+                    child.use = "array"
                     ir_code += symbol_table(
                         child,
                         table,
@@ -1198,10 +1261,17 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             struct_name = tree.dtype.name
             print("Struct name {}".format(struct_name))
             field_list = tree.value
+            type_list = []
             for field in field_list:
+                field.use = "struct"
+                # field.name = struct_name
                 assert isinstance(field, GoKeyedElement)
+                field_type,_ = symbol_table(field,table)
+                type_list.append(field_type)
                 # Need to do type checking in structs declaration
-                # Then add them to elements
+                # Then add them to elements 
+            print("FINAL LIST '{}'".format(type_list))    
+            table.check_struct(struct_name,type_list)       
             struct_obj = GoStruct([])
             struct_obj.name = struct_name
             # table.variables(insert_var(struct_name, struct_obj, "struct"))

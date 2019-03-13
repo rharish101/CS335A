@@ -600,7 +600,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             ir_code += "return\n"
         ir_code += "func end\n"
 
-    # TODO: 3AC
     elif isinstance(tree, GoDecl) and tree.kind == "var":
         var_list = tree.declarations
         for item in var_list:
@@ -610,14 +609,12 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             rhs = item.rhs
             # print("var dtype {}".format(dtype.name))
             if len(lhs) != len(rhs) and len(rhs) != 0:
-                error = True
                 print(
                     "Error: different number of variables and values in var "
                     "declaration"
                 )
                 exit()
             elif len(rhs) == 0 and dtype is None:
-                error = True
                 print(
                     "Error: neither data type nor values given in var "
                     "declaration"
@@ -626,7 +623,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             else:
                 # iterating over all expressions to evaluate their types
                 evaluated_types = []
-                for expr in rhs:
+                for i, expr in enumerate(rhs):
                     # assert isinstance(expr,GoExpression) or isinstance(expr,GoBasicLit) or type(expr) is str
                     # if type(expr) is str:
                     #     eval_type = table.get_type(expr)
@@ -636,13 +633,17 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     #     symbol_table(expr, table)
                     #     eval_type = expr.dtype
 
-                    evaluated_types.append(table.eval_type(expr)[0])
+                    expr_dtype, expr_code = table.eval_type(
+                        expr, store_var="__decl{}".format(i)
+                    )
+                    ir_code += expr_code
+                    evaluated_types.append(expr_dtype)
                 if len(rhs) != 0:
-                    if dtype is None:
-                        for var, eval_type in zip(lhs, evaluated_types):
-                            table.insert_var(var, eval_type)
-                    else:
-                        for var, eval_type in zip(lhs, evaluated_types):
+                    for i, (var, eval_type) in enumerate(
+                        zip(lhs, evaluated_types)
+                    ):
+                        ir_code += "{} = __decl{}\n".format(var, i)
+                        if dtype is None:
                             # If defined type is not None then check if the
                             # evaluated type is same as the defined type
                             table.type_check(
@@ -650,12 +651,14 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                             )
                             print('var "{}":"{}"'.format(var, dtype))
                             table.insert_var(var, dtype)
+                        else:
+                            table.insert_var(var, eval_type)
                 else:
                     for var in lhs:
                         print('var "{}":"{}"'.format(var, dtype))
+                        ir_code += "{} = 0\n".format(var)
                         table.insert_var(var, dtype)
 
-    # TODO: 3AC
     # typedef and aliases
     # XXX still need to incorporate typedef alias during type checking
     elif isinstance(tree, GoDecl) and tree.kind == "type":
@@ -674,7 +677,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
             print('typedef/alias "{}" : "{}"'.format(alias, actual))
 
-    # TODO: 3AC
     elif isinstance(tree, GoDecl) and tree.kind == "constant":
         const_list = tree.declarations
         for item in const_list:
@@ -683,7 +685,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             dtype = item.dtype
             expr_list = item.expr
             if len(id_list) != len(expr_list):
-                error = True
                 print(
                     "Error: different number of variables and values in const "
                     "declaration"
@@ -692,7 +693,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
             else:
                 evaluated_types = []
-                for expr in expr_list:
+                for i, expr in enumerate(expr_list):
                     # if type(expr) is str:
                     #     eval_type = table.get_type(expr)
                     # elif isinstance(expr, GoBasicLit):
@@ -700,17 +701,26 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     # elif isinstance(expr, GoExpression):
                     #     symbol_table(expr, table)
                     #     eval_type = expr.dtype
-                    evaluated_types.append(table.eval_type(expr)[0])
+                    expr_dtype, expr_code = table.eval_type(
+                        expr, store_var="__const{}".format(i)
+                    )
+                    ir_code += expr_code
+                    evaluated_types.append(expr_dtype)
 
-                if dtype is None:
-                    for const, eval_type in (expr_list, evaluated_types):
+                for i, (const, eval_type) in enumerate(
+                    zip(id_list, evaluated_types)
+                ):
+                    if dtype is None:
                         table.insert_const(const, eval_type)
-                else:
-                    for const, eval_type in zip(id_list, evaluated_types):
+                    else:
                         table.type_check(dtype, eval_type, "const declaration")
+                        # Treating constant declarations as variable assignment
+                        ir_code += "{} = __const{}".format(const, i)
                         print('const "{}":"{}"'.format(const, dtype))
                         table.insert_const(const, dtype)
-                        # adding to list of variables so that const can be used as variables except they can't be assigned to some other value. Need to implement this check
+                        # adding to list of variables so that const can be used
+                        # as variables except they can't be assigned to some
+                        # other value. Need to implement this check
                         # table.insert_var(const,dtype)
 
     elif isinstance(tree, GoBlock):

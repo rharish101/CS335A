@@ -55,7 +55,7 @@ class SymbTable:
         self.functions = {}
         self.methods = {}
         self.scopes = []
-        self.types = []
+        self.types = {}
         self.used = set()
         self.constants = {}
         self.imports = {}
@@ -142,6 +142,14 @@ class SymbTable:
             print("Error: Already used alias/typedef name '{}'".format(name))
             exit()
 
+    def get_actual(self,alias):
+        if alias in self.types:
+            return self.types[alias]
+        elif self.parent:
+            return self.parent.get_actual(alias)
+        else:
+            return None         
+            
     def insert_const(self, const, dtype):
         if const not in self.used:
             self.constants[const] = dtype
@@ -180,6 +188,22 @@ class SymbTable:
         if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
+            print("name1 '{}', name2 '{}'".format(name1,name2))
+            
+            #handles recursive typdef/aliases
+            actual1 = self.get_actual(name1)
+            actual2 = self.get_actual(name2)
+
+            while actual1 is not None:
+                if isinstance(actual1,GoType):
+                    name1 = actual1.name
+                    actual1 = self.get_actual(actual1.name)        
+
+            while actual2 is not None:
+                if isinstance(actual2,GoType):
+                    name2 = actual2.name
+                    actual2 = self.get_actual(actual2.name)  
+
             for name in [name1, name2]:
                 if name not in INT_TYPES and name not in [
                     "float",

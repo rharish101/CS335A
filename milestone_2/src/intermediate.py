@@ -105,17 +105,25 @@ class SymbTable:
             )
             exit()
 
-    def get_struct(self,struct_name,field):
+    def get_struct(self, struct_name, field):
         if struct_name in self.structures:
             if field in self.structures[struct_name].vars:
                 return self.structures[struct_name].vars[field]
             else:
-                print("Error: Attempt to access unexisting field '{}' on struct '{}'".format(field,struct_name))    
+                print(
+                    "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
+                        field, struct_name
+                    )
+                )
         elif self.parent:
-            return self.parent.get_struct(struct_name,field)
+            return self.parent.get_struct(struct_name, field)
         else:
-            print("Error : Attempt to access undeclared struct '{}'".format(struct_name)) 
-            exit()                  
+            print(
+                "Error : Attempt to access undeclared struct '{}'".format(
+                    struct_name
+                )
+            )
+            exit()
 
     def insert_var(self, name, dtype, use="variable"):
         if name not in self.used:
@@ -198,10 +206,10 @@ class SymbTable:
     #     if expr_check1 == True and expr_check2 == True:
     #         if not isinstance(dtype1, GoType):
     #             dtype1 = dtype1.dtype
-            
+
     #         if not isinstance(dtype2, GoType):
     #             dtype2 = dtype2.dtype
-            
+
     #         name1 = dtype1.name
     #         name2 = dtype2.name
     #         for name in [name1, name2]:
@@ -324,7 +332,7 @@ class SymbTable:
                 exit()
 
         if isinstance(dtype1, GoPointType) and isinstance(dtype2, GoPointType):
-            self.type_check(dtype1.dtype,dtype2.dtype)
+            self.type_check(dtype1.dtype, dtype2.dtype)
 
     def insert_func(self, name, params, result):
         if name not in table.functions:
@@ -349,19 +357,19 @@ class SymbTable:
                 print("Error: already used method name")
                 exit()
 
-    def nested_module(self,module): 
+    def nested_module(self, module):
         parent = module.parent
-        child = module.child 
+        child = module.child
         assert type(child) is str
-        print("child '{}', parent '{}'".format(child,parent))
-        if isinstance(parent,GoFromModule):
-            assert isinstance(struct_name,GoVar)
+        print("child '{}', parent '{}'".format(child, parent))
+        if isinstance(parent, GoFromModule):
+            assert isinstance(struct_name, GoVar)
             struct_name = (self.nested_module(parent)).dtype
-            return self.get_struct(struct_name,child)
+            return self.get_struct(struct_name, child)
         elif type(parent) is str:
-            struct_object = self.get_type(parent)      
+            struct_object = self.get_type(parent)
             struct_name = struct_object.name
-            return self.get_struct(struct_name,child)            
+            return self.get_struct(struct_name, child)
 
     # TODO: 3AC
     def eval_type(self, expr, store_var="temp"):
@@ -501,25 +509,24 @@ class SymbTable:
             dtype = expr.dtype
             assert isinstance(dtype, GoType)
 
-          # accessing struct fields with nesting of structs    
-        elif isinstance(expr,GoFromModule):
+        # accessing struct fields with nesting of structs
+        elif isinstance(expr, GoFromModule):
             parent = expr.parent
-            child  = expr.child
-             #currently handles acessing the a field of a struct 
+            child = expr.child
+            # currently handles acessing the a field of a struct
             if type(parent) is str:
                 assert type(child) is str
                 struct_name = self.get_type(parent).name
-                dtype = self.get_struct(struct_name,child).dtype
+                dtype = self.get_struct(struct_name, child).dtype
 
-            #handles nesting of structs     
-            elif isinstance(parent,GoFromModule):
-                print("parent '{}', child '{}'".format(parent,child))
+            # handles nesting of structs
+            elif isinstance(parent, GoFromModule):
+                print("parent '{}', child '{}'".format(parent, child))
                 struct_name = (self.nested_module(parent)).dtype.name
                 print("struct name '{}'".format(struct_name))
-                dtype = self.get_struct(struct_name,child).dtype
+                dtype = self.get_struct(struct_name, child).dtype
 
-    
-        # XXX need to be modified to handle other kinds of unarry expression       
+        # XXX need to be modified to handle other kinds of unarry expression
         elif isinstance(expr, GoUnaryExpr):
             if expr.op == "&" or expr.op == "*":
                 symbol_table(expr, self)
@@ -733,25 +740,27 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             )
             exit()
         lhs_3ac = []
-        
+
         for var in lhs:
             loc_lhs = ""
             loc_rhs = ""
             curr = var
+            ind_cnt = 0  # For counting indices
             while True:
                 should_break = True
                 error = False
                 if isinstance(curr, GoPrimaryExpr):
                     if isinstance(curr.rhs, GoSelector):
-                        loc_rhs += "." + curr.rhs.child
+                        # No checking here; it is done ahead
+                        loc_rhs = "." + curr.rhs.child + loc_rhs
                     elif isinstance(curr.rhs, GoIndex):
-                        # XXX: symbol_table, or eval_type ???
                         dtype, index_code = table.eval_type(
-                            curr.rhs.index, store_var="__index"
+                            curr.rhs.index, store_var="__index" + str(ind_cnt)
                         )
                         table.type_check(dtype, GoType("int", True))
-                        ir_code = index_code
-                        loc_rhs += "[__index]"
+                        ir_code += index_code
+                        loc_rhs = "[__index{}]".format(ind_cnt) + loc_rhs
+                        ind_cnt += 1
                     else:
                         error = True
                     curr = curr.lhs
@@ -759,31 +768,41 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 elif isinstance(curr, GoExpression):
                     error = True
                 elif isinstance(curr, GoUnaryExpr):
-                    if var.op == "*":
-                        if type(var.expr) is str:
+                    if curr.op == "*":
+                        if type(curr.expr) is str:
                             if not isinstance(
-                                table.get_type(var.expr), GoPointType
+                                table.get_type(curr.expr), GoPointType
                             ):
                                 print(
-                                    "Error: {} not pointer type".format(var.expr)
+                                    "Error: {} not pointer type".format(
+                                        curr.expr
+                                    )
                                 )
                                 exit()
                             else:
                                 loc_lhs += "*"
                             curr = curr.expr
                             should_break = False
-                    
+
                     else:
                         error = True
+                elif isinstance(curr, GoFromModule):
+                    # No checking here; it is done ahead
+                    loc_rhs = "." + curr.child + loc_rhs
+                    curr = curr.parent
+                    should_break = False
                 elif not table.lookup(curr):
-                    print('Error: "{}" not declared before use'.format(var))
+                    print('Error: "{}" not declared before use'.format(curr))
                     exit()
+                elif type(curr) is str:
+                    loc_lhs += curr
 
                 if error:
                     print(
                         'Error: Expression "{}" cannot be assigned '
                         "value".format(var)
                     )
+                    exit()
                 if should_break:
                     break
             lhs_3ac.append(loc_lhs + loc_rhs)
@@ -803,7 +822,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 dtype1 = table.get_type(var)
 
             elif isinstance(var, GoUnaryExpr) and var.op == "*":
-                symbol_table(var.expr,table)
+                symbol_table(var.expr, table)
                 if type(var.expr) is str:
                     if not isinstance(table.get_type(var.expr), GoPointType):
                         error = True
@@ -811,7 +830,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                         exit()
                     var.dtype = table.get_type(var.expr).dtype
                     dtype1 = var.dtype
-                
+
                 elif isinstance(var.expr, GoUnaryExpr) and var.expr.op == "*":
                     if not isinstance(var.expr.dtype, GoPointType):
                         error = True
@@ -1271,7 +1290,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                     tree.dtype = table.get_type(tree.expr).dtype
 
         elif isinstance(tree.expr, GoPrimaryExpr):
-            eval_type,_ = table.eval_type(tree.expr)
+            eval_type, _ = table.eval_type(tree.expr)
             if tree.op == "&":
                 tree.dtype = GoPointType(eval_type)
             elif tree.op == "*":
@@ -1282,9 +1301,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 else:
                     tree.dtype = eval_type.dtype
 
-        elif isinstance(tree.expr,GoUnaryExpr):
+        elif isinstance(tree.expr, GoUnaryExpr):
             # print("XXXXXXXXX3")
-            eval_type,_ = table.eval_type(tree.expr)
+            eval_type, _ = table.eval_type(tree.expr)
 
             if tree.op == "&":
                 if tree.expr.op == "&":
@@ -1294,18 +1313,83 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
                 elif tree.expr.op == "*":
                     tree.dtype = GoPointType(eval_type)
                     # tree.dtype = GoPointType(tree.expr.dtype)
-            
+
             elif tree.op == "*":
-                if not isinstance(eval_type,GoPointType):
+                if not isinstance(eval_type, GoPointType):
                     error = True
                     print("{} not pointer type".format(eval_type))
                     exit()
                 else:
                     tree.dtype = eval_type.dtype
 
-
-
     return ir_code
+
+
+# Used for numbering of nodes in the output ".dot" file
+node_count = 0
+
+
+def escape_string(string):
+    """Escape a string for output into ".dot" file."""
+    string = string.encode("unicode-escape").decode("utf8")
+    string = string.replace('"', '\\"')
+    return string
+
+
+def get_dot(obj):
+    """Get a list of node and edge declarations."""
+    global node_count
+    if type(obj) in [int, float, complex, bool]:
+        obj = str(obj)
+    if type(obj) is str:
+        output = [
+            'N_{} [label="'.format(node_count) + escape_string(obj) + '"]'
+        ]
+    elif type(obj) is list:
+        output = ['N_{} [label="list"]'.format(node_count)]
+    else:
+        output = [
+            'N_{} [label="{}"]'.format(node_count, obj.__class__.__name__)
+        ]
+    own_count = node_count
+    node_count += 1
+
+    if type(obj) is list:
+        for child in obj:
+            # Avoid None child node, empty strings, and empty lists
+            if (
+                child is None
+                or child == ""
+                or (type(child) is list and len(child) == 0)
+            ):
+                continue
+            output.append("N_{} -> N_{}".format(own_count, node_count))
+            output += get_dot(child)
+    elif type(obj) is not str and obj is not None:
+        if type(obj) is dict:
+            obj_dict = obj
+        else:
+            obj_dict = obj.__dict__
+        for attr in obj_dict:
+            if type(obj) is dict:
+                child = obj[attr]
+            else:
+                child = getattr(obj, attr)
+            # Avoid None child node, emtpy strings, empty lists, and "kind"
+            # attributes
+            if (
+                child is None
+                or child == ""
+                or (type(child) is list and len(child) == 0)
+                or attr == "kind"
+            ):
+                continue
+            output.append(
+                'N_{} -> N_{} [label="{}"]'.format(own_count, node_count, attr)
+            )
+            output += get_dot(child)
+
+    return output
 
 
 if __name__ == "__main__":
@@ -1349,3 +1433,6 @@ if __name__ == "__main__":
 
     table = SymbTable()
     print(symbol_table(tree, table))
+    with open("dot.dot", "w") as outf:
+        core_info = ";\n  ".join(get_dot(tree))
+        outf.write("digraph syntax_tree {\n  " + core_info + ";\n}")

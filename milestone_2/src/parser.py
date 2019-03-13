@@ -963,8 +963,10 @@ def p_Expression(p):
                     error = True
 
                 precedence = ["complex", "float", "int"]
-                if p[2] in [">","<","==","!=",">=","<="]:
-                    p[0].dtype = GoType("bool", p[1].dtype.basic_lit & p[3].dtype.basic_lit )
+                if p[2] in [">", "<", "==", "!=", ">=", "<="]:
+                    p[0].dtype = GoType(
+                        "bool", p[1].dtype.basic_lit & p[3].dtype.basic_lit
+                    )
                     print(p[0].dtype.name)
                 elif p[1].dtype == p[3].dtype or precedence.index(
                     p[1].dtype.name

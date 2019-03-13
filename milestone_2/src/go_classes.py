@@ -41,7 +41,13 @@ class GoFromModule:
     def __init__(self, parent, child):
         self.parent = parent
         self.child = child
-        self.name = parent + "." + child  # For storing name of this type
+        # For storing name of this type
+        if type(parent) is str:
+            self.name = parent + "." + child
+        elif hasattr(parent, "name"):
+            self.name = parent.name + "." + child
+        else:
+            self.name = str(parent) + "." + child
 
 
 class GoArray(GoBaseType):
@@ -122,8 +128,11 @@ class GoPointType(GoBaseType):
     def __init__(self, dtype):
         super().__init__("pointer")
         self.dtype = dtype
-        #self.name = "*" + dtype.name  # For storing name of this type
+        # self.name = "*" + dtype.name  # For storing name of this type
+
+
 # dtype can be of class GoPrimarayExpr, which has no name attribute
+
 
 class GoFuncType(GoBaseType):
     """For function types."""

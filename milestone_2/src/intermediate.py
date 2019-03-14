@@ -169,7 +169,7 @@ class SymbTable:
                 self.offset = dtype.offset
 
             elif isinstance(dtype,GoArray):
-                # print("ARRAY DTYPE {}".format(dtype.dtype))
+                print("ARRAY DTYPE {}".format(dtype.dtype))
                 assert isinstance(dtype.final_type,GoType)
                 dtype.size = dtype.size * self.get_size(dtype.final_type)
                 dtype.offset = self.offset + dtype.size
@@ -396,7 +396,7 @@ class SymbTable:
                 elif use == "array conflicts":
                     print(
                         "Error: Value of '{}' type given to array '{}' instead of '{}' type".format(
-                            dtype2, use_name, dtype1
+                            dtype2.name, use_name, dtype1.name
                         )
                     )
                 else:

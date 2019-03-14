@@ -29,7 +29,7 @@ class GoType(GoBaseType):
         into functions with the common type being specified only once.
     """
 
-    def __init__(self, name, basic_lit=False,value=None,size=0,offset=0):
+    def __init__(self, name, basic_lit=False, value=None, size=0, offset=0):
         super().__init__("inbuilt")
         self.name = name  # For storing name of this type
         self.basic_lit = basic_lit
@@ -56,7 +56,9 @@ class GoFromModule:
 class GoArray(GoBaseType):
     """For array types."""
 
-    def __init__(self, length, dtype, depth=1,size=0,offset=0,final_type=None):
+    def __init__(
+        self, length, dtype, depth=1, size=0, offset=0, final_type=None
+    ):
         super().__init__("array")
         self.length = length
         self.dtype = dtype
@@ -66,15 +68,16 @@ class GoArray(GoBaseType):
         self.offset = offset
         self.final_type = final_type
 
+
 class GoStruct(GoBaseType):
     """For struct types."""
 
     def __init__(self, fields):
         super().__init__("struct")
-        # vars and tags should be lists so as to enforce order on the inputs given to the struct 
+        # vars and tags should be lists so as to enforce order on the inputs given to the struct
         self.vars = []
         self.tags = []
-        #XXX don't know about this 
+        # XXX don't know about this
         self.embeds = {}
         self.size = 0
         self.offset = 0
@@ -99,7 +102,7 @@ class GoStruct(GoBaseType):
                 for var in field.vars:
                     if var not in used:
                         self.vars.append((var, GoVar(field.dtype)))
-                        self.tags.append((var,field.tag))
+                        self.tags.append((var, field.tag))
                         used.add(var)
                     else:
                         raise ValueError(
@@ -134,7 +137,7 @@ class GoVar:
 class GoPointType(GoBaseType):
     """For pointer types."""
 
-    def __init__(self, dtype,size=0,offset=0):
+    def __init__(self, dtype, size=0, offset=0):
         super().__init__("pointer")
         self.dtype = dtype
         self.size = size
@@ -299,18 +302,17 @@ class GoBasicLit(GoBaseLit):
 class GoCompositeLit(GoBaseLit):
     """For composite literals."""
 
-    def __init__(self, dtype, value,size=0):
+    def __init__(self, dtype, value, size=0):
         super().__init__("composite")
         self.dtype = dtype
         self.value = value
         self.size = size
 
 
-
 class GoKeyedElement:
     """For keyed elements in composite literals."""
 
-    def __init__(self, key, element, dtype=None, depth=1,use=None,size=0):
+    def __init__(self, key, element, dtype=None, depth=1, use=None, size=0):
         self.key = key
         self.element = element
         self.dtype = dtype

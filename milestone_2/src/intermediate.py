@@ -91,7 +91,7 @@ class SymbTable:
 
     #TODO Need to handle dynamic entities like linked lists, strings etc        
     def get_size(self,dtype):
-        assert isinstance(dtype,GoType)
+        assert isinstance(dtype,GoType) or isinstance(dtype,GoPointType)
         name = dtype.name
         print("SIZE: getting size of {}".format(name))
         value = dtype.value
@@ -110,7 +110,12 @@ class SymbTable:
             # print("Warning: size of string is not defined")
         else:
             actual_type = self.get_actual(name)
-            assert isinstance(actual_type,GoType)
+            # print("ACTUAL TYPE {}".format(actual_type))
+            # assert isinstance(actual_type,GoType)
+            if actual_type is None:
+                print("Error:'{}' is unregistered dtype".format(name))
+                exit()
+
             actual_type.value = value
             size = self.get_size(actual_type)  
         return size            
@@ -167,6 +172,12 @@ class SymbTable:
                 dtype.offset = self.offset + dtype.size
                 self.offset =dtype.offset  
                 print("ARRAY SIZE: {}".format(dtype.size))  
+            elif isinstance(dtype,GoStruct):
+                pass
+            elif isinstance(dtype,GoPointType):
+                dtype.size = 4
+                dtype.offset = self.offset + 4
+                self.offset = dtype.offset        
 
             self.variables[name] = dtype
             self.used.add(name)

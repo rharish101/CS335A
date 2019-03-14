@@ -89,9 +89,12 @@ class SymbTable:
         else:
             return None        
 
-    def get_size(self,name):
+    #TODO Need to handle dynamic entities like linked lists, strings etc        
+    def get_size(self,dtype):
+        assert isinstance(dtype,GoType)
+        name = dtype.name
         print("SIZE: getting size of {}".format(name))
-
+        string = dtype.string
         if name in ["uint8","int8","byte"]:
             size = 1
         elif name in ["uint16","int16"]:
@@ -103,14 +106,13 @@ class SymbTable:
         elif name == "complex128":
             size = 16
         elif name  == "string":
-            size =0
-            print("Warning: size of string is not defined")
+            size =  len(string)
+            # print("Warning: size of string is not defined")
         else:
-            actual_name = self.get_actual(name)
-            # print("actual_name {}".format(actual_name))
-            # exit()
-            assert isinstance(actual_name,GoType)
-            size = self.get_size(actual_name.name)  
+            actual_type = self.get_actual(name)
+            assert isinstance(actual_type,GoType)
+            actual_type.string = string
+            size = self.get_size(actual_type)  
         return size            
 
     def get_type(self, name, use="variable/array/struct"):
@@ -152,8 +154,8 @@ class SymbTable:
     def insert_var(self, name, dtype, use="variable"):
         if name not in self.used:
             if isinstance(dtype,GoType):
-                type_name = dtype.name
-                dtype.size = self.get_size(type_name)
+                # type_name = dtype.name
+                dtype.size = self.get_size(dtype)
                 print("previous offset {}, size {}".format(self.offset,dtype.size))
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
@@ -555,6 +557,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                                 dtype, eval_type, "variable declaration"
                             )
                             print('var "{}":"{}"'.format(var, dtype))
+                            if isinstance(eval_type,GoType) and eval_type.name == "string":
+                                dtype.string = eval_type.string 
                             table.insert_var(var, dtype)
                         else:
                             table.insert_var(var, eval_type)
@@ -623,6 +627,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                         ir_code += "{} = __const{}_{}".format(
                             const, i, depth_num
                         )
+                        if isinstance(eval_type,GoType) and eval_type.name == "string":
+                            dtype.string = eval_type.string 
                         print('const "{}":"{}"'.format(const, dtype))
                         table.insert_const(const, dtype)
         DTYPE = None

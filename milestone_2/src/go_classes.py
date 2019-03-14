@@ -29,12 +29,13 @@ class GoType(GoBaseType):
         into functions with the common type being specified only once.
     """
 
-    def __init__(self, name, basic_lit=False,size=0,offset=0):
+    def __init__(self, name, basic_lit=False,string=None,size=0,offset=0):
         super().__init__("inbuilt")
         self.name = name  # For storing name of this type
         self.basic_lit = basic_lit
         self.size = size
         self.offset = offset
+        self.string = string
 
 
 class GoFromModule:

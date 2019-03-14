@@ -1065,7 +1065,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
     # DTYPE needs to be verified
     # ==========================================================================
     elif isinstance(tree, GoArray):
-        symbol_table(tree.length, table)
+        if tree.length != "variable":
+            symbol_table(tree.length, table)
         symbol_table(tree.dtype, table)
         if isinstance(tree.dtype, GoArray):
             tree.depth = tree.dtype.depth + 1
@@ -1240,7 +1241,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
     # specified
 
     elif isinstance(tree, GoKeyedElement):
-        print("Entered GoKeyedElement")
         # symbol_table(tree.element, table)
         if tree.use == "array":
             if isinstance(tree.element, GoBasicLit) or isinstance(
@@ -1264,6 +1264,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
 
                 depth = 0
                 child_count = 0
+                cur_size = 0
                 for child in tree.element:
                     if isinstance(child, GoKeyedElement):
                         child.use = "array"
@@ -1283,6 +1284,13 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                         print("child dtype {}".format(child.dtype))
                         element_type = child.dtype
                         tree.size += child.size
+                        
+                        if cur_size == 0:
+                            cur_size = child.size
+                        elif cur_size != child.size:
+                            print("Error: Incorrect number of elements in array")
+                            exit()
+
                     if tree.dtype is None:
                         tree.dtype = element_type
                     else:
@@ -1331,7 +1339,6 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
 
     # XXX UN-IMPLEMENTED
     elif isinstance(tree, GoCompositeLit):
-        print("Entered GoCompositeLit")
         print(
             "tree.dtype {}, tree.value {}".format(tree.dtype.name, tree.value)
         )
@@ -1349,6 +1356,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
             # symbol_table(tree.value, table)
             dtype = tree.dtype.final_type
             depth = 0
+            cur_size = 0
 
             # print("array_dtype = '{}'".format(dtype.name))
             for child in tree.value:
@@ -1371,6 +1379,12 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                     tree.dtype.size += child.size
                     print("final array type {}".format(element_type))
 
+                    if cur_size == 0:
+                        cur_size = child.size
+                    elif cur_size != child.size:
+                        print("Error : Incorrect number of elements in array")
+                        exit()
+
 
                 table.type_check(element_type, dtype, "array initialization")
             # XXX
@@ -1378,6 +1392,21 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
             if depth != tree.dtype.depth:
                 print("Error: Wrong array declaration")
                 exit()
+
+            tree_value = tree.value
+            tree_type = tree.dtype
+            print("START")
+            while isinstance(tree_type, GoArray):
+                #print("type = {}, value = {}".format(tree_type.length.item,len(tree_value)))
+                if tree_type.length != "variable" and tree_type.length.item != len(tree_value):
+                    print("Error : Array declaration of incorrect size")
+                    exit()
+                tree_type = tree_type.dtype
+                tree_value = tree_value[0].element
+
+
+
+
 
         elif isinstance(tree.dtype, GoType):  # handles structs
             struct_name = tree.dtype.name

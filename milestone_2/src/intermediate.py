@@ -5,6 +5,10 @@ from parser import parser
 from go_classes import *
 from argparse import ArgumentParser
 from copy import deepcopy
+import csv
+import subprocess
+import os
+
 
 INT_TYPES = [
     "int",
@@ -1491,7 +1495,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
 
             elif isinstance(tree.expr, GoUnaryExpr):
                 # print("XXX3")
-                eval_type, _ = symbol_table(tree.expr)
+                eval_type, _ = symbol_table(tree.expr,table)
 
                 if tree.op == "&":
                     if tree.expr.op == "&":
@@ -1590,6 +1594,100 @@ def get_dot(obj):
     return output
 
 
+def csv_writer(table,name):
+    # with open(name+'.txt') as file:
+        # reader = csv.reader(file,delimiter = " ")
+    file = open('{}.csv'.format(name),'w')    
+    writer = csv.writer(file,delimiter= " ",quoting=csv.QUOTE_NONE, quotechar='', escapechar='"')
+
+    writer.writerow(["VARIABLES","=============================================="])
+    writer.writerow(["name","type","size","offset"])
+    writer.writerow([])
+    var_rows = []
+    for var in table.variables:
+        dtype = table.variables[var]
+        if isinstance(dtype,GoType):
+            row = [var,dtype.name,dtype.size,dtype.offset]
+        elif isinstance(dtype,GoStruct):
+            row = [var,"struct {}".format(dtype.name),dtype.size,dtype.offset]
+        elif isinstance(dtype,GoArray):
+            row = [var,"array {}".format(dtype.dtype.name),dtype.size,dtype.offset]
+        elif isinstance(dtype, GoPointType):
+            row = [var,"pointer to {}".format(dtype.dtype),dtype.size,dtype.offset]
+        # writer.writerow(row)  
+        var_rows.append(row)
+    # sorted([('abc', 121),('abc', 231),('abc', 148), ('abc',221)], key=lambda x: x[1])
+    var_rows = sorted(var_rows, key = lambda x: x[3])
+    for row in var_rows:
+        writer.writerow(row)
+    
+
+    if name == "global":    
+        writer.writerow([])    
+        writer.writerow(["ALIASES","=============================================="])
+        writer.writerow(["alias","actual"])  
+        writer.writerow([])
+
+        for alias in table.types:
+            row = [alias,table.types[alias].name]
+            writer.writerow(row)     
+
+        writer.writerow([])    
+        writer.writerow(["FUNCTIONS","=============================================="])
+        writer.writerow(["func_name","symbol_table"])
+        writer.writerow([])
+
+        for func in table.functions:
+            row = [func,"{}.csv".format(func)] 
+            csv_writer(table.functions[func]['body'],func)          
+            writer.writerow(row)   
+
+        writer.writerow([])    
+        writer.writerow(["SCOPES","=============================================="])
+        writer.writerow(["scope no.","symbol_table"])
+        writer.writerow([])       
+        count = 0     
+        writer.writerow([])
+        for scope in table.scopes:
+            row = ["scope_{}".format(count),"scope_{}".format(count).csv]
+            csv_writer(scope,"scope_{}".format(count))
+            writer.writerow(row)
+            count += 1     
+
+
+        writer.writerow([])    
+        writer.writerow(["METHODS","=============================================="])
+        writer.writerow(["method_name","symbol_table"])
+        writer.writerow([])     
+        for method in table.methods:
+            row = [method,"{}.csv".format(method)] 
+            csv_writer(table.methods[method]['body'],method)          
+            writer.writerow(row)   
+
+        writer.writerow([])
+        writer.writerow(["STRUCTURES","=============================================="])
+        writer.writerow(["struct name"]) 
+
+        for name in table.structures:
+            writer.writerow([])
+            struct = table.structures[name]
+            writer.writerow([name,'{'])
+            # writer.writerow([])
+            vars = struct.vars
+            tags = struct.tags
+            for item1,item2 in zip(vars,tags):
+                assert item1[0] == item2[0]
+                row = ["  ",item1[0],item1[1].dtype.name,item2[1]]
+                writer.writerow(row)
+            # writer.writerow([])
+            writer.writerow(["}"])
+
+
+    file.close()        
+
+
+
+
 if __name__ == "__main__":
     argparser = ArgumentParser(description="IR generator for Go")
     argparser.add_argument("input", type=str, help="input file")
@@ -1631,6 +1729,16 @@ if __name__ == "__main__":
 
     table = SymbTable()
     ir_code = symbol_table(tree, table)[1]
+    csv_writer(table,"global")
+    for file in os.listdir('.'):
+        if len(file.split('.')) == 2 and file.split('.')[1] == "csv":
+            # print(file)
+            pass
+            # fd = open(file.split('.')[0]+"_out.csv","w+")
+            # subprocess.run(["awk" ,'{gsub(/\"/,"")};1', file,">",file.split('.')[0]+"_out.csv"])
+            
+
+
     print("=" * 50)
     print(ir_code)
     print("=" * 50)

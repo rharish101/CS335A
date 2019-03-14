@@ -4,6 +4,7 @@ from lexer import lexer
 from parser import parser
 from go_classes import *
 from argparse import ArgumentParser
+from copy import deepcopy
 
 INT_TYPES = [
     "int",
@@ -145,7 +146,7 @@ class SymbTable:
             # if field is not None and field in self.structures[struct_name].vars:
             #     return self.structures[struct_name].vars[field]
             # elif field is None:
-            #     return self.structures[struct_name].vars    
+            #     return self.structures[struct_name].vars
             else:
                 print(
                     "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
@@ -163,7 +164,7 @@ class SymbTable:
             )
             exit()
 
-    def get_struct(self, struct_name, field = None):
+    def get_struct(self, struct_name, field=None):
         actual_name = self.get_actual(struct_name)
         if actual_name is not None:
             if isinstance(actual_name, GoType):
@@ -315,38 +316,44 @@ class SymbTable:
         if isinstance(dtype1, GoPointType) and isinstance(dtype2, GoPointType):
             self.type_check(dtype1.dtype, dtype2.dtype)
 
-    def check_struct(self,struct_name,type_list):
+    def check_struct(self, struct_name, type_list):
         actual_types = self.get_struct(struct_name)
 
         if len(actual_types) is not len(type_list):
-            print("Error: Invalid number of values given for structure initialization")
+            print(
+                "Error: Invalid number of values given for structure initialization"
+            )
             exit()
-        for actual,given in zip(actual_types,type_list):
-            print("actual type'{}', give types '{}'".format(actual.dtype.name,given))
+        for actual, given in zip(actual_types, type_list):
+            print(
+                "actual type'{}', give types '{}'".format(
+                    actual.dtype.name, given
+                )
+            )
 
             # if type(actual) is list and type(given) is not list or (
-            #     type(actual) is not list and type(given) is list 
+            #     type(actual) is not list and type(given) is list
             # ):
             #     print("Error: Invalid structure initialization")
             #     exit()
             # elif type(actual) is list:
             #     pass
             if type(given) is list:
-                self.check_struct(actual.dtype.name,given)
-                
+                self.check_struct(actual.dtype.name, given)
+
             else:
-                assert isinstance(actual,GoVar)
-                assert isinstance(given,GoType)  
-                self.type_check(actual.dtype,given,"structure initialization")   
-                
-                
+                assert isinstance(actual, GoVar)
+                assert isinstance(given, GoType)
+                self.type_check(
+                    actual.dtype, given, "structure initialization"
+                )
 
 
 # Global variable for labelling statements, ensuring unique variables, etc.
 global_count = 0
 
 
-def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
+def symbol_table(tree, table, name=None, block_type=None, store_var=""):
     """Do DFS to traverse the parse tree, construct symbol tables, 3AC.
 
     Args:
@@ -366,13 +373,22 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
     print(tree)
 
     # XXX If code enters here then it looks only for variables, hence
-    # we need to make sure that sybmol table is not called uneccessary strings otherwise code will fail
+    # we need to make sure that sybmol table is not called uneccessary strings
+    # otherwise code will fail
     if type(tree) is str:  # variable
         print("STR: '{}'".format(tree))
         DTYPE = table.get_type(tree)
+        if store_var == "":
+            ir_code = tree
+        else:
+            ir_code = "{} = {}\n".format(store_var, tree)
 
     elif isinstance(tree, GoBasicLit):
         DTYPE = tree.dtype
+        if store_var == "":
+            ir_code = str(tree.item)
+        else:
+            ir_code = "{} = {}\n".format(store_var, tree.item)
         assert isinstance(DTYPE, GoType)
 
     elif isinstance(tree, GoFromModule):
@@ -391,6 +407,11 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             struct_name = (table.nested_module(parent)).dtype.name
             print("struct name '{}'".format(struct_name))
             DTYPE = table.get_struct(struct_name, child).dtype
+
+        if store_var == "":
+            ir_code = str(tree.name)
+        else:
+            ir_code = "{} = {}\n".format(store_var, tree.name)
 
     # TODO: Store modules
     elif isinstance(tree, GoSourceFile):
@@ -726,6 +747,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
             DTYPE = None
 
+        print(ir_code)
+
     elif isinstance(tree, GoShortDecl):
         id_list = tree.id_list
         expr_list = tree.expr_list
@@ -882,10 +905,11 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
     # XXX: Range UN-IMPLEMENTED
     elif isinstance(tree, GoFor):
         print("Entered GoFor")
-        cond_label = "For{}".format(global_count)
+        cond_label = "ForCond{}".format(global_count)
         for_label = "For{}".format(global_count + 1)
         endfor_label = "EndFor{}".format(global_count + 2)
-        global_count += 3
+        depth_num = global_count + 3
+        global_count += 4
 
         DTYPE = None
 
@@ -913,9 +937,11 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
             ir_code += symbol_table(tree.init, table)[1]
             ir_code += "{}: ".format(cond_label)
-            ir_code += symbol_table(tree.expr, table, store_var="__fcond")[1]
-            ir_code += "if __fcond goto {}\ngoto {}\n{}: ".format(
-                for_label, endfor_label, for_label
+            ir_code += symbol_table(
+                tree.expr, table, store_var="__fcond_{}".format(depth_num)
+            )[1]
+            ir_code += "if __fcond_{} goto {}\ngoto {}\n{}: ".format(
+                depth_num, for_label, endfor_label, for_label
             )
             post_code = symbol_table(tree.post, table)[1]
 
@@ -932,22 +958,39 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
     elif isinstance(tree, GoSwitch):
         newtable = SymbTable(table)
-        symbol_table(tree.stmt, newtable)
-        symbol_table(tree.cond, newtable)
-        for child in tree.case_list:
-            symbol_table(child, newtable)
+        for case_stmt in tree.case_list:
+            for child in case_stmt.expr_list:
+                symbol_table(child, newtable)
+            newnewtable = SymbTable(newtable)
+            for child in case_stmt.stmt_list:
+                symbol_table(child, newnewtable)
+            newtable.scopes.append(newnewtable)
         table.scopes.append(newtable)
 
-    # TODO: 3AC
-    # XXX Issue with grammar when simple statement in switch case, incorrect
-    # parse tree bein generated
-    elif isinstance(tree, GoCaseClause):
-        for child in tree.expr_list:
-            symbol_table(child, table)
-        newtable = SymbTable(table)
-        for child in tree.stmt_list:
-            symbol_table(child, newtable)
-        table.scopes.append(newtable)
+        # Converting Switch to If-Else for 3AC
+        prev_stmts = []
+        for case_stmt in tree.case_list:
+            if case_stmt.kind == "default":
+                prev_stmts = case_stmt.stmt_list
+                break
+
+        for case_stmt in tree.case_list[::-1]:
+            if case_stmt.kind == "default":
+                continue
+            for expr in case_stmt.expr_list:
+                prev_stmts = [
+                    GoIf(
+                        None,
+                        GoExpression(tree.cond, expr, "=="),
+                        GoBlock(case_stmt.stmt_list),
+                        GoBlock(prev_stmts),
+                    )
+                ]
+
+        if_conv = prev_stmts[0]
+        if_conv.stmt = tree.stmt
+        copy_table = deepcopy(table)
+        return symbol_table(if_conv, copy_table)
 
     # TODO: 3AC
     # DTYPE needs to be verified
@@ -1185,31 +1228,30 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             tree.dtype = element_type
             print("tree.dtype '{}'".format(tree.dtype))
 
-       #TODO 3AC      
+        # TODO 3AC
         elif tree.use == "struct":
             element = tree.element
             print("struct element '{}'".format(element))
-            if isinstance(element,GoBasicLit) :
+            if isinstance(element, GoBasicLit):
                 element_type = element.dtype
-            elif isinstance(element,GoExpression):    
-                element_type,_ = symbol_table(element,table)
+            elif isinstance(element, GoExpression):
+                element_type, _ = symbol_table(element, table)
                 element_type = element_type
             elif type(element) is str:
                 element_type = table.get_type(element)
-  
+
             elif type(element) is list:
-                element_type = []  
+                element_type = []
                 for item in element:
                     item.use = "struct"
-                    item_type,_ = symbol_table(item,table)
+                    item_type, _ = symbol_table(item, table)
                     element_type.append(item_type)
-                print("LIST {}".format(list(element_type)))   
-            tree.dtype = element_type        
+                print("LIST {}".format(list(element_type)))
+            tree.dtype = element_type
 
         # XXX
         DTYPE = tree.dtype
 
-    # TODO: 3AC for structs
     # XXX UN-IMPLEMENTED
     elif isinstance(tree, GoCompositeLit):
         print("Entered GoCompositeLit")
@@ -1224,7 +1266,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
 
         keys = []
         elem_num = 0
-        #XXX How does this handle array of structs
+        # XXX How does this handle array of structs
         if isinstance(tree.dtype, GoArray):
             symbol_table(tree.dtype, table)
             # symbol_table(tree.value, table)
@@ -1262,16 +1304,18 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="temp"):
             print("Struct name {}".format(struct_name))
             field_list = tree.value
             type_list = []
-            for field in field_list:
+            for i, field in enumerate(field_list):
                 field.use = "struct"
                 # field.name = struct_name
                 assert isinstance(field, GoKeyedElement)
-                field_type,_ = symbol_table(field,table)
+                field_type, elem_code = symbol_table(
+                    field, table, store_var="__elem{}_{}".format(i, depth_num)
+                )
+                keys.append(field.key)
+                ir_code += elem_code
                 type_list.append(field_type)
-                # Need to do type checking in structs declaration
-                # Then add them to elements 
-            print("FINAL LIST '{}'".format(type_list))    
-            table.check_struct(struct_name,type_list)       
+            print("FINAL LIST '{}'".format(type_list))
+            table.check_struct(struct_name, type_list)
             struct_obj = GoStruct([])
             struct_obj.name = struct_name
             # table.variables(insert_var(struct_name, struct_obj, "struct"))

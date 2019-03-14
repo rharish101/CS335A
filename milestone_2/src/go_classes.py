@@ -29,10 +29,12 @@ class GoType(GoBaseType):
         into functions with the common type being specified only once.
     """
 
-    def __init__(self, name, basic_lit=False):
+    def __init__(self, name, basic_lit=False,size=0,offset=0):
         super().__init__("inbuilt")
         self.name = name  # For storing name of this type
         self.basic_lit = basic_lit
+        self.size = size
+        self.offset = offset
 
 
 class GoFromModule:
@@ -53,13 +55,14 @@ class GoFromModule:
 class GoArray(GoBaseType):
     """For array types."""
 
-    def __init__(self, length, dtype, depth=1):
+    def __init__(self, length, dtype, depth=1,size=0,offset=0):
         super().__init__("array")
         self.length = length
         self.dtype = dtype
         self.depth = depth
         self.name = "*" + dtype.name  # For storing name of this type
-
+        self.size = size
+        self.offset = offset
 
 class GoStruct(GoBaseType):
     """For struct types."""
@@ -127,9 +130,11 @@ class GoVar:
 class GoPointType(GoBaseType):
     """For pointer types."""
 
-    def __init__(self, dtype):
+    def __init__(self, dtype,size=0,offset=0):
         super().__init__("pointer")
         self.dtype = dtype
+        self.size = size
+        self.offset = offset
         # self.name = "*" + dtype.name  # For storing name of this type
 
 

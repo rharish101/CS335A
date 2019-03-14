@@ -25,7 +25,7 @@ INT_TYPES = [
 class SymbTable:
     """The class for all symbol tables."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None,use=None):
         """Initialize data dictionaries containing information.
 
         The kinds of information stored are:
@@ -61,6 +61,17 @@ class SymbTable:
         self.constants = {}
         self.imports = {}
         self.parent = parent
+        
+        if use is None:
+            if self.parent :
+                self.offset = self.parent.offset
+            else:
+                self.offset = 0    
+        elif use == "function" or use == "method":
+            self.offset = 0
+
+        print("offset assigned: {}".format(self.offset))    
+   
 
     def lookup(self, name):
         if name in self.variables:
@@ -69,6 +80,38 @@ class SymbTable:
             return self.parent.lookup(name)
         else:
             return False
+
+    def get_actual(self, alias):
+        if alias in self.types:
+            return self.types[alias]
+        elif self.parent:
+            return self.parent.get_actual(alias)
+        else:
+            return None        
+
+    def get_size(self,name):
+        print("SIZE: getting size of {}".format(name))
+
+        if name in ["uint8","int8","byte"]:
+            size = 1
+        elif name in ["uint16","int16"]:
+            size = 2
+        elif name in ["uint32","int32","float32","rune","int","uint","uintptr"]:
+            size = 4
+        elif name in ["unint64","int64","complex64"]:
+            size = 8
+        elif name == "complex128":
+            size = 16
+        elif name  == "string":
+            size =0
+            print("Warning: size of string is not defined")
+        else:
+            actual_name = self.get_actual(name)
+            # print("actual_name {}".format(actual_name))
+            # exit()
+            assert isinstance(actual_name,GoType)
+            size = self.get_size(actual_name.name)  
+        return size            
 
     def get_type(self, name, use="variable/array/struct"):
         if name in self.variables:
@@ -108,6 +151,19 @@ class SymbTable:
 
     def insert_var(self, name, dtype, use="variable"):
         if name not in self.used:
+            if isinstance(dtype,GoType):
+                type_name = dtype.name
+                dtype.size = self.get_size(type_name)
+                print("previous offset {}, size {}".format(self.offset,dtype.size))
+                dtype.offset = self.offset + dtype.size
+                self.offset = dtype.offset
+
+            elif isinstance(dtype,GoArray):
+                pass
+                
+
+
+            print("herere")
             self.variables[name] = dtype
             self.used.add(name)
         else:
@@ -122,13 +178,6 @@ class SymbTable:
             print("Error: Already used alias/typedef name '{}'".format(name))
             exit()
 
-    def get_actual(self, alias):
-        if alias in self.types:
-            return self.types[alias]
-        elif self.parent:
-            return self.parent.get_actual(alias)
-        else:
-            return None
 
     def helper_get_struct(self, struct_name, field):
         if struct_name in self.structures:
@@ -580,12 +629,14 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
 
     elif isinstance(tree, GoBlock):
         statement_list = tree.statements
-        child_table = SymbTable(table)
         if not name:
+            child_table = SymbTable(table)
             table.scopes.append(child_table)
         elif block_type == "function":
+            child_table = SymbTable(table,"function")
             table.functions[name]["body"] = child_table
         elif block_type == "method":
+            child_table = SymbTable(table,"method")
             table.methods[name]["body"] = child_table
         for statement in statement_list:
             if (

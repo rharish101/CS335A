@@ -66,7 +66,7 @@ class GoArray(GoBaseType):
         self.name = "*" + dtype.name  # For storing name of this type
         self.size = size
         self.offset = offset
-        self.final_type = final_type
+        self.final_type = dtype
 
 
 class GoStruct(GoBaseType):

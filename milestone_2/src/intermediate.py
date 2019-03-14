@@ -112,7 +112,7 @@ class SymbTable:
             "uintptr",
         ]:
             size = 4
-        elif name in ["unint64", "int64", "complex64", "float64"]:
+        elif name in ["unint64", "int64", "complex64", "float64","float"]:
             size = 8
         elif name == "complex128":
             size = 16
@@ -171,6 +171,7 @@ class SymbTable:
             exit()
 
     def insert_var(self, name, dtype, use="variable"):
+        dtype =deepcopy(dtype)
         if name not in self.used:
             if isinstance(dtype, GoType):
                 # type_name = dtype.name
@@ -426,7 +427,7 @@ class SymbTable:
 # Global variable for labelling statements, ensuring unique variables, etc.
 global_count = 0
 
-
+#TODO need to insert (label,SymbTable) in the table.scopes
 def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_type=""):
     """Do DFS to traverse the parse tree, construct symbol tables, 3AC.
 
@@ -1496,7 +1497,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_typ
 
             elif isinstance(tree.expr, GoUnaryExpr):
                 # print("XXX3")
-                eval_type, _ = symbol_table(tree.expr, scope_type = scope_type)
+                eval_type, _ = symbol_table(tree.expr, table,scope_type = scope_type)
 
                 if tree.op == "&":
                     if tree.expr.op == "&":
@@ -1604,6 +1605,16 @@ def get_dot(obj):
     return output
 
 
+def resovle_pointer(dtype):
+    s = ""
+    while isinstance(dtype,GoPointType):
+        dtype = dtype.dtype
+        s = s+"*"
+    if isinstance(dtype,GoType):
+        s = s+dtype.name
+    return s
+        
+#TODO Interfaces and return and parameter types for functions/methods        
 def csv_writer(table,name):
     # with open(name+'.txt') as file:
         # reader = csv.reader(file,delimiter = " ")
@@ -1623,14 +1634,34 @@ def csv_writer(table,name):
         elif isinstance(dtype,GoArray):
             row = [var,"array {}".format(dtype.dtype.name),dtype.size,dtype.offset]
         elif isinstance(dtype, GoPointType):
-            row = [var,"pointer to {}".format(dtype.dtype),dtype.size,dtype.offset]
-        # writer.writerow(row)  
+            row = [var,"{}".format(resovle_pointer(dtype)),dtype.size,dtype.offset]  
         var_rows.append(row)
-    # sorted([('abc', 121),('abc', 231),('abc', 148), ('abc',221)], key=lambda x: x[1])
+    
     var_rows = sorted(var_rows, key = lambda x: x[3])
     for row in var_rows:
         writer.writerow(row)
-    
+
+    writer.writerow([])    
+    writer.writerow(["CONSTANTS","=============================================="])
+    writer.writerow(["name","type","size","offset"])
+    writer.writerow([])
+    var_rows = []
+    for var in table.constants:
+        dtype = table.constants[var]
+        if isinstance(dtype,GoType):
+            row = [var,dtype.name,dtype.size,dtype.offset]
+        elif isinstance(dtype,GoStruct):
+            row = [var,"struct {}".format(dtype.name),dtype.size,dtype.offset]
+        elif isinstance(dtype,GoArray):
+            row = [var,"array {}".format(dtype.dtype.name),dtype.size,dtype.offset]
+        elif isinstance(dtype, GoPointType):
+            row = [var,"{}".format(resovle_pointer(dtype)),dtype.size,dtype.offset]
+        # writer.writerow(row)  
+        var_rows.append(row)
+
+    var_rows = sorted(var_rows, key = lambda x: x[3])
+    for row in var_rows:
+        writer.writerow(row)    
 
     if name == "global":    
         writer.writerow([])    
@@ -1667,16 +1698,16 @@ def csv_writer(table,name):
 
         writer.writerow([])    
         writer.writerow(["METHODS","=============================================="])
-        writer.writerow(["method_name","symbol_table"])
+        writer.writerow(["method_name","reciever","symbol_table"])
         writer.writerow([])     
         for method in table.methods:
-            row = [method,"{}.csv".format(method)] 
-            csv_writer(table.methods[method]['body'],method)          
+            name,rec = method
+            row = [name,rec,"{}.csv".format(name+"_"+rec)] 
+            csv_writer(table.methods[method]['body'],name+"_"+rec)          
             writer.writerow(row)   
 
         writer.writerow([])
         writer.writerow(["STRUCTURES","=============================================="])
-        writer.writerow(["struct name"]) 
 
         for name in table.structures:
             writer.writerow([])
@@ -1691,9 +1722,25 @@ def csv_writer(table,name):
                 writer.writerow(row)
             # writer.writerow([])
             writer.writerow(["}"])
+    
 
 
     file.close()        
+
+
+
+def get_csv(table):
+    csv_writer(table,"global")
+    subprocess.run(["rm","-rf","symbol_table"])  
+    os.mkdir('symbol_table')
+
+    for file in os.listdir('.'):
+        if len(file.split('.')) == 2 and file.split('.')[1] == "csv":
+            with  open('./symbol_table/'+file,"w+") as outfile:
+                subprocess.call(["awk" ,'{gsub(/\"/,"")};1', file],stdout = outfile)
+    for file in os.listdir('.'):
+        if len(file.split('.')) == 2 and file.split('.')[1] == "csv":
+            subprocess.run(["rm",file])
 
 
 
@@ -1739,15 +1786,7 @@ if __name__ == "__main__":
 
     table = SymbTable()
     ir_code = symbol_table(tree, table)[1]
-    csv_writer(table,"global")
-    for file in os.listdir('.'):
-        if len(file.split('.')) == 2 and file.split('.')[1] == "csv":
-            # print(file)
-            pass
-            # fd = open(file.split('.')[0]+"_out.csv","w+")
-            # subprocess.run(["awk" ,'{gsub(/\"/,"")};1', file,">",file.split('.')[0]+"_out.csv"])
-            
-
+    get_csv(table)
 
     print("=" * 50)
     print(ir_code)

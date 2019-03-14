@@ -423,7 +423,7 @@ class SymbTable:
 global_count = 0
 
 
-def symbol_table(tree, table, name=None, block_type=None, store_var=""):
+def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_type=""):
     """Do DFS to traverse the parse tree, construct symbol tables, 3AC.
 
     Args:
@@ -490,7 +490,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
             table.imports[item.import_as] = item
         # iteraing over TopLevelDeclList
         for item in tree.declarations:
-            ir_code += symbol_table(item, table)[1]
+            ir_code += symbol_table(item, table, scope_type = scope_type)[1]
         DTYPE = None
 
     # method declarations
@@ -504,12 +504,12 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         for rec in receiver:
             class_name = rec.dtype.name
             # print("XXX '{}' '{}'".format(rec.name,rec.dtype.name))
-            symbol_table(body, table, (name, class_name), "method")
+            symbol_table(body, table, (name, class_name), "method", scope_type = scope_type)
 
         for rec in receiver:
             ir_code = "func begin {}_{}\n".format(name, rec.name)
             ir_code += symbol_table(
-                body, table, (name, rec.dtype.name), "method"
+                body, table, (name, rec.dtype.name), "method", scope_type = scope_type
             )[1]
             ir_code += "func end\n"
         DTYPE = None
@@ -522,7 +522,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         body = tree.body  # instance of GoBlock
         table.insert_func(name, params, result)
         ir_code = "func begin {}\n".format(name)
-        ir_code += symbol_table(body, table, name, "function")[1]
+        ir_code += symbol_table(body, table, name, "function", scope_type = scope_type)[1]
         if result is None:
             ir_code += "return\n"
         ir_code += "func end\n"
@@ -558,7 +558,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                     expr_dtype, expr_code = symbol_table(
                         expr,
                         table,
-                        store_var="__decl{}_{}".format(i, depth_num),
+                        store_var="__decl{}_{}".format(i, depth_num), scope_type = scope_type
                     )
                     ir_code += expr_code
                     evaluated_types.append(expr_dtype)
@@ -630,7 +630,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                     expr_dtype, expr_code = symbol_table(
                         expr,
                         table,
-                        store_var="__const{}_{}".format(i, depth_num),
+                        store_var="__const{}_{}".format(i, depth_num), scope_type = scope_type
                     )
                     ir_code += expr_code
                     evaluated_types.append(expr_dtype)
@@ -670,7 +670,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 or (type(statement) is list and len(statement) == 0)
             ):
                 continue
-            ir_code += symbol_table(statement, child_table)[1]
+            ir_code += symbol_table(statement, child_table, scope_type = scope_type)[1]
         DTYPE = None
 
     elif isinstance(tree, GoAssign):
@@ -704,7 +704,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                             table,
                             store_var="__index{}_{}".format(
                                 ind_cnt, depth_num
-                            ),
+                            ), scope_type = scope_type
                         )
                         table.type_check(dtype, GoType("int", True))
                         ir_code += index_code
@@ -777,7 +777,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 dtype1 = table.get_type(var)
 
             elif isinstance(var, GoUnaryExpr) and var.op == "*":
-                symbol_table(var.expr, table)
+                symbol_table(var.expr, table, scope_type = scope_type)
                 if type(var.expr) is str:
                     if not isinstance(table.get_type(var.expr), GoPointType):
                         error = True
@@ -816,7 +816,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 exit()
             # NEW END
 
-            dtype2, rhs_code = symbol_table(expr, table, store_var=lhs_3ac[i])
+            dtype2, rhs_code = symbol_table(expr, table, store_var=lhs_3ac[i], scope_type = scope_type)
             ir_code += rhs_code
 
             table.type_check(dtype1, dtype2, "assignment")
@@ -850,7 +850,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
             #     if expr.op == "&":
             #         table.insert_var(var,expr.dtype)
             #         print("type = '{}' , {}'".format(var, expr.dtype))
-            dtype, rhs_code = symbol_table(expr, table, store_var=var)
+            dtype, rhs_code = symbol_table(expr, table, store_var=var, scope_type = scope_type)
             ir_code += rhs_code
             table.insert_var(var, dtype)
 
@@ -869,10 +869,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         # interfaces, function, pointer
 
         dtype1, lhs_code = symbol_table(
-            lhs, table, store_var="__lhs_{}".format(depth_num)
+            lhs, table, store_var="__lhs_{}".format(depth_num), scope_type = scope_type
         )
         dtype2, rhs_code = symbol_table(
-            rhs, table, store_var="__rhs_{}".format(depth_num)
+            rhs, table, store_var="__rhs_{}".format(depth_num), scope_type = scope_type
         )
         ir_code += lhs_code + rhs_code
         ir_code += "{} = __lhs_{} {} __rhs_{}\n".format(
@@ -949,8 +949,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
     elif isinstance(tree, GoIf):
         # New symbol table needed as stmt is in the scope of both if and else
         newtable = SymbTable(table)
-        ir_code += symbol_table(tree.stmt, newtable)[1]
-        ir_code += symbol_table(tree.cond, newtable, store_var="__cond")[1]
+        ir_code += symbol_table(tree.stmt, newtable, scope_type = scope_type)[1]
+        ir_code += symbol_table(tree.cond, newtable, store_var="__cond", scope_type = scope_type)[1]
 
         # Choosing the labels
         if_label = "If{}".format(global_count)
@@ -969,14 +969,13 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
             error = True
             print("Error: If condition is not evaluating to bool")
             exit()
-        ir_code += symbol_table(tree.inelse, newtable)[1]
+        ir_code += symbol_table(tree.inelse, newtable, scope_type = scope_type)[1]
         ir_code += "goto {}\n{}: ".format(endif_label, if_label)
-        ir_code += symbol_table(tree.inif, newtable)[1]
+        ir_code += symbol_table(tree.inif, newtable, scope_type = scope_type)[1]
         ir_code += "{}: ".format(endif_label)
         table.scopes.append(newtable)
         DTYPE = None
 
-    # XXX: Range UN-IMPLEMENTED
     elif isinstance(tree, GoFor):
         print("Entered GoFor")
         cond_label = "ForCond{}".format(global_count)
@@ -1010,15 +1009,15 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 print("Error in for loop post expression")
                 exit()
 
-            ir_code += symbol_table(tree.clause.init, table)[1]
+            ir_code += symbol_table(tree.clause.init, table, scope_type = scope_type)[1]
             ir_code += "{}: ".format(cond_label)
             ir_code += symbol_table(
-                tree.clause.expr, table, store_var="__fcond_{}".format(depth_num)
+                tree.clause.expr, table, store_var="__fcond_{}".format(depth_num), scope_type = scope_type
             )[1]
             ir_code += "if __fcond_{} goto {}\ngoto {}\n{}: ".format(
                 depth_num, for_label, endfor_label, for_label
             )
-            post_code = symbol_table(tree.clause.post, table)[1]
+            post_code = symbol_table(tree.clause.post, table, scope_type = scope_type)[1]
 
             if (tree.clause.expr is not None) and tree.clause.expr.dtype.name is not "bool":
                 print("loop Condition must be bool type")
@@ -1027,7 +1026,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         elif isinstance(tree.clause, GoRange):
             raise NotImplementedError("Range not implemented")
 
-        ir_code += symbol_table(tree.infor, table)[1]
+        ir_code += symbol_table(tree.infor, table,scope_type="For")[1]
         ir_code += "{}: ".format(postfor_label) + post_code
         ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
 
@@ -1035,10 +1034,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         newtable = SymbTable(table)
         for case_stmt in tree.case_list:
             for child in case_stmt.expr_list:
-                symbol_table(child, newtable)
+                symbol_table(child, newtable, scope_type = scope_type)
             newnewtable = SymbTable(newtable)
             for child in case_stmt.stmt_list:
-                symbol_table(child, newnewtable)
+                symbol_table(child, newnewtable, scope_type = "Switch")
             newtable.scopes.append(newnewtable)
         table.scopes.append(newtable)
 
@@ -1065,15 +1064,17 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         if_conv = prev_stmts[0]
         if_conv.stmt = tree.stmt
         copy_table = deepcopy(table)
-        return symbol_table(if_conv, copy_table)
+        return symbol_table(if_conv, copy_table, scope_type = "Switch")
+
+    
 
     # TODO: 3AC necessary ??
     # DTYPE needs to be verified
     # ==========================================================================
     elif isinstance(tree, GoArray):
         if tree.length != "variable":
-            symbol_table(tree.length, table)
-        symbol_table(tree.dtype, table)
+            symbol_table(tree.length, table, scope_type = scope_type)
+        symbol_table(tree.dtype, table, scope_type = scope_type)
         if isinstance(tree.dtype, GoArray):
             tree.depth = tree.dtype.depth + 1
             tree.final_type = tree.dtype.final_type
@@ -1103,7 +1104,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
 
     elif isinstance(tree, GoIndex):
         index = tree.index
-        dtype, ir_code = symbol_table(index, table, store_var=store_var)
+        dtype, ir_code = symbol_table(index, table, store_var=store_var, scope_type = scope_type)
         if isinstance(dtype, GoType):
             name = dtype.name
             if name not in INT_TYPES:
@@ -1144,13 +1145,13 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 DTYPE = tree.dtype
 
             ir_code += symbol_table(
-                lhs, table, store_var="__indlhs_{}".format(depth_num)
+                lhs, table, store_var="__indlhs_{}".format(depth_num), scope_type = scope_type
             )[1]
             ir_code += symbol_table(
-                rhs, table, store_var="__indrhs_{}".format(depth_num)
+                rhs, table, store_var="__indrhs_{}".format(depth_num), scope_type = scope_type
             )[1]
             ir_code += "{} = __indlhs_{}[__indrhs_{}]\n".format(
-                store_var, depth_num, depth_num
+                store_var, depth_num, depth_num, scope_type = scope_type
             )
 
         elif isinstance(rhs, GoArguments):  # fuction call
@@ -1226,10 +1227,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 ir_code += symbol_table(
                     argument,
                     table,
-                    store_var="__arg{}_{}".format(i, depth_num),
+                    store_var="__arg{}_{}".format(i, depth_num), scope_type = scope_type
                 )[1]
                 actual_dtype = param.dtype
-                given_dtype, eval_code = symbol_table(argument, table)
+                given_dtype, eval_code = symbol_table(argument, table, scope_type = scope_type)
                 table.type_check(
                     actual_dtype,
                     given_dtype,
@@ -1263,7 +1264,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
             ):
                 if isinstance(tree.element, GoExpression):
                     ir_code += symbol_table(
-                        tree.element, table, store_var=store_var
+                        tree.element, table, store_var=store_var, scope_type = scope_type
                     )[1]
                 else:
                     ir_code += "{} = {}\n".format(store_var, tree.element.item)
@@ -1290,7 +1291,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                             table,
                             store_var="__child{}_{}".format(
                                 child_count, depth_num
-                            ),
+                            ), scope_type = scope_type
                         )[1]
                         child_count += 1
                         if depth == 0:
@@ -1339,7 +1340,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
             if isinstance(element, GoBasicLit):
                 element_type = element.dtype
             elif isinstance(element, GoExpression):
-                element_type, _ = symbol_table(element, table)
+                element_type, _ = symbol_table(element, table, scope_type = scope_type)
                 element_type = element_type
             elif type(element) is str:
                 element_type = table.get_type(element)
@@ -1348,7 +1349,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 element_type = []
                 for item in element:
                     item.use = "struct"
-                    item_type, _ = symbol_table(item, table)
+                    item_type, _ = symbol_table(item, table, scope_type = scope_type)
                     element_type.append(item_type)
                 print("LIST {}".format(list(element_type)))
             tree.dtype = element_type
@@ -1361,7 +1362,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         print(
             "tree.dtype {}, tree.value {}".format(tree.dtype.name, tree.value)
         )
-        symbol_table(tree.dtype, table)
+        symbol_table(tree.dtype, table, scope_type = scope_type)
         # symbol_table(tree.value, table)
 
         depth_num = global_count
@@ -1371,7 +1372,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         elem_num = 0
         # XXX How does this handle array of structs
         if isinstance(tree.dtype, GoArray):
-            symbol_table(tree.dtype, table)
+            symbol_table(tree.dtype, table, scope_type = scope_type)
             # symbol_table(tree.value, table)
             dtype = tree.dtype.final_type
             depth = 0
@@ -1384,7 +1385,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                     ir_code += symbol_table(
                         child,
                         table,
-                        store_var="__elem{}_{}".format(elem_num, depth_num),
+                        store_var="__elem{}_{}".format(elem_num, depth_num), scope_type = scope_type
                     )[1]
                     elem_num += 1
                     keys.append(child.key)
@@ -1435,7 +1436,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 # field.name = struct_name
                 assert isinstance(field, GoKeyedElement)
                 field_type, elem_code = symbol_table(
-                    field, table, store_var="__elem{}_{}".format(i, depth_num)
+                    field, table, store_var="__elem{}_{}".format(i, depth_num), scope_type = scope_type
                 )
                 keys.append(field.key)
                 ir_code += elem_code
@@ -1460,7 +1461,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         ir_code += "}\n"
 
     elif isinstance(tree, GoUnaryExpr):
-        ir_code += symbol_table(tree.expr, table, store_var="__opd")[1]
+        ir_code += symbol_table(tree.expr, table, store_var="__opd", scope_type = scope_type)[1]
         ir_code += "{} = {} __opd\n".format(store_var, tree.op)
 
         if tree.op == "&" or tree.op == "*":
@@ -1479,7 +1480,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 tree.expr, GoFromModule
             ):
                 # print("XXX2")
-                eval_type, _ = symbol_table(tree.expr, table)
+                eval_type, _ = symbol_table(tree.expr, table, scope_type = scope_type)
                 if tree.op == "&":
                     tree.dtype = GoPointType(eval_type)
                 elif tree.op == "*":
@@ -1491,7 +1492,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
 
             elif isinstance(tree.expr, GoUnaryExpr):
                 # print("XXX3")
-                eval_type, _ = symbol_table(tree.expr)
+                eval_type, _ = symbol_table(tree.expr, scope_type = scope_type)
 
                 if tree.op == "&":
                     if tree.expr.op == "&":
@@ -1513,9 +1514,18 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
 
         # TODO need to add better type checking
         else:
-            tree.dtype, _ = symbol_table(tree.expr, table)
+            tree.dtype, _ = symbol_table(tree.expr, table, scope_type = scope_type)
 
         DTYPE = tree.dtype
+    
+    elif isinstance(tree, GoLabelCtrl):
+        print("PARENT = {}".format(table.parent))
+        
+        if (scope_type != "For") and (scope_type != "Switch"):
+            print("{} not valid in this scope".format(tree.keyword))
+            exit()
+
+
     # ==================================================================
 
     return DTYPE, ir_code

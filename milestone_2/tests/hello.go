@@ -56,7 +56,7 @@ func temp(x int,y int ){
 	// s:= "string"
 	// // d = temp1(2,3)
 	e := 4*5 + c + primes[2] + add(temp1(2,3),3)
-	primes1 := [2]int{2,3,4}
+	primes1 := [3]int{2,3,4}
 	primes[primes1[2]] = z
 	var val uint = add(2,3)
 

@@ -23,6 +23,7 @@ type T struct {
     f3     string `f `
     f4, f5 int64  `f four and five`
 }
+type int_t uint
 
 func temp1(x uint, y uint)uint{
 	return x
@@ -40,17 +41,20 @@ func temp(x int,y int ){
 	t := person{{"string"},2}
 	t.age = 2
 	k := ++t.age + *n
- 	
+	
 
-	var d uint= 4
+	var d int_t = 4
+	// d = 2
 	var b uint = 3
 	c := d + b
+
 	a  := c
 	var z uint = 20
 	d = 3
-	primes := [6]uint{2, 3, 5, 7, 11, 13}
-	s:= "string"
-	// d = temp1(2,3)
+	primes := [6]int_t{2, 3, 5, 7, 11, 13}
+
+	// s:= "string"
+	// // d = temp1(2,3)
 	e := 4*5 + c + primes[2] + add(temp1(2,3),3)
 	primes1 := [2]int{2,3,4}
 	primes[primes1[2]] = z

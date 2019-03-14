@@ -91,10 +91,10 @@ class SymbTable:
 
     #TODO Need to handle dynamic entities like linked lists, strings etc        
     def get_size(self,dtype):
-        assert isinstance(dtype,GoType)
+        assert isinstance(dtype,GoType) or isinstance(dtype,GoPointType)
         name = dtype.name
         print("SIZE: getting size of {}".format(name))
-        string = dtype.string
+        value = dtype.value
         if name in ["uint8","int8","byte"]:
             size = 1
         elif name in ["uint16","int16"]:
@@ -106,12 +106,17 @@ class SymbTable:
         elif name == "complex128":
             size = 16
         elif name  == "string":
-            size =  len(string)
+            size =  len(value)
             # print("Warning: size of string is not defined")
         else:
             actual_type = self.get_actual(name)
-            assert isinstance(actual_type,GoType)
-            actual_type.string = string
+            # print("ACTUAL TYPE {}".format(actual_type))
+            # assert isinstance(actual_type,GoType)
+            if actual_type is None:
+                print("Error:'{}' is unregistered dtype".format(name))
+                exit()
+
+            actual_type.value = value
             size = self.get_size(actual_type)  
         return size            
 
@@ -161,11 +166,19 @@ class SymbTable:
                 self.offset = dtype.offset
 
             elif isinstance(dtype,GoArray):
+                # print("ARRAY DTYPE {}".format(dtype.dtype))
+                assert isinstance(dtype.final_type,GoType)
+                dtype.size = dtype.size * self.get_size(dtype.final_type)
+                dtype.offset = self.offset + dtype.size
+                self.offset =dtype.offset  
+                print("ARRAY SIZE: {}".format(dtype.size))  
+            elif isinstance(dtype,GoStruct):
                 pass
-                
+            elif isinstance(dtype,GoPointType):
+                dtype.size = 4
+                dtype.offset = self.offset + 4
+                self.offset = dtype.offset        
 
-
-            print("herere")
             self.variables[name] = dtype
             self.used.add(name)
         else:
@@ -557,8 +570,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                                 dtype, eval_type, "variable declaration"
                             )
                             print('var "{}":"{}"'.format(var, dtype))
-                            if isinstance(eval_type,GoType) and eval_type.name == "string":
-                                dtype.string = eval_type.string 
+                            if isinstance(eval_type,GoType):
+                                dtype.value = eval_type.value 
                             table.insert_var(var, dtype)
                         else:
                             table.insert_var(var, eval_type)
@@ -627,8 +640,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                         ir_code += "{} = __const{}_{}".format(
                             const, i, depth_num
                         )
-                        if isinstance(eval_type,GoType) and eval_type.name == "string":
-                            dtype.string = eval_type.string 
+                        if isinstance(eval_type,GoType):
+                            dtype.value = eval_type.value
                         print('const "{}":"{}"'.format(const, dtype))
                         table.insert_const(const, dtype)
         DTYPE = None
@@ -1057,20 +1070,25 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         symbol_table(tree.dtype, table)
         if isinstance(tree.dtype, GoArray):
             tree.depth = tree.dtype.depth + 1
-            tree.dtype = tree.dtype.dtype
+            tree.final_type = tree.dtype.final_type
+        else:
+            tree.final_type = tree.dtype    
 
         length = tree.length
 
         if length == "variable":
             return ir_code
         elif type(length) is str:  # variable
-            dtype = table.get_type(length)
+            dtype = table.get_type(length)    
         elif isinstance(length, GoExpression):
             dtype = length.dtype
         elif isinstance(length, GoBasicLit):
             dtype = length.dtype
 
+        #XXX Need to handle the case for typedef/alias of dtype.name    
         if isinstance(dtype, GoType) and dtype.name not in INT_TYPES:
+            tree.size = dtype.value*tree.dtype.size
+            print("ARRAY SIZE: {}".format(tree.size)) 
             print("Error: Array length must be an integer")
             exit()
 
@@ -1234,10 +1252,12 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                         tree.element, table, store_var=store_var
                     )[1]
                 element_type = tree.element.dtype
+                tree.size += 1
                 # print(element_type)
             elif type(tree.element) is str:
                 ir_code = "{} = {}".format(store_var, element)
                 element_type = table.get_type(tree.element)
+                tree.size +=1 
             else:
                 # LiteralValue is a list
                 depth_num = global_count
@@ -1247,6 +1267,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                 child_count = 0
                 for child in tree.element:
                     if isinstance(child, GoKeyedElement):
+                        child.use = "array"
                         ir_code += symbol_table(
                             child,
                             table,
@@ -1260,9 +1281,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                         elif depth != child.depth:
                             print("Error: Wrong array declaration")
                             exit(0)
-                        # print(child.dtype)
+                        print("child dtype {}".format(child.dtype))
                         element_type = child.dtype
-
+                        tree.size += child.size
                     if tree.dtype is None:
                         tree.dtype = element_type
                     else:
@@ -1327,9 +1348,10 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
         if isinstance(tree.dtype, GoArray):
             symbol_table(tree.dtype, table)
             # symbol_table(tree.value, table)
-            dtype = tree.dtype.dtype
+            dtype = tree.dtype.final_type
             depth = 0
-            print("array_dtype = '{}'".format(dtype.name))
+
+            # print("array_dtype = '{}'".format(dtype.name))
             for child in tree.value:
                 if isinstance(child, GoKeyedElement):
                     child.use = "array"
@@ -1347,7 +1369,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
                         print("Error: Wrong array declaration")
                         exit()
                     element_type = child.dtype
-                    print(element_type)
+                    tree.dtype.size += child.size
+                    print("final array type {}".format(element_type))
+
 
                 table.type_check(element_type, dtype, "array initialization")
             # XXX

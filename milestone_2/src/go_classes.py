@@ -29,13 +29,13 @@ class GoType(GoBaseType):
         into functions with the common type being specified only once.
     """
 
-    def __init__(self, name, basic_lit=False,string=None,size=0,offset=0):
+    def __init__(self, name, basic_lit=False,value=None,size=0,offset=0):
         super().__init__("inbuilt")
         self.name = name  # For storing name of this type
         self.basic_lit = basic_lit
         self.size = size
         self.offset = offset
-        self.string = string
+        self.value = value
 
 
 class GoFromModule:
@@ -56,7 +56,7 @@ class GoFromModule:
 class GoArray(GoBaseType):
     """For array types."""
 
-    def __init__(self, length, dtype, depth=1,size=0,offset=0):
+    def __init__(self, length, dtype, depth=1,size=0,offset=0,final_type=None):
         super().__init__("array")
         self.length = length
         self.dtype = dtype
@@ -64,6 +64,7 @@ class GoArray(GoBaseType):
         self.name = "*" + dtype.name  # For storing name of this type
         self.size = size
         self.offset = offset
+        self.final_type = final_type
 
 class GoStruct(GoBaseType):
     """For struct types."""
@@ -296,21 +297,24 @@ class GoBasicLit(GoBaseLit):
 class GoCompositeLit(GoBaseLit):
     """For composite literals."""
 
-    def __init__(self, dtype, value):
+    def __init__(self, dtype, value,size=0):
         super().__init__("composite")
         self.dtype = dtype
         self.value = value
+        self.size = size
+
 
 
 class GoKeyedElement:
     """For keyed elements in composite literals."""
 
-    def __init__(self, key, element, dtype=None, depth=1,use=None):
+    def __init__(self, key, element, dtype=None, depth=1,use=None,size=0):
         self.key = key
         self.element = element
         self.dtype = dtype
         self.depth = depth
         self.use = use
+        self.size = size
 
 
 class GoBaseExpr:

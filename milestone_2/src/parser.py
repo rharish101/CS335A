@@ -718,18 +718,20 @@ def p_BasicLit(p):
                 | STRING
                 | RUNE
     """
+    print("SLICE VALUE: {}".format(p.slice[1].value))
     if p.slice[1].type == "INT":
         p[1] = int(p[1])
     elif p.slice[1].type == "FLOAT":
         p[1] = float(p[1])
     elif p.slice[1].type == "IMAG":
-        p[1] = complex(p[1][:-1] + "j")
+        p[1] = complex(p[1][:-1] + "j")   
 
     dtype = p.slice[1].type.lower()
     if dtype == "imag":
         dtype = "complex"
 
-    p[0] = GoBasicLit(p[1], GoType(dtype, True))
+    value = p.slice[1].value    
+    p[0] = GoBasicLit(p[1], GoType(dtype, True,value))
 
 
 def p_CompositeLit(p):
@@ -968,12 +970,11 @@ def p_Expression(p):
                         "bool", p[1].dtype.basic_lit & p[3].dtype.basic_lit
                     )
                     print(p[0].dtype.name)
-                elif p[1].dtype == p[3].dtype or precedence.index(
-                    p[1].dtype.name
-                ) > precedence.index(p[3].dtype.name):
-                    p[0].dtype = p[1].dtype
+                elif p[1].dtype == p[3].dtype or precedence.index(p[1].dtype.name) < precedence.index(p[3].dtype.name):
+                    p[0].dtype = p[1].dtype    
                 else:
                     p[0].dtype = p[3].dtype
+
             except Exception:
                 error = True
 

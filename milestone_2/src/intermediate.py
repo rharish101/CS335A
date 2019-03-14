@@ -954,8 +954,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
 
         # Choosing the labels
         if_label = "If{}".format(global_count)
-        endif_label = "EndIf{}".format(global_count + 1)
-        global_count += 2
+        endif_label = "EndIf{}".format(global_count)
+        global_count += 1
 
         ir_code += "if __cond goto {}\n".format(if_label)
         if (
@@ -980,54 +980,55 @@ def symbol_table(tree, table, name=None, block_type=None, store_var=""):
     elif isinstance(tree, GoFor):
         print("Entered GoFor")
         cond_label = "ForCond{}".format(global_count)
-        for_label = "For{}".format(global_count + 1)
-        endfor_label = "EndFor{}".format(global_count + 2)
-        depth_num = global_count + 3
-        global_count += 4
+        for_label = "For{}".format(global_count)
+        postfor_label = "ForPost{}".format(global_count)
+        endfor_label = "EndFor{}".format(global_count)
+        depth_num = global_count + 1
+        global_count += 2
 
         DTYPE = None
 
-        if isinstance(tree, GoForClause):
+        if isinstance(tree.clause, GoForClause):
             print("Entered GoForClause")
             if (
-                (tree.init is not None)
-                and not isinstance(tree.init, GoShortDecl)
-                and not isinstance(tree.init, GoAssign)
+                (tree.clause.init is not None)
+                and not isinstance(tree.clause.init, GoShortDecl)
+                and not isinstance(tree.clause.init, GoAssign)
             ):
                 print("Error in for loop Initialization")
                 exit()
             elif (
-                (tree.expr is not None)
-                and not isinstance(tree.expr, GoBasicLit)
-                and not isinstance(tree.expr, GoExpression)
+                (tree.clause.expr is not None)
+                and not isinstance(tree.clause.expr, GoBasicLit)
+                and not isinstance(tree.clause.expr, GoExpression)
             ):
                 print("Error in for loop Condition")
                 exit()
-            elif (tree.post is not None) and not isinstance(
-                tree.post, GoAssign
+            elif (tree.clause.post is not None) and not isinstance(
+                tree.clause.post, GoAssign
             ):
                 print("Error in for loop post expression")
                 exit()
 
-            ir_code += symbol_table(tree.init, table)[1]
+            ir_code += symbol_table(tree.clause.init, table)[1]
             ir_code += "{}: ".format(cond_label)
             ir_code += symbol_table(
-                tree.expr, table, store_var="__fcond_{}".format(depth_num)
+                tree.clause.expr, table, store_var="__fcond_{}".format(depth_num)
             )[1]
             ir_code += "if __fcond_{} goto {}\ngoto {}\n{}: ".format(
                 depth_num, for_label, endfor_label, for_label
             )
-            post_code = symbol_table(tree.post, table)[1]
+            post_code = symbol_table(tree.clause.post, table)[1]
 
-            if (tree.expr is not None) and tree.expr.dtype.name is not "bool":
+            if (tree.clause.expr is not None) and tree.clause.expr.dtype.name is not "bool":
                 print("loop Condition must be bool type")
                 exit()
 
-        elif isinstance(tree, GoRange):
+        elif isinstance(tree.clause, GoRange):
             raise NotImplementedError("Range not implemented")
 
         ir_code += symbol_table(tree.infor, table)[1]
-        ir_code += post_code
+        ir_code += "{}: ".format(postfor_label) + post_code
         ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
 
     elif isinstance(tree, GoSwitch):

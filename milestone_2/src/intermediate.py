@@ -1411,6 +1411,8 @@ def get_dot(obj):
     global node_count
     if type(obj) in [int, float, complex, bool]:
         obj = str(obj)
+    if type(obj) is tuple:  # Struct variables
+        obj = {"var": obj[0], "dtype": obj[1]}
     if type(obj) is str:
         output = [
             'N_{} [label="'.format(node_count) + escape_string(obj) + '"]'

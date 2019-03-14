@@ -101,7 +101,7 @@ class SymbTable:
             size = 2
         elif name in ["uint32","int32","float32","rune","int","uint","uintptr"]:
             size = 4
-        elif name in ["unint64","int64","complex64"]:
+        elif name in ["unint64","int64","complex64","float64"]:
             size = 8
         elif name == "complex128":
             size = 16

@@ -76,6 +76,8 @@ class GoStruct(GoBaseType):
         self.tags = []
         #XXX don't know about this 
         self.embeds = {}
+        self.size = 0
+        self.offset = 0
         self.name = "struct"  # For storing name of this type
         used = set()
         for field in fields:

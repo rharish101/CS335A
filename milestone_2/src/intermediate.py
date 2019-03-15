@@ -1969,8 +1969,9 @@ def resovle_pointer(dtype):
     return s
 
 
+
 # TODO Interfaces and return and parameter types for functions/methods
-def csv_writer(table, name):
+def fancy_csv_writer(table, name):
     # with open(name+'.txt') as file:
     # reader = csv.reader(file,delimiter = " ")
     file = open("{}.csv".format(name), "w")
@@ -2074,13 +2075,28 @@ def csv_writer(table, name):
         writer.writerow(
             ["FUNCTIONS", "=============================================="]
         )
-        writer.writerow(["func_name", "symbol_table"])
+        # writer.writerow(["func_name", "symbol_table"])
         writer.writerow([])
 
         for func in table.functions:
-            row = [func, "{}.csv".format(func)]
+            # row = [func, "{}.csv".format(func)]
+            # csv_writer(table.functions[func]["body"], func)
+            # params = table.functions[func]['params']
+            # for param in params:
+            row = ["func",func,"("]
+            params = table.functions[func]['params']
+            for param in params[:-1]:
+                row.append("{} {},".format(param.name,param.dtype.name))
+            if len(params) >0:    
+                row.append("{} {})".format(params[len(params)-1].name,params[len(params)-1].dtype.name))
+
+            row1 = ["       {}.csv".format(func)]
+
             csv_writer(table.functions[func]["body"], func)
             writer.writerow(row)
+            writer.writerow(row1)
+            writer.writerow("}")
+            writer.writerow([])
 
         writer.writerow([])
         writer.writerow(
@@ -2091,22 +2107,47 @@ def csv_writer(table, name):
         count = 0
         writer.writerow([])
         for scope in table.scopes:
-            row = ["scope_{}".format(count), "scope_{}".format(count).csv]
-            csv_writer(scope, "scope_{}".format(count))
+            writer.writerow("{")
+            row = ["    scope_{}".format(count), "{}_scope_{}.csv".format(name,count)]
+            csv_writer(scope, "{}_scope_{}".format(name,count))
             writer.writerow(row)
+            writer.writerow("}")
             count += 1
 
         writer.writerow([])
         writer.writerow(
             ["METHODS", "=============================================="]
         )
-        writer.writerow(["method_name", "reciever", "symbol_table"])
+        # writer.writerow(["method_name", "reciever", "symbol_table"])
         writer.writerow([])
+        methods_list = {}
         for method in table.methods:
-            name, rec = method
-            row = [name, rec, "{}.csv".format(name + "_" + rec)]
-            csv_writer(table.methods[method]["body"], name + "_" + rec)
-            writer.writerow(row)
+            name,rec = method 
+            var_name = table.methods[method]['rec_name']
+            if name in methods_list:
+                methods_list[name].append(",{} {}".format(var_name,rec))
+            else:
+                methods_list[name] = "{} {}".format(var_name,rec)
+
+        for name in methods_list:
+            recs = methods_list[name]
+            row = "func ({})(".format(recs)
+            rec = (recs.split(" ")[1]).split(",")[0]
+            # print("REC {}".format(rec))
+            results = table.methods[(name,rec)]['result']
+            for result in results[:-1]:
+                row += "{}, ".format(result.dtype.name)
+            if len(results)>0:    
+                row += "{}".format(results[len(results)-1].dtype.name)    
+            row += "){"    
+            writer.writerow([row])
+
+            row1 = ["   {}_{}.csv".format(name,rec)]
+            writer.writerow(row1)
+
+            csv_writer(table.methods[(name,rec)]["body"],"{}_{}".format(name,rec))
+            writer.writerow("}")                
+
 
         writer.writerow([])
         writer.writerow(
@@ -2126,6 +2167,225 @@ def csv_writer(table, name):
                 writer.writerow(row)
             # writer.writerow([])
             writer.writerow(["}"])
+
+    file.close()
+
+
+
+# TODO Interfaces and return and parameter types for functions/methods
+def csv_writer(table, name):
+    # with open(name+'.txt') as file:
+    # reader = csv.reader(file,delimiter = " ")
+    file = open("{}.csv".format(name), "w")
+    writer = csv.writer(
+        file,
+        delimiter=",",
+        quoting=csv.QUOTE_NONE,
+        quotechar="",
+        escapechar='"',
+    )
+
+    writer.writerow(
+        ["#VARIABLES"]
+    )
+    writer.writerow(["name", "type", "size", "offset"])
+    writer.writerow([])
+    var_rows = []
+    for var in table.variables:
+        dtype = table.variables[var]
+        if isinstance(dtype, GoType):
+            row = [var, dtype.name, dtype.size, dtype.offset]
+        elif isinstance(dtype, GoStruct):
+            row = [
+                var,
+                "struct_{}".format(dtype.name),
+                dtype.size,
+                dtype.offset,
+            ]
+        elif isinstance(dtype, GoArray):
+            row = [
+                var,
+                "array_{}".format(dtype.dtype.name),
+                dtype.size,
+                dtype.offset,
+            ]
+        elif isinstance(dtype, GoPointType):
+            row = [
+                var,
+                "{}".format(resovle_pointer(dtype)),
+                dtype.size,
+                dtype.offset,
+            ]
+        var_rows.append(row)
+
+    var_rows = sorted(var_rows, key=lambda x: x[3])
+    for row in var_rows:
+        writer.writerow(row)
+
+    writer.writerow([])
+    writer.writerow(
+        ["#CONSTANTS"]
+    )
+    writer.writerow(["name", "type", "size", "offset"])
+    writer.writerow([])
+    var_rows = []
+    for var in table.constants:
+        dtype = table.constants[var]
+        if isinstance(dtype, GoType):
+            row = [var, dtype.name, dtype.size, dtype.offset]
+        elif isinstance(dtype, GoStruct):
+            row = [
+                var,
+                "struct_{}".format(dtype.name),
+                dtype.size,
+                dtype.offset,
+            ]
+        elif isinstance(dtype, GoArray):
+            row = [
+                var,
+                "array_{}".format(dtype.dtype.name),
+                dtype.size,
+                dtype.offset,
+            ]
+        elif isinstance(dtype, GoPointType):
+            row = [
+                var,
+                "{}".format(resovle_pointer(dtype)),
+                dtype.size,
+                dtype.offset,
+            ]
+        # writer.writerow(row)
+        var_rows.append(row)
+
+    var_rows = sorted(var_rows, key=lambda x: x[3])
+    for row in var_rows:
+        writer.writerow(row)
+
+    writer.writerow([])
+    writer.writerow(
+        ["#SCOPES"]
+    )
+    writer.writerow(["scope_no", "symbol_table"])
+    writer.writerow([])
+    count = 0
+    for scope in table.scopes:
+        row = ["scope_{}".format(count), "{}_scope_{}.csv".format(name,count)]
+        csv_writer(scope, "{}_scope_{}".format(name,count))
+        writer.writerow(row)
+        count += 1    
+
+    if name == "global":
+        writer.writerow([])
+        writer.writerow(
+            ["#ALIASES"]
+        )
+        writer.writerow(["alias", "actual"])
+        writer.writerow([])
+
+        for alias in table.types:
+            row = [alias, table.types[alias].name]
+            writer.writerow(row)
+
+        writer.writerow([])
+        writer.writerow(
+            ["#FUNCTIONS"]
+        )
+        writer.writerow(["name", "[ParamName_type]","body","[ReturnType]"])
+        writer.writerow([])
+
+        for func in table.functions:
+            row = [func]
+            # csv_writer(table.functions[func]["body"], func)
+            # params = table.functions[func]['params']
+            # for param in params:
+            # row = ["func",func,"("]
+            params = table.functions[func]['params']
+            param_string = ""
+            for param in params[:-1]:
+                param_string += "{}_{};".format(param.name,param.dtype.name)
+            if len(params) > 0:
+                last = params[len(params)-1]
+                param_string += "{}_{}".format(last.name,last.dtype.name)    
+    
+            row.append(param_string)
+            row.append("{}.csv".format(func))
+            csv_writer(table.functions[func]["body"], func)
+            results = table.functions[func]["result"]
+            result_string = ""
+            if results is not None:
+                for result in results[:-1]:
+                    result_string += "{};".format(result.dtype.name)
+                if len(results)>0:
+                    result_string += "{}".format(results[len(results)-1].dtype.name)
+            row.append(result_string)                       
+            writer.writerow(row)
+            # writer.writerow(row1)
+            # writer.writerow("}")
+            # writer.writerow([])
+
+
+        writer.writerow([])
+        writer.writerow(
+            ["#METHODS"]
+        )
+        writer.writerow([""])
+        # writer.writerow(["method_name", "reciever", "symbol_table"])
+        writer.writerow([])
+        for method in table.methods:
+            row = ["{}_{}".format(method[0],method[1])]
+            params = table.methods[method]['params']
+            # for param in params:
+            #     row.append("{}_{}".format(param.name,param.dtype.name))
+            # csv_writer(table.methods[method]["body"],"{}_{}".format(method[0],method[1]))
+            param_string = ""
+            for param in params[:-1]:
+                param_string += "{}_{};".format(param.name,param.dtype.name)
+            if len(params) > 0:
+                last = params[len(params)-1]
+                param_string += "{}_{}".format(last.name,last.dtype.name)    
+            
+            row.append(param_string)
+
+            row.append("{}_{}.csv".format(method[0],method[1]))
+
+            results =table.methods[method]['result']
+            # if results is not None:
+            #     for result in results:
+            #         row.append(result.dtype.name) 
+            result_string = ""
+            if results is not None:
+                for result in results[:-1]:
+                    result_string += "{};".format(result.dtype.name)
+                if len(results)>0:
+                    result_string += "{}".format(results[len(results)-1].dtype.name)
+            row.append(result_string)                       
+            writer.writerow(row)            
+
+
+        writer.writerow([])
+        writer.writerow(
+            ["#STRUCTURES"]
+        )
+        writer.writerow(["struct name","[VarName_dtype_tag]"])
+        writer.writerow([])
+        for name in table.structures:
+            
+            struct = table.structures[name]
+            row = [name]
+            vars = struct.vars
+            tags = struct.tags
+            string = ""
+            for item1, item2 in zip(vars[:-1], tags[:-1]):
+                assert item1[0] == item2[0]
+                string += "{}_{}_{};".format(item1[0], item1[1].dtype.name, item2[1])
+            if len(vars) > 0:
+                item1 = vars[len(vars)-1]
+                item2 = tags[len(tags)-1]
+                string += "{}_{}_{}".format(item1[0], item1[1].dtype.name, item2[1])  
+            row.append(string)      
+            writer.writerow(row)
+            # writer.writerow([])
+            # writer.writerow(["}"])
 
     file.close()
 

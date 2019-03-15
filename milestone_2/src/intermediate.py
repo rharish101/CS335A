@@ -708,6 +708,7 @@ def symbol_table(
         DTYPE = None
 
     elif isinstance(tree, GoBlock):
+        #print("Scope = {}".format(scope_label))
         statement_list = tree.statements
         if not name:
             child_table = SymbTable(table)
@@ -1130,9 +1131,7 @@ def symbol_table(
             ):
                 print("Error in for loop Condition")
                 exit()
-            elif (tree.clause.post is not None) and not isinstance(
-                tree.clause.post, GoAssign
-            ):
+            elif (tree.clause.post is not None) and not isinstance(tree.clause.post, GoAssign) and not( isinstance(tree.clause.post, GoUnaryExpr) and tree.clause.post.op in ["++","--"] ):
                 print("Error in for loop post expression")
                 exit()
 
@@ -1741,7 +1740,7 @@ def symbol_table(
         if scope_label == "":
             print("Error: {} not valid in this scope".format(tree.keyword))
             exit()
-        elif tree.keyword == "continue" and "|" not in scope_label:
+        elif tree.keyword == "continue" and scope_label is "Switch":
             print('Error: "continue" not valid in a "switch" scope')
             exit()
 

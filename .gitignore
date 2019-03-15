@@ -18,3 +18,5 @@ milestone_1/src/myASTGenerator
 milestone_2/src/parser.out
 milestone_2/src/parsetab.py
 milestone_2/src/symbol_table/
+milestone_2/src/*.dot
+milestone_2/src/*.ps

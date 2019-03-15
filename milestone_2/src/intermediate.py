@@ -8,6 +8,7 @@ from copy import deepcopy
 import csv
 import subprocess
 import os
+import logging
 
 
 INT_TYPES = [
@@ -78,7 +79,7 @@ class SymbTable:
         elif use == "function" or use == "method":
             self.offset = 0
 
-        print("offset assigned: {}".format(self.offset))
+        logging.info("offset assigned: {}".format(self.offset))
 
     def lookup(self, name):
         if name in self.variables:
@@ -103,7 +104,7 @@ class SymbTable:
         if isinstance(dtype, GoStruct):
             return self.struct_size(dtype.name)
         name = dtype.name
-        print("SIZE: getting size of {}".format(name))
+        logging.info("SIZE: getting size of {}".format(name))
         value = dtype.value
         if name in ["uint8", "int8", "byte"]:
             size = 1
@@ -193,7 +194,7 @@ class SymbTable:
             if isinstance(dtype, GoType):
                 # type_name = dtype.name
                 dtype.size = self.get_size(dtype)
-                print(
+                logging.info(
                     "previous offset {}, size {}".format(
                         self.offset, dtype.size
                     )
@@ -203,17 +204,17 @@ class SymbTable:
 
             # TODO need to handle array os structures seperately
             elif isinstance(dtype, GoArray):
-                print("ARRAY DTYPE {}".format(dtype.dtype))
+                logging.info("ARRAY DTYPE {}".format(dtype.dtype))
                 assert isinstance(dtype.final_type, GoType)
                 dtype.size = dtype.size * self.get_size(dtype.final_type)
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
-                print("ARRAY SIZE: {}".format(dtype.size))
+                logging.info("ARRAY SIZE: {}".format(dtype.size))
 
             elif isinstance(dtype, GoStruct):
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
-                print("STRUCT SIZE {}".format(dtype.size))
+                logging.info("STRUCT SIZE {}".format(dtype.size))
 
             elif isinstance(dtype, GoPointType):
                 dtype.size = 4
@@ -242,7 +243,7 @@ class SymbTable:
             if field is None:
                 types = []
                 for item in self.structures[struct_name].vars:
-                    print("item {}".format(item))
+                    logging.info("item {}".format(item))
                     types.append(item[1])
                 return types
 
@@ -283,7 +284,7 @@ class SymbTable:
             exit()
         size = 0
         for actual, given in zip(actual_types, type_list):
-            print(
+            logging.info(
                 "actual type'{}', give types '{}'".format(
                     actual.dtype.name, given
                 )
@@ -387,7 +388,7 @@ class SymbTable:
         if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
-            print("name1 '{}', name2 '{}'".format(name1, name2))
+            logging.info("name1 '{}', name2 '{}'".format(name1, name2))
 
             # handles recursive typdef/aliases
             actual1 = self.get_actual(name1)
@@ -415,7 +416,7 @@ class SymbTable:
                     "string",
                     "unintptr",
                 ]:
-                    print("Error:'{}' is unregistered dtype".format(name))
+                    print("Error: '{}' is unregistered dtype".format(name))
                     exit()
             if dtype1.basic_lit or dtype2.basic_lit:
                 if name1 in INT_TYPES:
@@ -487,13 +488,13 @@ def symbol_table(
     DTYPE = None
 
     error = False
-    print(tree)
+    logging.info(tree)
 
     # XXX If code enters here then it looks only for variables, hence
     # we need to make sure that sybmol table is not called uneccessary strings
     # otherwise code will fail
     if type(tree) is str:  # variable
-        print("STR: '{}'".format(tree))
+        logging.info("STR: '{}'".format(tree))
         DTYPE = table.get_type(tree)
         if store_var == "":
             ir_code = tree
@@ -511,7 +512,7 @@ def symbol_table(
     elif isinstance(tree, GoFromModule):
         parent = tree.parent
         child = tree.child
-        print("parent '{}', child '{}'".format(parent, child))
+        logging.info("parent '{}', child '{}'".format(parent, child))
 
         # currently handles accessing a field of a struct
         if type(parent) is str:
@@ -522,7 +523,7 @@ def symbol_table(
         # handles nesting of structs
         elif isinstance(parent, GoFromModule):
             struct_name = (table.nested_module(parent)).dtype.name
-            print("struct name '{}'".format(struct_name))
+            logging.info("struct name '{}'".format(struct_name))
             DTYPE = table.get_struct(struct_name, child).dtype
 
         if store_var == "":
@@ -633,7 +634,7 @@ def symbol_table(
                             table.type_check(
                                 dtype, eval_type, "variable declaration"
                             )
-                            print('var "{}":"{}"'.format(var, dtype))
+                            logging.info('var "{}":"{}"'.format(var, dtype))
                             if isinstance(eval_type, GoType):
                                 dtype.value = eval_type.value
                             table.insert_var(var, dtype)
@@ -641,7 +642,7 @@ def symbol_table(
                             table.insert_var(var, eval_type)
                 else:
                     for var in lhs:
-                        print('var "{}":"{}"'.format(var, dtype))
+                        logging.info('var "{}":"{}"'.format(var, dtype))
                         ir_code += "{} = 0\n".format(var)
                         table.insert_var(var, dtype)
         DTYPE = None
@@ -662,7 +663,7 @@ def symbol_table(
             else:
                 table.insert_alias(alias, actual)
 
-            print('typedef/alias "{}" : "{}"'.format(alias, actual))
+            logging.info('typedef/alias "{}" : "{}"'.format(alias, actual))
         DTYPE = None
 
     elif isinstance(tree, GoDecl) and tree.kind == "constant":
@@ -714,7 +715,7 @@ def symbol_table(
                         )
                         if isinstance(eval_type, GoType):
                             dtype.value = eval_type.value
-                        print('const "{}":"{}"'.format(const, dtype))
+                        logging.info('const "{}":"{}"'.format(const, dtype))
                         table.insert_const(const, dtype)
         DTYPE = None
 
@@ -745,7 +746,7 @@ def symbol_table(
             struct_obj = GoStruct([])
             struct_obj.name = name[1].dtype.name
             struct_obj.size = table.struct_size(name[1].dtype.name)
-            print("STRUCT METHOD SIZE {}".format(struct_obj.size))
+            logging.info("STRUCT METHOD SIZE {}".format(struct_obj.size))
             child_table.insert_var(name[1].name, struct_obj)
             table.methods[key]["body"] = child_table
 
@@ -788,7 +789,7 @@ def symbol_table(
         rhs = tree.rhs
         if len(lhs) != len(rhs):
             print(
-                "Different number of variables and values in assign operation"
+                "Error: Different number of variables and values in assign operation"
             )
             exit()
         lhs_3ac = []
@@ -875,7 +876,7 @@ def symbol_table(
             lhs_3ac.append(loc_lhs + loc_rhs)
 
         for i, (var, expr) in enumerate(zip(lhs, rhs)):
-            print('assign: "{}" : "{}"'.format(var, expr))
+            logging.info('assign: "{}" : "{}"'.format(var, expr))
             # can have only struct fields, variables, array on the LHS.
             dtype1 = None
             if isinstance(var, GoPrimaryExpr):
@@ -897,16 +898,14 @@ def symbol_table(
                 )
                 if type(var.expr) is str:
                     if not isinstance(table.get_type(var.expr), GoPointType):
-                        error = True
-                        print("{} not pointer type".format(var.expr))
+                        print("Error: {} not pointer type".format(var.expr))
                         exit()
                     var.dtype = table.get_type(var.expr).dtype
                     dtype1 = var.dtype
 
                 elif isinstance(var.expr, GoUnaryExpr) and var.expr.op == "*":
                     if not isinstance(var.expr.dtype, GoPointType):
-                        error = True
-                        print("{} not pointer type".format(var.expr))
+                        print("Error: {} not pointer type".format(var.expr))
                         exit()
                     var.dtype = var.expr.dtype.dtype
                     dtype1 = var.dtype
@@ -923,14 +922,15 @@ def symbol_table(
 
                 # handles nesting of structs
                 elif isinstance(parent, GoFromModule):
-                    print("parent '{}', child '{}'".format(parent, child))
+                    logging.info(
+                        "parent '{}', child '{}'".format(parent, child)
+                    )
                     struct_name = (table.nested_module(parent)).dtype.name
-                    print("struct name '{}'".format(struct_name))
+                    logging.info("struct name '{}'".format(struct_name))
                     dtype1 = table.get_struct(struct_name, child).dtype
 
             if dtype1 is None:
-                print("Warning : Getting None dtype in Assignment")
-                exit()
+                print("Warning: Getting None dtype in Assignment")
             # NEW END
 
             dtype2, rhs_code = symbol_table(
@@ -951,19 +951,17 @@ def symbol_table(
         id_list = tree.id_list
         expr_list = tree.expr_list
         if len(id_list) != len(expr_list):
-            error = True
             print(
-                "Different number of variables and values in short declaration"
+                "Error: Different number of variables and values in short declaration"
             )
             exit()
         for var in id_list:
             if type(var) is not str:
-                error = True
-                print("Syntax error, '{}'".format(var))
+                print("SyntaxError: LHS '{}' is not a variable".format(var))
                 exit()
 
         for var, expr in zip(id_list, expr_list):
-            print('short decl: "{}" : "{}"'.format(var, expr))
+            logging.info('short decl: "{}" : "{}"'.format(var, expr))
             # elif isinstance(expr, GoCompositeLit):  # Arrays
             #     symbol_table(expr, table)
             #     table.insert_var(var, expr.dtype)
@@ -994,7 +992,7 @@ def symbol_table(
         lhs = tree.lhs
         op = tree.op
         rhs = tree.rhs
-        print('exp: lhs "{}", rhs "{}"'.format(lhs, rhs))
+        logging.info('exp: lhs "{}", rhs "{}"'.format(lhs, rhs))
 
         # XXX INCOMPLETE : need to handle cases for array types, struct types,
         # interfaces, function, pointer
@@ -1026,7 +1024,7 @@ def symbol_table(
             store_var, depth_num, op, depth_num
         )
 
-        print('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
+        logging.info('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
 
         if dtype1.__class__ is not dtype2.__class__:
             print(
@@ -1047,13 +1045,11 @@ def symbol_table(
                 name = dtype2.name
 
             if name == "bool" and op not in ["&&", "||"]:
-                error = True
-                print("invalid operator for bool operands")
+                print("Error: Invalid operator for bool operands")
                 exit()
             elif op in ["&&", "||"] and name != "bool":
-                error = True
                 print(
-                    "invalid operand types '{}' and '{}' for bool operator".format(
+                    "Error: Invalid operand types '{}' and '{}' for bool operator".format(
                         name1, name2
                     )
                 )
@@ -1062,8 +1058,11 @@ def symbol_table(
                 op in [">>", "<<", "&", "&^", "^", "|", "%"]
                 and name not in INT_TYPES
             ):
-                error = True
-                print("error")
+                print(
+                    "Error: Operator '{}' is not applicable for '{}'".format(
+                        op, name
+                    )
+                )
                 exit()
             elif name == "string" and op not in [
                 "+",
@@ -1074,11 +1073,10 @@ def symbol_table(
                 ">",
                 "<",
             ]:
-                error = True
-                print("invalid operator for string type")
+                print("Error: Invalid operator for string type")
                 exit()
             else:
-                print(
+                logging.info(
                     'basic_lit "{}", "{}", "{}"'.format(
                         dtype1, dtype2, dtype1.basic_lit & dtype2.basic_lit
                     )
@@ -1129,7 +1127,6 @@ def symbol_table(
             or not isinstance(tree.cond.dtype, GoType)
             or tree.cond.dtype.name != "bool"
         ):
-            error = True
             print("Error: If condition is not evaluating to bool")
             exit()
         ir_code += symbol_table(
@@ -1144,7 +1141,7 @@ def symbol_table(
         DTYPE = None
 
     elif isinstance(tree, GoFor):
-        print("Entered GoFor")
+        logging.info("Entered GoFor")
         cond_label = "ForCond{}".format(global_count)
         for_label = "For{}".format(global_count)
         postfor_label = "ForPost{}".format(global_count)
@@ -1155,7 +1152,7 @@ def symbol_table(
         DTYPE = None
 
         if isinstance(tree.clause, GoForClause):
-            print("Entered GoForClause")
+            logging.info("Entered GoForClause")
             if (
                 (tree.clause.init is not None)
                 and not isinstance(tree.clause.init, GoShortDecl)
@@ -1215,7 +1212,7 @@ def symbol_table(
             if (
                 tree.clause.expr is not None
             ) and tree.clause.expr.dtype.name is not "bool":
-                print("loop Condition must be bool type")
+                print("Error: Loop condition must be bool type")
                 exit()
 
         elif isinstance(tree.clause, GoRange):
@@ -1306,7 +1303,7 @@ def symbol_table(
         # XXX Need to handle the case for typedef/alias of dtype.name
         if isinstance(dtype, GoType) and dtype.name not in INT_TYPES:
             tree.size = dtype.value * tree.dtype.size
-            print("ARRAY SIZE: {}".format(tree.size))
+            logging.info("ARRAY SIZE: {}".format(tree.size))
             print("Error: Array length must be an integer")
             exit()
 
@@ -1338,20 +1335,22 @@ def symbol_table(
         lhs = tree.lhs
 
         if isinstance(rhs, GoIndex):  # array indexing
-            print("array = '{}'".format(lhs))
+            logging.info("array = '{}'".format(lhs))
             # TODO need to handle multiple return from function
             if isinstance(lhs, GoPrimaryExpr):
                 lhs.depth = tree.depth + 1
             else:
                 if not table.lookup(lhs):
-                    print("'{}' array not declared".format(lhs))
+                    print("Error: '{}' array not declared".format(lhs))
                     exit()
                 elif not isinstance(table.get_type(lhs), GoArray):
-                    print("'{}' not array".format(lhs))
+                    print("Error: '{}' not array".format(lhs))
                     exit()
                 elif tree.depth != table.get_type(lhs).depth:
                     print(
-                        "Incorect number of indexes in array '{}'".format(lhs)
+                        "Error: Incorect number of indexes in array '{}'".format(
+                            lhs
+                        )
                     )
                     exit()
 
@@ -1394,7 +1393,7 @@ def symbol_table(
             argument_list = rhs.expr_list
 
             if type(lhs) is str:
-                print("FUNCTION CALL '{}'".format(lhs))
+                logging.info("FUNCTION CALL '{}'".format(lhs))
                 func_name = lhs
                 assert isinstance(rhs, GoArguments)
                 # type checking of arguments passed to function
@@ -1412,7 +1411,9 @@ def symbol_table(
                 parent = lhs.parent
                 child = lhs.child
                 # double imports
-                print("METHOD parent: '{}',child: '{}'".format(parent, child))
+                logging.info(
+                    "METHOD parent: '{}',child: '{}'".format(parent, child)
+                )
                 if isinstance(parent, GoFromModule):
                     raise NotImplementedError("Multiple imports not done yet")
                 # single imports
@@ -1422,7 +1423,7 @@ def symbol_table(
                     # check is the type of arguments passed to child are same as that defined in method declaration
                     method_name = child
                     struct_name = (table.get_type(parent)).name
-                    print(
+                    logging.info(
                         "method call'{}' on struct '{}' with arguments '{}'".format(
                             method_name, struct_name, rhs
                         )
@@ -1504,9 +1505,9 @@ def symbol_table(
 
     elif isinstance(tree, GoKeyedElement):
         # symbol_table(tree.element, table)
-        print("-" * 50)
-        print(store_var, tree.use)
-        print("-" * 50)
+        logging.info("-" * 50)
+        logging.info(store_var, tree.use)
+        logging.info("-" * 50)
         if tree.use == "array":
             if isinstance(tree.element, GoBasicLit) or isinstance(
                 tree.element, GoExpression
@@ -1562,7 +1563,7 @@ def symbol_table(
                         elif depth != child.depth:
                             print("Error: Wrong array declaration")
                             exit(0)
-                        print("child dtype {}".format(child.dtype))
+                        logging.info("child dtype {}".format(child.dtype))
                         element_type = child.dtype
                         tree.size += child.size
 
@@ -1594,12 +1595,12 @@ def symbol_table(
                     + "}\n"
                 )
             tree.dtype = element_type
-            print("tree.dtype '{}'".format(tree.dtype))
+            logging.info("tree.dtype '{}'".format(tree.dtype))
 
         # TODO 3AC
         elif tree.use == "struct":
             element = tree.element
-            print("struct element '{}'".format(element))
+            logging.info("struct element '{}'".format(element))
             if isinstance(element, GoBasicLit):
                 element_type = element.dtype
             elif isinstance(element, GoExpression):
@@ -1618,7 +1619,7 @@ def symbol_table(
                         item, table, name, block_type, scope_label=scope_label
                     )
                     element_type.append(item_type)
-                print("LIST {}".format(list(element_type)))
+                logging.info("LIST {}".format(list(element_type)))
             tree.dtype = element_type
 
         # XXX
@@ -1626,7 +1627,7 @@ def symbol_table(
 
     # XXX UN-IMPLEMENTED
     elif isinstance(tree, GoCompositeLit):
-        print(
+        logging.info(
             "tree.dtype {}, tree.value {}".format(tree.dtype.name, tree.value)
         )
         symbol_table(
@@ -1677,7 +1678,7 @@ def symbol_table(
                         exit()
                     element_type = child.dtype
                     tree.dtype.size += child.size
-                    print("final array type {}".format(element_type))
+                    logging.info("final array type {}".format(element_type))
 
                     if cur_size == 0:
                         cur_size = child.size
@@ -1694,7 +1695,7 @@ def symbol_table(
 
             tree_value = tree.value
             tree_type = tree.dtype
-            print("START")
+            logging.info("START")
             while isinstance(tree_type, GoArray):
                 # print("type = {}, value = {}".format(tree_type.length.item,len(tree_value)))
                 if (
@@ -1708,7 +1709,7 @@ def symbol_table(
 
         elif isinstance(tree.dtype, GoType):  # handles structs
             struct_name = tree.dtype.name
-            print("Struct name {}".format(struct_name))
+            logging.info("Struct name {}".format(struct_name))
             field_list = tree.value
             type_list = []
             for i, field in enumerate(field_list):
@@ -1731,7 +1732,7 @@ def symbol_table(
                 keys.append(field.key)
                 ir_code += elem_code
                 type_list.append(field_type)
-            print("FINAL LIST '{}'".format(type_list))
+            logging.info("FINAL LIST '{}'".format(type_list))
             struct_obj = GoStruct([])
             struct_obj.size = table.check_struct(struct_name, type_list)
             struct_obj.name = struct_name
@@ -1814,7 +1815,7 @@ def symbol_table(
 
                 elif tree.op == "*":
                     if not isinstance(eval_type, GoPointType):
-                        print("{} not pointer type".format(eval_type))
+                        print("Error: {} not pointer type".format(eval_type))
                         exit()
                     else:
                         tree.dtype = eval_type.dtype
@@ -1914,8 +1915,8 @@ def csv_writer(table, name, dir_name):
         escapechar='"',
     )
 
-    for kind in ["variables", "intermediates"]:
-        if kind == "intermediates":
+    for kind in ["variables", "intermediates", "constants"]:
+        if kind != "variables":
             writer.writerow([])
         writer.writerow(["#" + kind.upper()])
         writer.writerow(["name", "type", "size", "offset"])
@@ -1950,42 +1951,6 @@ def csv_writer(table, name, dir_name):
         var_rows = sorted(var_rows, key=lambda x: x[3])
         for row in var_rows:
             writer.writerow(row)
-
-    writer.writerow([])
-    writer.writerow(["#CONSTANTS"])
-    writer.writerow(["name", "type", "size", "offset"])
-    var_rows = []
-    for var in table.constants:
-        dtype = table.constants[var]
-        if isinstance(dtype, GoType):
-            row = [var, dtype.name, dtype.size, dtype.offset]
-        elif isinstance(dtype, GoStruct):
-            row = [
-                var,
-                "struct_{}".format(dtype.name),
-                dtype.size,
-                dtype.offset,
-            ]
-        elif isinstance(dtype, GoArray):
-            row = [
-                var,
-                "array_{}".format(dtype.dtype.name),
-                dtype.size,
-                dtype.offset,
-            ]
-        elif isinstance(dtype, GoPointType):
-            row = [
-                var,
-                "{}".format(resovle_pointer(dtype)),
-                dtype.size,
-                dtype.offset,
-            ]
-        # writer.writerow(row)
-        var_rows.append(row)
-
-    var_rows = sorted(var_rows, key=lambda x: x[3])
-    for row in var_rows:
-        writer.writerow(row)
 
     writer.writerow([])
     writer.writerow(["#SCOPES"])
@@ -2165,6 +2130,9 @@ if __name__ == "__main__":
     lexer.lines = input_text.split("\n")
 
     tree = parser.parse(input_text)
+
+    if args.verbose:
+        logging.getLogger().setLevel(logging.INFO)
     table = SymbTable()
     ir_code = symbol_table(tree, table)[1]
     # Insert 3AC into global table

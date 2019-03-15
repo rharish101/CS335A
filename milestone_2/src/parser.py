@@ -718,7 +718,6 @@ def p_BasicLit(p):
                 | STRING
                 | RUNE
     """
-    print("SLICE VALUE: {}".format(p.slice[1].value))
     if p.slice[1].type == "INT":
         p[1] = int(p[1])
     elif p.slice[1].type == "FLOAT":

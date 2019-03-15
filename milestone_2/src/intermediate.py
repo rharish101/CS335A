@@ -1168,7 +1168,7 @@ def symbol_table(
             raise NotImplementedError("Range not implemented")
 
         ir_code += symbol_table(
-            tree.infor, table, name, block_type, scope_type="For"
+            tree.infor, table, name, block_type, scope_label="For"
         )[1]
         ir_code += "{}: ".format(postfor_label) + post_code
         ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
@@ -1183,7 +1183,7 @@ def symbol_table(
             newnewtable = SymbTable(newtable)
             for child in case_stmt.stmt_list:
                 symbol_table(
-                    child, newnewtable, name, block_type, scope_type="Switch"
+                    child, newnewtable, name, block_type, scope_label="Switch"
                 )
             newtable.scopes.append(newnewtable)
         table.scopes.append(newtable)
@@ -1212,7 +1212,7 @@ def symbol_table(
         if_conv.stmt = tree.stmt
         copy_table = deepcopy(table)
         return symbol_table(
-            if_conv, copy_table, name, block_type, scope_type="Switch"
+            if_conv, copy_table, name, block_type, scope_label="Switch"
         )
 
     # TODO: 3AC necessary ??

@@ -1254,7 +1254,9 @@ def p_ForStmt(p):
                | FOR LBRACK ForClause RBRACK Block
                | FOR LBRACK RangeClause RBRACK Block
     """
-    if isinstance(p[3], GoBaseExpr):  # while loop
+    if not isinstance(p[3], GoForClause) or isinstance(
+        p[3], GoRange
+    ):  # while loop
         clause = GoForClause(None, p[3], None)
     else:
         clause = p[3]

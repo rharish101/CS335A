@@ -94,8 +94,10 @@ class SymbTable:
 
     # TODO Need to handle dynamic entities like linked lists, strings etc
     def get_size(self, dtype,check = False):
-        assert isinstance(dtype, GoType)
+        # assert isinstance(dtype, GoType)
         # if isinstance(dtype,GoType):
+        if isinstance(dtype,GoStruct):
+            return self.struct_size(dtype.name)
         name = dtype.name
         print("SIZE: getting size of {}".format(name))
         value = dtype.value
@@ -1221,17 +1223,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_lab
                 params_list = table.get_func(func_name, "params")
 
                 result = table.get_func(func_name, "result")
-                print(result)
-                assert result is None or isinstance(result, GoParam) ## Functions with no return value
+                # print(result)
+                # assert result is None or isinstance(result, GoParam) ## Functions with no return value
 
-                if result is not None:
-                    result_type = result.dtype
-                    if type(result_type) is list:
-                        print("Warning: Returning list of types")
-                    tree.dtype = result_type
-                else:
-                    result_type = None
-                    tree.dtype = None
                 # Get function name/location in memory
                 func_loc = func_name
 
@@ -1261,12 +1255,8 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_lab
                     params_list = table.get_method(key, "params")
 
                     result = table.get_method(key, "result")
-                    assert isinstance(result, GoParam)
-                    result_type = result.dtype
-
-                    if type(result_type) is list:
-                        print("Warning: Returning list of types")
-                    tree.dtype = result_type
+                    
+                    # tree.dtype = result_type
                 # Get function name/location in memory
                 func_loc = lhs.name
 
@@ -1298,6 +1288,16 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_lab
                     func_name,
                     param.name,
                 )
+            if len(result) > 0:
+                result_type = []
+                for item in result:
+                    result_type.append(item.dtype)
+                if len(result_type) == 1:
+                    result_type = result_type[0]
+                tree.dtype = result_type
+            else:
+                result_type = []
+                tree.dtype = []    
 
             DTYPE = result_type
 

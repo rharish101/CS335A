@@ -1890,14 +1890,19 @@ def symbol_table(
 
     return DTYPE, ir_code
 
-
-def resovle_pointer(dtype):
+def resolve_dtype(dtype):
     s = ""
-    while isinstance(dtype, GoPointType):
-        dtype = dtype.dtype
-        s = s + "*"
     if isinstance(dtype, GoType):
-        s = s + dtype.name
+        s = dtype.name
+    elif isinstance(dtype, GoStruct):
+        s = "struct_{}".format(dtype.name)
+    elif isinstance(dtype, GoArray):
+        s = "array_{}".format(resolve_dtype(dtype.dtype))
+    elif isinstance(dtype, GoPointType):
+        while isinstance(dtype, GoPointType):
+            dtype = dtype.dtype
+            s = s + "*"
+        s = s+resolve_dtype(dtype)
     return s
 
 
@@ -1924,25 +1929,25 @@ def csv_writer(table, name, dir_name):
         for var in getattr(table, kind):
             dtype = getattr(table, kind)[var]
             if isinstance(dtype, GoType):
-                row = [var, dtype.name, dtype.size, dtype.offset]
+                row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
             elif isinstance(dtype, GoStruct):
                 row = [
                     var,
-                    "struct_{}".format(dtype.name),
+                    resolve_dtype(dtype),
                     dtype.size,
                     dtype.offset,
                 ]
             elif isinstance(dtype, GoArray):
                 row = [
                     var,
-                    "array_{}".format(dtype.dtype.name),
+                    resolve_dtype(dtype.dtype),
                     dtype.size,
                     dtype.offset,
                 ]
             elif isinstance(dtype, GoPointType):
                 row = [
                     var,
-                    "{}".format(resovle_pointer(dtype)),
+                    resolve_dtype(dtype),
                     dtype.size,
                     dtype.offset,
                 ]
@@ -1986,10 +1991,10 @@ def csv_writer(table, name, dir_name):
             params = table.functions[func]["params"]
             param_string = ""
             for param in params[:-1]:
-                param_string += "{}_{};".format(param.name, param.dtype.name)
+                param_string += "{}_{};".format(param.name, resolve_dtype(param.dtype))
             if len(params) > 0:
                 last = params[len(params) - 1]
-                param_string += "{}_{}".format(last.name, last.dtype.name)
+                param_string += "{}_{}".format(last.name, resolve_dtype(last.dtype))
 
             row.append(param_string)
             row.append("{}.csv".format(func))
@@ -1998,10 +2003,10 @@ def csv_writer(table, name, dir_name):
             result_string = ""
             if results is not None:
                 for result in results[:-1]:
-                    result_string += "{};".format(result.dtype.name)
+                    result_string += "{};".format(resolve_dtype(result.dtype))
                 if len(results) > 0:
                     result_string += "{}".format(
-                        results[len(results) - 1].dtype.name
+                        resolve_dtype(results[len(results) - 1].dtype)
                     )
             row.append(result_string)
             writer.writerow(row)
@@ -2028,7 +2033,7 @@ def csv_writer(table, name, dir_name):
             # csv_writer(table.methods[method]["body"],"{}_{}".format(method[0],method[1]))
             param_string = ";".join(
                 [
-                    "{}_{}".format(param.name, param.dtype.name)
+                    "{}_{}".format(param.name, resolve_dtype(param.dtype))
                     for param in params
                 ]
             )
@@ -2044,10 +2049,10 @@ def csv_writer(table, name, dir_name):
             result_string = ""
             if results is not None:
                 for result in results[:-1]:
-                    result_string += "{};".format(result.dtype.name)
+                    result_string += "{};".format(resolve_dtype(result.dtype))
                 if len(results) > 0:
                     result_string += "{}".format(
-                        results[len(results) - 1].dtype.name
+                        resolve_dtype(results[len(results) - 1].dtype)
                     )
             row.append(result_string)
             writer.writerow(row)
@@ -2064,13 +2069,13 @@ def csv_writer(table, name, dir_name):
             for item1, item2 in zip(vars[:-1], tags[:-1]):
                 assert item1[0] == item2[0]
                 string += "{}_{}_{};".format(
-                    item1[0], item1[1].dtype.name, item2[1]
+                    item1[0], resolve_dtype(item1[1].dtype), item2[1]
                 )
             if len(vars) > 0:
                 item1 = vars[len(vars) - 1]
                 item2 = tags[len(tags) - 1]
                 string += "{}_{}_{}".format(
-                    item1[0], item1[1].dtype.name, item2[1]
+                    item1[0], resolve_dtype(item1[1].dtype), item2[1]
                 )
             row.append(string)
             writer.writerow(row)

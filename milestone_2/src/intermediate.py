@@ -737,6 +737,11 @@ def symbol_table(
             child_table.insert_var(name[1].name, struct_obj)
             table.methods[key]["body"] = child_table
 
+        else:
+            child_table = SymbTable(table)
+            table.scopes.append(child_table)
+
+
         for statement in statement_list:
             if (
                 statement is None

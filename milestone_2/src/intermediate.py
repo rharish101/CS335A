@@ -1178,7 +1178,11 @@ def symbol_table(
         ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
 
     elif isinstance(tree, GoSwitch):
-        newtable = SymbTable(table)
+        new_table = SymbTable(table)
+        symbol_table(tree.stmt, new_table, name, block_type, scope_label=scope_label)
+        table.scopes.append(new_table)
+
+        newtable = SymbTable(new_table)
         for case_stmt in tree.case_list:
             for child in case_stmt.expr_list:
                 symbol_table(
@@ -1190,7 +1194,7 @@ def symbol_table(
                     child, newnewtable, name, block_type, scope_label="Switch"
                 )
             newtable.scopes.append(newnewtable)
-        table.scopes.append(newtable)
+        new_table.scopes.append(newtable)
 
         # Converting Switch to If-Else for 3AC
         prev_stmts = []

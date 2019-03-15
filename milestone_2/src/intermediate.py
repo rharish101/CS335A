@@ -106,7 +106,7 @@ class SymbTable:
         name = dtype.name
         logging.info("SIZE: getting size of {}".format(name))
         value = dtype.value
-        if name in ["uint8", "int8", "byte"]:
+        if name in ["uint8", "int8", "byte","bool"]:
             size = 1
         elif name in ["uint16", "int16"]:
             size = 2
@@ -415,8 +415,9 @@ class SymbTable:
                     "complex128",
                     "string",
                     "unintptr",
+                    "bool",
                 ]:
-                    print("Error: '{}' is unregistered dtype".format(name))
+                    print("Error1: '{}' is unregistered dtype".format(name))
                     exit()
             if dtype1.basic_lit or dtype2.basic_lit:
                 if name1 in INT_TYPES:

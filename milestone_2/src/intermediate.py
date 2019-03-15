@@ -417,7 +417,7 @@ class SymbTable:
                     "unintptr",
                     "bool",
                 ]:
-                    print("Error1: '{}' is unregistered dtype".format(name))
+                    print("Error: '{}' is unregistered dtype".format(name))
                     exit()
             if dtype1.basic_lit or dtype2.basic_lit:
                 if name1 in INT_TYPES:

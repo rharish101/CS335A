@@ -93,8 +93,9 @@ class SymbTable:
             return None
 
     # TODO Need to handle dynamic entities like linked lists, strings etc
-    def get_size(self, dtype):
+    def get_size(self, dtype,check = False):
         assert isinstance(dtype, GoType)
+        # if isinstance(dtype,GoType):
         name = dtype.name
         print("SIZE: getting size of {}".format(name))
         value = dtype.value
@@ -117,13 +118,20 @@ class SymbTable:
         elif name == "complex128":
             size = 16
         elif name == "string":
-            size = len(value)
+            # print("NAME XXXX{}".format(value))
+            if value is None:
+                size = 0
+            else:   
+                size = len(value)
             # print("Warning: size of string is not defined")
         else:
             actual_type = self.get_actual(name)
             if actual_type is None:
-                print("Error:'{}' is unregistered dtype".format(name))
-                exit()
+                if check is False:
+                    print("Error:'{}' is unregistered dtype".format(name))
+                    exit()
+                else:
+                    return None    
             temp = actual_type
             while temp is not None:
                 if isinstance(temp, GoType):
@@ -187,6 +195,7 @@ class SymbTable:
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
 
+            #TODO need to handle array os structures seperately    
             elif isinstance(dtype, GoArray):
                 print("ARRAY DTYPE {}".format(dtype.dtype))
                 assert isinstance(dtype.final_type, GoType)
@@ -286,13 +295,13 @@ class SymbTable:
         actual_types = self.get_struct(struct_name)
         size = 0
         for actual in actual_types:
-            if type(actual) is list:
+            # print("ACTUAL {}".format(actual.dtype.name))
+            a = self.get_size(actual.dtype,True)
+            if a is None:
                 size += self.struct_size(actual.dtype.name)
             else:
-                assert isinstance(actual, GoVar)
-                size += self.get_size(actual.dtype)
+                size += a     
         return size
-
 
 
     def insert_const(self, const, dtype):
@@ -699,12 +708,12 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_lab
             for param in table.methods[key]['params']:
                 if param.name:
                     child_table.insert_var(param.name,dtype)        
-            # for rec in table.methods[name]['recciever']:
-            # print("XXXX {}".format(name[1]))
+
             struct_obj = GoStruct([])
             struct_obj.name = name[1].dtype.name
             struct_obj.size = table.struct_size(name[1].dtype.name)
-            table.insert_var(name[1].name,struct_obj)        
+            print("STRUCT METHOD SIZE {}".format(struct_obj.size))
+            child_table.insert_var(name[1].name,struct_obj)        
             table.methods[key]["body"] = child_table
 
         for statement in statement_list:
@@ -1499,8 +1508,9 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_lab
             struct_obj.size = table.check_struct(struct_name, type_list)
             struct_obj.name = struct_name
             # struct_obj.size = table.struct_size(struct_name)
+            # table.struct_size(struct_name)
             # table.variables(insert_var(struct_name, struct_obj, "struct"))
-            # XXX
+            
             DTYPE = struct_obj
 
         ir_code += "{} = {}{{".format(store_var, tree.dtype.name)

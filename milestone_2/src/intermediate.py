@@ -93,10 +93,10 @@ class SymbTable:
             return None
 
     # TODO Need to handle dynamic entities like linked lists, strings etc
-    def get_size(self, dtype,check = False):
+    def get_size(self, dtype, check=False):
         # assert isinstance(dtype, GoType)
         # if isinstance(dtype,GoType):
-        if isinstance(dtype,GoStruct):
+        if isinstance(dtype, GoStruct):
             return self.struct_size(dtype.name)
         name = dtype.name
         print("SIZE: getting size of {}".format(name))
@@ -1366,7 +1366,7 @@ def symbol_table(
                     params_list = table.get_method(key, "params")
 
                     result = table.get_method(key, "result")
-                    
+
                     # tree.dtype = result_type
                 # Get function name/location in memory
                 func_loc = lhs.name
@@ -1412,7 +1412,7 @@ def symbol_table(
                 tree.dtype = result_type
             else:
                 result_type = []
-                tree.dtype = []    
+                tree.dtype = []
 
             DTYPE = result_type
 
@@ -1774,7 +1774,7 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += expr_code
-            table.type_check(res.dtype, expr_dtype)
+            table.type_check(res.dtype, expr_dtype, use="return")
 
         ir_code += "return "
         ir_code += ",".format(

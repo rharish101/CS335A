@@ -29,7 +29,7 @@ func temp1(x uint, y uint)uint{
 	return x
 }
 
-func add(x uint, y int)uint {
+func add(x uint, y uint)uint {
 	return x+y
 }
 
@@ -41,7 +41,7 @@ func temp(x int,y int ){
 	t := person{{"string"},2}
 	t.age = 2
 	k := ++t.age + *n
-	
+
 
 	var d int_t = 4
 	// d = 2
@@ -82,10 +82,10 @@ func temp(x int,y int ){
 }
 
 func main() {
-	
+
 	// s := "string"
 	// var a int = 4
-	// b := a + 4*5 
+	// b := a + 4*5
 	// a:=3+4
 	// b :=a*5
 	// c:=a-b

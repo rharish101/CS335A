@@ -34,6 +34,7 @@ class SymbTable:
 
         The kinds of information stored are:
             * Variables (dict of `GoVar`): Their types
+            * Intermediates (dict of `GoVar`): Intermediate 3AC variables
             * Structures (dict of `GoStruct`): The variables, their types and
                 their tags
             * Interfaces (dict of `GoInterfaceType`): The methods in the
@@ -55,6 +56,7 @@ class SymbTable:
                 exists)
         """
         self.variables = {}
+        self.intermediates = {}
         self.structures = {}
         self.interfaces = {}
         self.functions = {}
@@ -216,7 +218,10 @@ class SymbTable:
                 dtype.offset = self.offset + 4
                 self.offset = dtype.offset
 
-            self.variables[name] = dtype
+            if use == "intermediate":
+                self.intermediates[name] = dtype
+            else:
+                self.variables[name] = dtype
             self.used.add(name)
         else:
             print("Error: Already declared '{}' name '{}'".format(use, name))
@@ -612,6 +617,11 @@ def symbol_table(
                         store_var="__decl{}_{}".format(i, depth_num),
                         scope_label=scope_label,
                     )
+                    table.insert_var(
+                        "__decl{}_{}".format(i, depth_num),
+                        expr_dtype,
+                        use="intermediate",
+                    )
                     ir_code += expr_code
                     evaluated_types.append(expr_dtype)
                 if len(rhs) != 0:
@@ -686,6 +696,11 @@ def symbol_table(
                         block_type,
                         store_var="__const{}_{}".format(i, depth_num),
                         scope_label=scope_label,
+                    )
+                    table.insert_var(
+                        "__const{}_{}".format(i, depth_num),
+                        expr_dtype,
+                        use="intermediate",
                     )
                     ir_code += expr_code
                     evaluated_types.append(expr_dtype)
@@ -788,6 +803,11 @@ def symbol_table(
                                 ind_cnt, depth_num
                             ),
                             scope_label=scope_label,
+                        )
+                        table.insert_var(
+                            "__index{}_{}".format(ind_cnt, depth_num),
+                            dtype,
+                            use="intermediate",
                         )
                         table.type_check(dtype, GoType("int", True))
                         ir_code += index_code
@@ -975,6 +995,9 @@ def symbol_table(
             store_var="__lhs_{}".format(depth_num),
             scope_label=scope_label,
         )
+        table.insert_var(
+            "__lhs_{}".format(depth_num), dtype1, use="intermediate"
+        )
         dtype2, rhs_code = symbol_table(
             rhs,
             table,
@@ -982,6 +1005,9 @@ def symbol_table(
             block_type,
             store_var="__rhs_{}".format(depth_num),
             scope_label=scope_label,
+        )
+        table.insert_var(
+            "__rhs_{}".format(depth_num), dtype1, use="intermediate"
         )
         ir_code += lhs_code + rhs_code
         ir_code += "{} = __lhs_{} {} __rhs_{}\n".format(
@@ -1057,18 +1083,25 @@ def symbol_table(
 
     elif isinstance(tree, GoIf):
         # New symbol table needed as stmt is in the scope of both if and else
+        depth_num = global_count
+        global_count += 1
+
         newtable = SymbTable(table)
         ir_code += symbol_table(
             tree.stmt, newtable, name, block_type, scope_label=scope_label
         )[1]
-        ir_code += symbol_table(
+        cond_dtype, cond_code = symbol_table(
             tree.cond,
             newtable,
             name,
             block_type,
-            store_var="__cond",
+            store_var="__cond_{}".format(depth_num),
             scope_label=scope_label,
-        )[1]
+        )
+        ir_code += cond_code
+        table.insert_var(
+            "__cond_{}".format(depth_num), cond_dtype, use="intermediate"
+        )
 
         # Choosing the labels
         if_label = "If{}".format(global_count)
@@ -1139,14 +1172,18 @@ def symbol_table(
                 scope_label=scope_label,
             )[1]
             ir_code += "{}: ".format(cond_label)
-            ir_code += symbol_table(
+            fcond_dtype, fcond_code = symbol_table(
                 tree.clause.expr,
                 table,
                 name,
                 block_type,
                 store_var="__fcond_{}".format(depth_num),
                 scope_label=scope_label,
-            )[1]
+            )
+            ir_code += fcond_code
+            table.insert_var(
+                "__fcond_{}".format(depth_num), fcond_dtype, use="intermediate"
+            )
             ir_code += "if __fcond_{} goto {}\ngoto {}\n{}: ".format(
                 depth_num, for_label, endfor_label, for_label
             )
@@ -1302,22 +1339,30 @@ def symbol_table(
                 # XXX
                 DTYPE = tree.dtype
 
-            ir_code += symbol_table(
+            lhs_dtype, lhs_code = symbol_table(
                 lhs,
                 table,
                 name,
                 block_type,
                 store_var="__indlhs_{}".format(depth_num),
                 scope_label=scope_label,
-            )[1]
-            ir_code += symbol_table(
+            )
+            ir_code += lhs_code
+            table.insert_var(
+                "__indlhs_{}".format(depth_num), lhs_dtype, use="intermediate"
+            )
+            rhs_dtype, rhs_code = symbol_table(
                 rhs,
                 table,
                 name,
                 block_type,
                 store_var="__indrhs_{}".format(depth_num),
                 scope_label=scope_label,
-            )[1]
+            )
+            ir_code += rhs_code
+            table.insert_var(
+                "__indrhs_{}".format(depth_num), rhs_dtype, use="intermediate"
+            )
             ir_code += "{} = __indlhs_{}[__indrhs_{}]\n".format(
                 store_var, depth_num, depth_num, scope_label=scope_label
             )
@@ -1384,14 +1429,20 @@ def symbol_table(
             ):
                 assert isinstance(param, GoParam)
                 # symbol_table(param,table)
-                ir_code += symbol_table(
+                arg_dtype, arg_code = symbol_table(
                     argument,
                     table,
                     name,
                     block_type,
                     store_var="__arg{}_{}".format(i, depth_num),
                     scope_label=scope_label,
-                )[1]
+                )
+                ir_code += arg_code
+                table.insert_var(
+                    "__arg{}_{}".format(i, depth_num),
+                    arg_dtype,
+                    use="intermediate",
+                )
                 actual_dtype = param.dtype
                 given_dtype, eval_code = symbol_table(
                     argument, table, name, block_type, scope_label=scope_label
@@ -1466,7 +1517,7 @@ def symbol_table(
                 for child in tree.element:
                     if isinstance(child, GoKeyedElement):
                         child.use = "array"
-                        ir_code += symbol_table(
+                        child_dtype, child_code = symbol_table(
                             child,
                             table,
                             name,
@@ -1475,7 +1526,13 @@ def symbol_table(
                                 child_count, depth_num
                             ),
                             scope_label=scope_label,
-                        )[1]
+                        )
+                        ir_code += child_code
+                        table.insert_var(
+                            "__child{}_{}".format(child_count, depth_num),
+                            child_dtype,
+                            use="intermediate",
+                        )
                         child_count += 1
                         if depth == 0:
                             depth = child.depth
@@ -1573,14 +1630,20 @@ def symbol_table(
             for child in tree.value:
                 if isinstance(child, GoKeyedElement):
                     child.use = "array"
-                    ir_code += symbol_table(
+                    elem_dtype, elem_code = symbol_table(
                         child,
                         table,
                         name,
                         block_type,
                         store_var="__elem{}_{}".format(elem_num, depth_num),
                         scope_label=scope_label,
-                    )[1]
+                    )
+                    ir_code += elem_code
+                    table.insert_var(
+                        "__elem{}_{}".format(elem_num, depth_num),
+                        elem_dtype,
+                        use="intermediate",
+                    )
                     elem_num += 1
                     keys.append(child.key)
 
@@ -1637,6 +1700,11 @@ def symbol_table(
                     store_var="__elem{}_{}".format(i, depth_num),
                     scope_label=scope_label,
                 )
+                table.insert_var(
+                    "__elem{}_{}".format(i, depth_num),
+                    field_type,
+                    use="intermediate",
+                )
                 keys.append(field.key)
                 ir_code += elem_code
                 type_list.append(field_type)
@@ -1662,14 +1730,21 @@ def symbol_table(
         ir_code += "}\n"
 
     elif isinstance(tree, GoUnaryExpr):
-        ir_code += symbol_table(
+        depth_num = global_count
+        global_count += 1
+
+        opd_dtype, opd_code = symbol_table(
             tree.expr,
             table,
             name,
             block_type,
-            store_var="__opd",
+            store_var="__opd_{}".format(depth_num),
             scope_label=scope_label,
-        )[1]
+        )
+        ir_code += opd_code
+        table.insert_var(
+            "__opd_{}".format(depth_num), opd_dtype, use="intermediate"
+        )
         ir_code += "{} = {} __opd\n".format(store_var, tree.op)
 
         if tree.op == "&" or tree.op == "*":
@@ -1774,6 +1849,11 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += expr_code
+            table.insert_var(
+                "__retval{}_{}".format(i, depth_num),
+                expr_dtype,
+                use="intermediate",
+            )
             table.type_check(res.dtype, expr_dtype, use="return")
 
         ir_code += "return "

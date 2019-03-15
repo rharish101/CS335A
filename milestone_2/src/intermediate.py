@@ -723,6 +723,7 @@ def symbol_table(
         DTYPE = None
 
     elif isinstance(tree, GoBlock):
+        #print("Scope = {}".format(scope_label))
         statement_list = tree.statements
         if not name:
             child_table = SymbTable(table)
@@ -751,6 +752,11 @@ def symbol_table(
             print("STRUCT METHOD SIZE {}".format(struct_obj.size))
             child_table.insert_var(name[1].name, struct_obj)
             table.methods[key]["body"] = child_table
+
+        else:
+            child_table = SymbTable(table)
+            table.scopes.append(child_table)
+
 
         for statement in statement_list:
             if (
@@ -1158,9 +1164,7 @@ def symbol_table(
             ):
                 print("Error in for loop Condition")
                 exit()
-            elif (tree.clause.post is not None) and not isinstance(
-                tree.clause.post, GoAssign
-            ):
+            elif (tree.clause.post is not None) and not isinstance(tree.clause.post, GoAssign) and not( isinstance(tree.clause.post, GoUnaryExpr) and tree.clause.post.op in ["++","--"] ):
                 print("Error in for loop post expression")
                 exit()
 
@@ -1205,13 +1209,17 @@ def symbol_table(
             raise NotImplementedError("Range not implemented")
 
         ir_code += symbol_table(
-            tree.infor, table, name, block_type, scope_type="For"
+            tree.infor, table, name, block_type, scope_label="For"
         )[1]
         ir_code += "{}: ".format(postfor_label) + post_code
         ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
 
     elif isinstance(tree, GoSwitch):
-        newtable = SymbTable(table)
+        new_table = SymbTable(table)
+        symbol_table(tree.stmt, new_table, name, block_type, scope_label=scope_label)
+        table.scopes.append(new_table)
+
+        newtable = SymbTable(new_table)
         for case_stmt in tree.case_list:
             for child in case_stmt.expr_list:
                 symbol_table(
@@ -1220,10 +1228,10 @@ def symbol_table(
             newnewtable = SymbTable(newtable)
             for child in case_stmt.stmt_list:
                 symbol_table(
-                    child, newnewtable, name, block_type, scope_type="Switch"
+                    child, newnewtable, name, block_type, scope_label="Switch"
                 )
             newtable.scopes.append(newnewtable)
-        table.scopes.append(newtable)
+        new_table.scopes.append(newtable)
 
         # Converting Switch to If-Else for 3AC
         prev_stmts = []
@@ -1249,7 +1257,7 @@ def symbol_table(
         if_conv.stmt = tree.stmt
         copy_table = deepcopy(table)
         return symbol_table(
-            if_conv, copy_table, name, block_type, scope_type="Switch"
+            if_conv, copy_table, name, block_type, scope_label="Switch"
         )
 
     # TODO: 3AC necessary ??
@@ -1811,7 +1819,7 @@ def symbol_table(
         if scope_label == "":
             print("Error: {} not valid in this scope".format(tree.keyword))
             exit()
-        elif tree.keyword == "continue" and "|" not in scope_label:
+        elif tree.keyword == "continue" and scope_label is "Switch":
             print('Error: "continue" not valid in a "switch" scope')
             exit()
 

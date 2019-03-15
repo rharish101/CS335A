@@ -2328,7 +2328,7 @@ def csv_writer(table, name):
         writer.writerow(
             ["#METHODS"]
         )
-        writer.writerow([""])
+        writer.writerow([])
         # writer.writerow(["method_name", "reciever", "symbol_table"])
         writer.writerow([])
         for method in table.methods:

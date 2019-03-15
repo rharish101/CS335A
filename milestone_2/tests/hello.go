@@ -44,17 +44,16 @@ func temp(x int,y int ){
 
 
 	var d int_t = 4
-	// d = 2
 	var b uint = 3
 	c := d + b
 
 	a  := c
 	var z uint = 20
 	d = 3
-	primes := [6]int_t{2, 3, 5, 7, 11, 13}
+	primes := [3]uint{2,3,4}
 
-	// s:= "string"
-	// // d = temp1(2,3)
+	s:= "string"
+
 	e := 4*5 + c + primes[2] + add(temp1(2,3),3)
 	primes1 := [3]int{2,3,4}
 	primes[primes1[2]] = z
@@ -63,32 +62,14 @@ func temp(x int,y int ){
 
 
 	primes[e] = 23
-
-	// var temp int  = person{name: "Alice", age: 30}
-	// s1 := person{name: "Sean", age: 50}
-	// var temp1 int = s1.age
-
-
-
-	// var k int64 = 3
-	// k = primes[2]
-
-	// a = e
-	// {
-
-	// 	z := 4
-	// 	s = "string1"
-	// }
 }
 
 func main() {
 
-	// s := "string"
-	// var a int = 4
-	// b := a + 4*5
-	// a:=3+4
-	// b :=a*5
-	// c:=a-b
+	s := "string"
+	var a int = 4
+	b := a + 4*5
+	c:=a-b
 
 
 }

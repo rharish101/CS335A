@@ -97,9 +97,9 @@ class SymbTable:
         else:
             return None
 
-    # TODO Need to handle dynamic entities like linked lists, strings etc
+    #  Need to handle dynamic entities like linked lists, strings etc
     def get_size(self, dtype, check=False):
-        # assert isinstance(dtype, GoType)
+        # #assert isinstance(dtype, GoType)
         # if isinstance(dtype,GoType):
         if isinstance(dtype, GoStruct):
             return self.struct_size(dtype.name)
@@ -204,10 +204,10 @@ class SymbTable:
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
 
-            # TODO need to handle array os structures seperately
+            #  need to handle array os structures seperately
             elif isinstance(dtype, GoArray):
                 logging.info("ARRAY DTYPE {}".format(dtype.dtype))
-                # assert isinstance(dtype.final_type, GoType)
+                # #assert isinstance(dtype.final_type, GoType)
                 dtype.size = dtype.size * self.get_size(dtype.final_type)
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
@@ -295,8 +295,8 @@ class SymbTable:
                 size += self.check_struct(actual.dtype.name, given)
                 # self.check_struct(actual.dtype.name, given)
             else:
-                assert isinstance(actual, GoVar)
-                assert isinstance(given, GoType)
+                # #assert isinstance(actual, GoVar)
+                # #assert isinstance(given, GoType)
                 self.type_check(
                     actual.dtype, given, "structure initialization"
                 )
@@ -351,7 +351,7 @@ class SymbTable:
     def insert_method(self, name, params, result, receiver):
         for rec in receiver:
             # Indexing by name and receiver
-            assert isinstance(rec, GoParam)
+            # #assert isinstance(rec, GoParam)
             key = (name, rec.dtype.name)
             # print("struct key: '{}', '{}'".format(name,rec.name))
             if key not in table.methods:
@@ -365,10 +365,10 @@ class SymbTable:
     def nested_module(self, module):
         parent = module.parent
         child = module.child
-        assert type(child) is str
+        #assert type(child) is str
         # print("child '{}', parent '{}'".format(child, parent))
         if isinstance(parent, GoFromModule):
-            assert isinstance(struct_name, GoVar)
+            #assert isinstance(struct_name, GoVar)
             struct_name = (self.nested_module(parent)).dtype
             return self.get_struct(struct_name, child)
         elif type(parent) is str:
@@ -493,7 +493,7 @@ def symbol_table(
     error = False
     logging.info(tree)
 
-    # XXX If code enters here then it looks only for variables, hence
+    # If code enters here then it looks only for variables, hence
     # we need to make sure that sybmol table is not called uneccessary strings
     # otherwise code will fail
     if type(tree) is str:  # variable
@@ -510,7 +510,7 @@ def symbol_table(
             ir_code = str(tree.item)
         else:
             ir_code = "{} = {}\n".format(store_var, tree.item)
-        assert isinstance(DTYPE, GoType)
+        #assert isinstance(DTYPE, GoType)
 
     elif isinstance(tree, GoFromModule):
         parent = tree.parent
@@ -519,7 +519,7 @@ def symbol_table(
 
         # currently handles accessing a field of a struct
         if type(parent) is str:
-            assert type(child) is str
+            #assert type(child) is str
             struct_name = table.get_type(parent).name
             DTYPE = table.get_struct(struct_name, child).dtype
 
@@ -534,7 +534,7 @@ def symbol_table(
         else:
             ir_code = "{} = {}\n".format(store_var, tree.name)
 
-    # TODO: Store modules
+    # : Store modules
     elif isinstance(tree, GoSourceFile):
         # iterating over package imports
         for item in tree.imports:
@@ -588,7 +588,7 @@ def symbol_table(
 
         var_list = tree.declarations
         for item in var_list:
-            # assert isinstance(item,GoVarSpec)
+            # #assert isinstance(item,GoVarSpec)
             lhs = item.lhs
             dtype = item.dtype
             rhs = item.rhs
@@ -651,12 +651,12 @@ def symbol_table(
         DTYPE = None
 
     # typedef and aliases
-    # XXX still need to incorporate typedef alias during type checking
+    # still need to incorporate typedef alias during type checking
     elif isinstance(tree, GoDecl) and tree.kind == "type":
         type_list = tree.declarations
         # iterating over AliasDecl and Typedef
         for item in type_list:
-            assert isinstance(item, GoTypeDefAlias)
+            #assert isinstance(item, GoTypeDefAlias)
             alias = item.alias
             actual = item.actual
             if isinstance(actual, GoStruct):
@@ -675,7 +675,7 @@ def symbol_table(
 
         const_list = tree.declarations
         for item in const_list:
-            # assert isinstance(item,GoConstSpec)
+            # #assert isinstance(item,GoConstSpec)
             id_list = item.id_list
             dtype = item.dtype
             expr_list = item.expr
@@ -734,7 +734,7 @@ def symbol_table(
             for param in table.functions[name]["params"]:
                 if param.name:
                     child_table.insert_var(param.name, param.dtype)
-                # TODO need to handle parameters with None name
+                #  need to handle parameters with None name
             table.functions[name]["body"] = child_table
 
         elif block_type == "method" and insert:
@@ -888,7 +888,7 @@ def symbol_table(
                 left = var
                 while isinstance(left.lhs, GoPrimaryExpr):
                     left = left.lhs
-                # XXX
+                #
                 dtype1 = table.get_type(left.lhs).dtype
                 # dtype1 = table.get_type(left.lhs)
 
@@ -919,7 +919,7 @@ def symbol_table(
                 child = var.child
                 # currently handles accessing a field of a struct
                 if type(parent) is str:
-                    assert type(child) is str
+                    #assert type(child) is str
                     struct_name = table.get_type(parent).name
                     dtype1 = table.get_struct(struct_name, child).dtype
 
@@ -997,7 +997,7 @@ def symbol_table(
         rhs = tree.rhs
         logging.info('exp: lhs "{}", rhs "{}"'.format(lhs, rhs))
 
-        # XXX INCOMPLETE : need to handle cases for array types, struct types,
+        # INCOMPLETE : need to handle cases for array types, struct types,
         # interfaces, function, pointer
 
         dtype1, lhs_code = symbol_table(
@@ -1036,7 +1036,7 @@ def symbol_table(
             )
             exit()
 
-        # XXX INCOMPLETE need to check for other type classes
+        # INCOMPLETE need to check for other type classes
         if isinstance(dtype1, GoType) and isinstance(dtype2, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
@@ -1275,7 +1275,7 @@ def symbol_table(
             if_conv, copy_table, name, block_type, scope_label="Switch"
         )
 
-    # TODO: 3AC necessary ??
+    # : 3AC necessary ??
     # DTYPE needs to be verified
     # ==========================================================================
     elif isinstance(tree, GoArray):
@@ -1303,14 +1303,14 @@ def symbol_table(
         elif isinstance(length, GoBasicLit):
             dtype = length.dtype
 
-        # XXX Need to handle the case for typedef/alias of dtype.name
+        # Need to handle the case for typedef/alias of dtype.name
         if isinstance(dtype, GoType) and dtype.name not in INT_TYPES:
             tree.size = dtype.value * tree.dtype.size
             logging.info("ARRAY SIZE: {}".format(tree.size))
             print("Error: Array length must be an integer")
             exit()
 
-        # XXX
+        #
         DTYPE = None
 
     elif isinstance(tree, GoIndex):
@@ -1339,7 +1339,7 @@ def symbol_table(
 
         if isinstance(rhs, GoIndex):  # array indexing
             logging.info("array = '{}'".format(lhs))
-            # TODO need to handle multiple return from function
+            #  need to handle multiple return from function
             if isinstance(lhs, GoPrimaryExpr):
                 lhs.depth = tree.depth + 1
             else:
@@ -1361,7 +1361,7 @@ def symbol_table(
                 tree.dtype = (table.get_type(lhs)).dtype
                 # print("dtype: '{}'".format(table.get_type(lhs)))
 
-                # XXX
+                #
                 DTYPE = tree.dtype
 
             lhs_dtype, lhs_code = symbol_table(
@@ -1398,14 +1398,14 @@ def symbol_table(
             if type(lhs) is str:
                 logging.info("FUNCTION CALL '{}'".format(lhs))
                 func_name = lhs
-                assert isinstance(rhs, GoArguments)
+                #assert isinstance(rhs, GoArguments)
                 # type checking of arguments passed to function
                 argument_list = rhs.expr_list
                 params_list = table.get_func(func_name, "params")
 
                 result = table.get_func(func_name, "result")
                 # print(result)
-                # assert result is None or isinstance(result, GoParam) ## Functions with no return value
+                # #assert result is None or isinstance(result, GoParam) ## Functions with no return value
 
                 # Get function name/location in memory
                 func_loc = func_name
@@ -1433,7 +1433,7 @@ def symbol_table(
                     )
                     # func_name = lhs
                     key = (method_name, struct_name)
-                    assert isinstance(rhs, GoArguments)
+                    #assert isinstance(rhs, GoArguments)
                     # type checking of arguments passed to function
                     params_list = table.get_method(key, "params")
 
@@ -1454,7 +1454,7 @@ def symbol_table(
             for i, (argument, param) in enumerate(
                 zip(argument_list, params_list)
             ):
-                assert isinstance(param, GoParam)
+                #assert isinstance(param, GoParam)
                 # symbol_table(param,table)
                 arg_dtype, arg_code = symbol_table(
                     argument,
@@ -1503,7 +1503,7 @@ def symbol_table(
             )
             ir_code += ")\n"
 
-    # XXX To be done later : check number of elements in array same as that
+    # To be done later : check number of elements in array same as that
     # specified
 
     elif isinstance(tree, GoKeyedElement):
@@ -1600,7 +1600,7 @@ def symbol_table(
             tree.dtype = element_type
             logging.info("tree.dtype '{}'".format(tree.dtype))
 
-        # TODO 3AC
+        #  3AC
         elif tree.use == "struct":
             element = tree.element
             logging.info("struct element '{}'".format(element))
@@ -1625,10 +1625,10 @@ def symbol_table(
                 logging.info("LIST {}".format(list(element_type)))
             tree.dtype = element_type
 
-        # XXX
+        #
         DTYPE = tree.dtype
 
-    # XXX UN-IMPLEMENTED
+    # UN-IMPLEMENTED
     elif isinstance(tree, GoCompositeLit):
         logging.info(
             "tree.dtype {}, tree.value {}".format(tree.dtype, tree.value)
@@ -1643,7 +1643,7 @@ def symbol_table(
 
         keys = []
         elem_num = 0
-        # XXX How does this handle array of structs
+        # How does this handle array of structs
         if isinstance(tree.dtype, GoArray):
             symbol_table(
                 tree.dtype, table, name, block_type, scope_label=scope_label
@@ -1690,7 +1690,7 @@ def symbol_table(
                         exit()
 
                 table.type_check(element_type, dtype, "array initialization")
-            # XXX
+            #
             DTYPE = tree.dtype
             if depth != tree.dtype.depth:
                 print("Error: Wrong array declaration")
@@ -1719,7 +1719,7 @@ def symbol_table(
             for i, field in enumerate(field_list):
                 field.use = "struct"
                 # field.name = struct_name
-                assert isinstance(field, GoKeyedElement)
+                #assert isinstance(field, GoKeyedElement)
                 field_type, elem_code = symbol_table(
                     field,
                     table,
@@ -1828,7 +1828,7 @@ def symbol_table(
             # elif isinstance(tree.expr,GoFromModule):
             #     eval_type,_  = symbol_table(tree.expr,table)
 
-        # TODO need to add better type checking
+        #  need to add better type checking
         else:
             tree.dtype, _ = symbol_table(
                 tree.expr, table, name, block_type, scope_label=scope_label
@@ -1911,7 +1911,7 @@ def resolve_dtype(dtype):
     return s
 
 
-# TODO Interfaces
+#  Interfaces
 def csv_writer(table, name, dir_name):
     if dir_name[-1] != "/":
         dir_name += "/"
@@ -2072,7 +2072,7 @@ def csv_writer(table, name, dir_name):
             tags = struct.tags
             string = ""
             for item1, item2 in zip(vars[:-1], tags[:-1]):
-                assert item1[0] == item2[0]
+                #assert item1[0] == item2[0]
                 string += "{}_{}_{};".format(
                     item1[0], resolve_dtype(item1[1].dtype), item2[1]
                 )

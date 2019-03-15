@@ -1212,13 +1212,17 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_lab
                 params_list = table.get_func(func_name, "params")
 
                 result = table.get_func(func_name, "result")
-                assert isinstance(result, GoParam)
-                result_type = result.dtype
+                print(result)
+                assert result is None or isinstance(result, GoParam) ## Functions with no return value
 
-                if type(result_type) is list:
-                    print("Warning: Returning list of types")
-                tree.dtype = result_type
-
+                if result is not None:
+                    result_type = result.dtype
+                    if type(result_type) is list:
+                        print("Warning: Returning list of types")
+                    tree.dtype = result_type
+                else:
+                    result_type = None
+                    tree.dtype = None
                 # Get function name/location in memory
                 func_loc = func_name
 
@@ -1569,8 +1573,7 @@ def symbol_table(tree, table, name=None, block_type=None, store_var="",scope_lab
         DTYPE = tree.dtype
     
     elif isinstance(tree, GoLabelCtrl):
-        print("PARENT = {}".format(table.parent))
-
+        
         if scope_label == "":
             print("Error: {} not valid in this scope".format(tree.keyword))
             exit()

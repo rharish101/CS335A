@@ -1777,7 +1777,7 @@ def symbol_table(
             table.type_check(res.dtype, expr_dtype, use="return")
 
         ir_code += "return "
-        ir_code += ",".format(
+        ir_code += ",".join(
             ["__retval{}_{}".format(i, depth_num) for i in range(len(results))]
         )
         ir_code += "\n"

@@ -54,6 +54,14 @@ def p_error(p):
     t_error(p)
 
 
+def adjust_lineno(line_num):
+    while lexer.lines[line_num - 1].strip() == "" or lexer.lines[
+        line_num - 1
+    ].strip().startswith("//"):
+        line_num -= 1
+    return line_num
+
+
 # =============================================================================
 # TYPES
 # =============================================================================
@@ -113,6 +121,7 @@ def p_ArrayType(p):
         length = "variable"
 
     p[0] = GoArray(length, arr_type)
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_ArrayLength(p):
@@ -126,6 +135,7 @@ def p_StructType(p):
     """
     try:
         p[0] = GoStruct(p[3])
+        p[0].lineno = adjust_lineno(p.slice[1].lineno)
     except ValueError as msg:
         position = go_traceback(p.slice[1])
         print("{} at position {}".format(msg, position))
@@ -403,6 +413,7 @@ def p_ConstDecl(p):
     else:  # List of constant specs
         declarations = p[3]
     p[0] = GoDecl("constant", declarations)
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_ConstSpec(p):
@@ -490,6 +501,7 @@ def p_TypeDecl(p):
     """TypeDecl : TYPE TypeSpecTopList
     """
     p[0] = GoDecl("type", p[2])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_TypeSpec(p):
@@ -551,6 +563,7 @@ def p_VarDecl(p):
     """VarDecl : VAR VarSpecTopList
     """
     p[0] = GoDecl("var", p[2])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_VarSpec(p):
@@ -637,6 +650,7 @@ def p_ShortVarDecl(p):
         expressions = [p[3]]
 
     p[0] = GoShortDecl(id_list, expressions)
+    p[0].lineno = adjust_lineno(p.slice[2].lineno)
 
 
 def p_FunctionDecl(p):
@@ -723,14 +737,14 @@ def p_BasicLit(p):
     elif p.slice[1].type == "FLOAT":
         p[1] = float(p[1])
     elif p.slice[1].type == "IMAG":
-        p[1] = complex(p[1][:-1] + "j")   
+        p[1] = complex(p[1][:-1] + "j")
 
     dtype = p.slice[1].type.lower()
     if dtype == "imag":
         dtype = "complex"
 
-    value = p.slice[1].value    
-    p[0] = GoBasicLit(p[1], GoType(dtype, True,value))
+    value = p.slice[1].value
+    p[0] = GoBasicLit(p[1], GoType(dtype, True, value))
 
 
 def p_CompositeLit(p):
@@ -750,12 +764,19 @@ def p_CompositeLit(p):
             dtype = GoType(p[1])
     elif isinstance(p[4], GoBaseType):  # Type
         dtype = GoArray("variable", p[4])
+        dtype.lineno = adjust_lineno(p.slice[3].lineno)
     elif len(p) == 8:  # ID DOT ID
         dtype = GoArray("variable", GoFromModule(p[4], p[6]))
+        dtype.lineno = adjust_lineno(p.slice[3].lineno)
     else:
         dtype = GoArray("variable", GoType(p[4]))
+        dtype.lineno = adjust_lineno(p.slice[3].lineno)
 
     p[0] = GoCompositeLit(dtype, p[len(p) - 1])
+    if len(p) != 2 and type(p[1]) is str:
+        p[0].lineno = adjust_lineno(p.slice[1].lineno)
+    else:  # LiteralType
+        p[0].lineno = p[1].lineno
 
 
 def p_LiteralType(p):
@@ -802,6 +823,7 @@ def p_KeyedElement(p):
         key = p[1]
 
     p[0] = GoKeyedElement(key, p[len(p) - 1])
+    p[0].lineno = adjust_lineno(lexer.lineno)
 
 
 def p_FunctionLit(p):
@@ -821,18 +843,21 @@ def p_PrimaryExpr(p):
         p[0] = p[1]
     else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
         p[0] = GoPrimaryExpr(p[1], p[2])
+        p[0].lineno = p[2].lineno
 
 
 def p_Selector(p):
     """Selector : DOT ID
     """
     p[0] = GoSelector(p[2])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_Index(p):
     """Index : LSQBRACK Expression RSQBRACK
     """
     p[0] = GoIndex(p[2])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_Arguments(p):
@@ -863,6 +888,7 @@ def p_Arguments(p):
         expressions = []
 
     p[0] = GoArguments(expressions)
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 # XXX
@@ -969,8 +995,10 @@ def p_Expression(p):
                         "bool", p[1].dtype.basic_lit & p[3].dtype.basic_lit
                     )
                     print(p[0].dtype.name)
-                elif p[1].dtype == p[3].dtype or precedence.index(p[1].dtype.name) < precedence.index(p[3].dtype.name):
-                    p[0].dtype = p[1].dtype    
+                elif p[1].dtype == p[3].dtype or precedence.index(
+                    p[1].dtype.name
+                ) < precedence.index(p[3].dtype.name):
+                    p[0].dtype = p[1].dtype
                 else:
                     p[0].dtype = p[3].dtype
 
@@ -989,6 +1017,7 @@ def p_Expression(p):
         else:
             # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
             p[0] = GoExpression(p[1], p[3], p[2])
+            p[0].lineno = adjust_lineno(p.slice[2].lineno)
 
 
 def p_ExpressionBot(p):
@@ -1023,22 +1052,22 @@ def p_UnaryExpr(p):
             try:
                 if p[2].dtype.name in ("string", "rune"):  # Error
                     error = True
-                elif p[1] == "+":
+                elif p[1][0] == "+":
                     pass
-                elif p[1] == "-":
+                elif p[1][0] == "-":
                     p[2].item = -1 * p[2].item
-                elif p[1] == "!":
+                elif p[1][0] == "!":
                     p[2].item = not p[2].item
-                elif p[1] == "^":
+                elif p[1][0] == "^":
                     if p[2].dtype.name == "int":
                         p[2].item = ~p[2].item
                     else:
                         error = True
-                elif p[1] == "*":
+                elif p[1][0] == "*":
                     error = True
-                elif p[1] == "++":
+                elif p[1][0] == "++":
                     p[2].item += 1
-                elif p[1] == "--":
+                elif p[1][0] == "--":
                     p[2].item -= 1
                 else:
                     error = True
@@ -1050,7 +1079,7 @@ def p_UnaryExpr(p):
                 print(
                     'SyntaxError: Unary operator "{}" not applicable for '
                     'argument of type "{}" at position {}'.format(
-                        p[1], p[2].dtype.name.lower(), position
+                        p[1][0], p[2].dtype.name.lower(), position
                     )
                 )
                 exit()
@@ -1058,7 +1087,8 @@ def p_UnaryExpr(p):
                 p[0] = p[2]
         else:
             # 1st arg. is expression, 2nd arg. is unary_op
-            p[0] = GoUnaryExpr(p[2], p[1])
+            p[0] = GoUnaryExpr(p[2], p[1][0])
+            p[0].lineno = adjust_lineno(p[1][1])
 
 
 def p_addmul_op(p):
@@ -1100,7 +1130,7 @@ def p_unary_op(p):
                 | DECR
                 | INCR
     """
-    p[0] = p[1]
+    p[0] = (p[1], p.slice[1].lineno)  # Tuple returned for line no.
 
 
 # =============================================================================
@@ -1159,6 +1189,7 @@ def p_Assignment(p):
 
     # 1st arg. is LHS, 2nd arg. is RHS, and 3rd arg. is the assign op
     p[0] = GoAssign(lhs, rhs, p[2])
+    p[0].lineno = adjust_lineno(lexer.lineno - 1)
 
 
 def p_assign_op(p):
@@ -1180,6 +1211,7 @@ def p_IfStmt(p):
     else:
         stmt = p[3]
     p[0] = GoIf(stmt, p[len(p) - 4], p[len(p) - 2], p[len(p) - 1])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_ElseBot(p):
@@ -1254,11 +1286,14 @@ def p_ForStmt(p):
                | FOR LBRACK ForClause RBRACK Block
                | FOR LBRACK RangeClause RBRACK Block
     """
-    if isinstance(p[3], GoBaseExpr):  # while loop
+    if not isinstance(p[3], GoForClause) and not isinstance(
+        p[3], GoRange
+    ):  # while loop
         clause = GoForClause(None, p[3], None)
     else:
         clause = p[3]
     p[0] = GoFor(clause, p[5])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_ForClause(p):
@@ -1300,6 +1335,7 @@ def p_ReturnStmt(p):
     else:
         expressions = [p[2]]
     p[0] = GoReturn(expressions)
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_BreakStmt(p):
@@ -1310,6 +1346,7 @@ def p_BreakStmt(p):
         p[0] = GoLabelCtrl(p[1], p[2])
     else:
         p[0] = GoLabelCtrl(p[1], None)
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_ContinueStmt(p):
@@ -1320,12 +1357,14 @@ def p_ContinueStmt(p):
         p[0] = GoLabelCtrl(p[1], p[2])
     else:
         p[0] = GoLabelCtrl(p[1], None)
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_GotoStmt(p):
     """GotoStmt : GOTO ID
     """
     p[0] = GoLabelCtrl(p[1], p[2])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_FallthroughStmt(p):
@@ -1353,6 +1392,7 @@ def p_ImportDecl(p):
         p[0] = GoDecl("import", [p[2]])
     else:  # ImportSpecList
         p[0] = GoDecl("import", p[3])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_ImportDeclList(p):

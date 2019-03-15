@@ -11,6 +11,15 @@ import os
 import logging
 
 
+def go_traceback(tree):
+    """Print traceback for the custom error message."""
+    print(
+        '  File "{}", line {}\n    {}'.format(
+            lexer.filename, tree.lineno, lexer.lines[tree.lineno - 1]
+        )
+    )
+
+
 INT_TYPES = [
     "int",
     "int8",
@@ -591,12 +600,14 @@ def symbol_table(
             rhs = item.rhs
             # print("var dtype {}".format(dtype.name))
             if len(lhs) != len(rhs) and len(rhs) != 0:
+                go_traceback(tree)
                 print(
                     "Error: different number of variables and values in var "
                     "declaration"
                 )
                 exit()
             elif len(rhs) == 0 and dtype is None:
+                go_traceback(tree)
                 print(
                     "Error: neither data type nor values given in var "
                     "declaration"
@@ -677,6 +688,7 @@ def symbol_table(
             dtype = item.dtype
             expr_list = item.expr
             if len(id_list) != len(expr_list):
+                go_traceback(tree)
                 print(
                     "Error: different number of variables and values in const "
                     "declaration"
@@ -788,6 +800,7 @@ def symbol_table(
         lhs = tree.lhs
         rhs = tree.rhs
         if len(lhs) != len(rhs):
+            go_traceback(tree)
             print(
                 "Error: Different number of variables and values in assign operation"
             )
@@ -841,6 +854,7 @@ def symbol_table(
                             if not isinstance(
                                 table.get_type(curr.expr), GoPointType
                             ):
+                                go_traceback(tree)
                                 print(
                                     "Error: {} not pointer type".format(
                                         curr.expr
@@ -860,12 +874,14 @@ def symbol_table(
                     curr = curr.parent
                     should_break = False
                 elif not table.lookup(curr):
+                    go_traceback(tree)
                     print('Error: "{}" not declared before use'.format(curr))
                     exit()
                 elif type(curr) is str:
                     loc_lhs += curr
 
                 if error:
+                    go_traceback(tree)
                     print(
                         'Error: Expression "{}" cannot be assigned '
                         "value".format(var)
@@ -898,6 +914,7 @@ def symbol_table(
                 )
                 if type(var.expr) is str:
                     if not isinstance(table.get_type(var.expr), GoPointType):
+                        go_traceback(tree)
                         print("Error: {} not pointer type".format(var.expr))
                         exit()
                     var.dtype = table.get_type(var.expr).dtype
@@ -905,6 +922,7 @@ def symbol_table(
 
                 elif isinstance(var.expr, GoUnaryExpr) and var.expr.op == "*":
                     if not isinstance(var.expr.dtype, GoPointType):
+                        go_traceback(tree)
                         print("Error: {} not pointer type".format(var.expr))
                         exit()
                     var.dtype = var.expr.dtype.dtype
@@ -951,12 +969,14 @@ def symbol_table(
         id_list = tree.id_list
         expr_list = tree.expr_list
         if len(id_list) != len(expr_list):
+            go_traceback(tree)
             print(
                 "Error: Different number of variables and values in short declaration"
             )
             exit()
         for var in id_list:
             if type(var) is not str:
+                go_traceback(tree)
                 print("SyntaxError: LHS '{}' is not a variable".format(var))
                 exit()
 
@@ -1027,6 +1047,7 @@ def symbol_table(
         logging.info('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
 
         if dtype1.__class__ is not dtype2.__class__:
+            go_traceback(tree)
             print(
                 "Error: Operands in expression of different type classes '{}' "
                 "and '{}'".format(dtype1.__class__, dtype2.__class__)
@@ -1045,9 +1066,11 @@ def symbol_table(
                 name = dtype2.name
 
             if name == "bool" and op not in ["&&", "||"]:
+                go_traceback(tree)
                 print("Error: Invalid operator for bool operands")
                 exit()
             elif op in ["&&", "||"] and name != "bool":
+                go_traceback(tree)
                 print(
                     "Error: Invalid operand types '{}' and '{}' for bool operator".format(
                         name1, name2
@@ -1058,6 +1081,7 @@ def symbol_table(
                 op in [">>", "<<", "&", "&^", "^", "|", "%"]
                 and name not in INT_TYPES
             ):
+                go_traceback(tree)
                 print(
                     "Error: Operator '{}' is not applicable for '{}'".format(
                         op, name
@@ -1073,6 +1097,7 @@ def symbol_table(
                 ">",
                 "<",
             ]:
+                go_traceback(tree)
                 print("Error: Invalid operator for string type")
                 exit()
             else:
@@ -1127,6 +1152,7 @@ def symbol_table(
             or not isinstance(tree.cond.dtype, GoType)
             or tree.cond.dtype.name != "bool"
         ):
+            go_traceback(tree)
             print("Error: If condition is not evaluating to bool")
             exit()
         ir_code += symbol_table(
@@ -1158,6 +1184,7 @@ def symbol_table(
                 and not isinstance(tree.clause.init, GoShortDecl)
                 and not isinstance(tree.clause.init, GoAssign)
             ):
+                go_traceback(tree)
                 print("Error in for loop Initialization")
                 exit()
             elif (
@@ -1165,6 +1192,7 @@ def symbol_table(
                 and not isinstance(tree.clause.expr, GoBasicLit)
                 and not isinstance(tree.clause.expr, GoExpression)
             ):
+                go_traceback(tree)
                 print("Error in for loop Condition")
                 exit()
             elif (
@@ -1175,6 +1203,7 @@ def symbol_table(
                     and tree.clause.post.op in ["++", "--"]
                 )
             ):
+                go_traceback(tree)
                 print("Error in for loop post expression")
                 exit()
 
@@ -1212,6 +1241,7 @@ def symbol_table(
             if (
                 tree.clause.expr is not None
             ) and tree.clause.expr.dtype.name is not "bool":
+                go_traceback(tree)
                 print("Error: Loop condition must be bool type")
                 exit()
 
@@ -1304,6 +1334,7 @@ def symbol_table(
         if isinstance(dtype, GoType) and dtype.name not in INT_TYPES:
             tree.size = dtype.value * tree.dtype.size
             logging.info("ARRAY SIZE: {}".format(tree.size))
+            go_traceback(tree)
             print("Error: Array length must be an integer")
             exit()
 
@@ -1323,6 +1354,7 @@ def symbol_table(
         if isinstance(dtype, GoType):
             name = dtype.name
             if name not in INT_TYPES:
+                go_traceback(tree)
                 print("Error: index of array is not integer")
                 exit()
         DTYPE = dtype
@@ -1341,12 +1373,15 @@ def symbol_table(
                 lhs.depth = tree.depth + 1
             else:
                 if not table.lookup(lhs):
+                    go_traceback(tree)
                     print("Error: '{}' array not declared".format(lhs))
                     exit()
                 elif not isinstance(table.get_type(lhs), GoArray):
+                    go_traceback(tree)
                     print("Error: '{}' not array".format(lhs))
                     exit()
                 elif tree.depth != table.get_type(lhs).depth:
+                    go_traceback(tree)
                     print(
                         "Error: Incorect number of indexes in array '{}'".format(
                             lhs
@@ -1441,6 +1476,7 @@ def symbol_table(
                 func_loc = lhs.name
 
             if len(argument_list) is not len(params_list):
+                go_traceback(tree)
                 print(
                     'Error: "{}" parameters passed to function "{}" instead '
                     'of "{}"'.format(
@@ -1561,8 +1597,9 @@ def symbol_table(
                         if depth == 0:
                             depth = child.depth
                         elif depth != child.depth:
+                            go_traceback(tree)
                             print("Error: Wrong array declaration")
-                            exit(0)
+                            exit()
                         logging.info("child dtype {}".format(child.dtype))
                         element_type = child.dtype
                         tree.size += child.size
@@ -1570,6 +1607,7 @@ def symbol_table(
                         if cur_size == 0:
                             cur_size = child.size
                         elif cur_size != child.size:
+                            go_traceback(tree)
                             print(
                                 "Error: Incorrect number of elements in array"
                             )
@@ -1674,6 +1712,7 @@ def symbol_table(
                     if depth == 0:
                         depth = child.depth
                     elif depth != child.depth:
+                        go_traceback(tree)
                         print("Error: Wrong array declaration")
                         exit()
                     element_type = child.dtype
@@ -1683,6 +1722,7 @@ def symbol_table(
                     if cur_size == 0:
                         cur_size = child.size
                     elif cur_size != child.size:
+                        go_traceback(tree)
                         print("Error: Incorrect number of elements in array")
                         exit()
 
@@ -1690,6 +1730,7 @@ def symbol_table(
             # XXX
             DTYPE = tree.dtype
             if depth != tree.dtype.depth:
+                go_traceback(tree)
                 print("Error: Wrong array declaration")
                 exit()
 
@@ -1702,6 +1743,7 @@ def symbol_table(
                     tree_type.length != "variable"
                     and tree_type.length.item != len(tree_value)
                 ):
+                    go_traceback(tree)
                     print("Error: Array declaration of incorrect size")
                     exit()
                 tree_type = tree_type.dtype
@@ -1778,6 +1820,7 @@ def symbol_table(
                     tree.dtype = GoPointType(table.get_type(tree.expr))
                 elif tree.op == "*":
                     if not isinstance(table.get_type(tree.expr), GoPointType):
+                        go_traceback(tree)
                         print("Error: {} not pointer type".format(tree.expr))
                         exit()
                     else:
@@ -1794,6 +1837,7 @@ def symbol_table(
                     tree.dtype = GoPointType(eval_type)
                 elif tree.op == "*":
                     if not isinstance(eval_type, GoPointType):
+                        go_traceback(tree)
                         print("Error: {} not pointer type".format(eval_type))
                         exit()
                     else:
@@ -1807,6 +1851,7 @@ def symbol_table(
 
                 if tree.op == "&":
                     if tree.expr.op == "&":
+                        go_traceback(tree)
                         print("Error: Cannot take address of address")
                         exit()
                     elif tree.expr.op == "*":
@@ -1815,6 +1860,7 @@ def symbol_table(
 
                 elif tree.op == "*":
                     if not isinstance(eval_type, GoPointType):
+                        go_traceback(tree)
                         print("Error: {} not pointer type".format(eval_type))
                         exit()
                     else:
@@ -1833,9 +1879,11 @@ def symbol_table(
 
     elif isinstance(tree, GoLabelCtrl):
         if scope_label == "":
+            go_traceback(tree)
             print("Error: {} not valid in this scope".format(tree.keyword))
             exit()
         elif tree.keyword == "continue" and scope_label is "Switch":
+            go_traceback(tree)
             print('Error: "continue" not valid in a "switch" scope')
             exit()
 
@@ -1853,10 +1901,12 @@ def symbol_table(
         elif block_type == "method":
             results = table.get_method(name, "result")
         else:
+            go_traceback(tree)
             print("Error: Return statement not inside any function or method")
             exit()
 
         if len(results) != len(tree.expr_list):
+            go_traceback(tree)
             print(
                 'Error: No. of values returned is "{}"; should be "{}"'.format(
                     len(tree.expr_list), len(results)

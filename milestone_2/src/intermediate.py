@@ -103,6 +103,8 @@ class SymbTable:
         # if isinstance(dtype,GoType):
         if isinstance(dtype, GoStruct):
             return self.struct_size(dtype.name)
+        elif isinstance(dtype,GoPointType):
+            return 4    
         name = dtype.name
         logging.info("SIZE: getting size of {}".format(name))
         value = dtype.value
@@ -205,7 +207,7 @@ class SymbTable:
             # TODO need to handle array os structures seperately
             elif isinstance(dtype, GoArray):
                 logging.info("ARRAY DTYPE {}".format(dtype.dtype))
-                assert isinstance(dtype.final_type, GoType)
+                # assert isinstance(dtype.final_type, GoType)
                 dtype.size = dtype.size * self.get_size(dtype.final_type)
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
@@ -1528,7 +1530,7 @@ def symbol_table(
                 tree.size += 1
                 # print(element_type)
             elif type(tree.element) is str:
-                ir_code = "{} = {}".format(store_var, element)
+                ir_code = "{} = {}".format(store_var, tree.element)
                 element_type = table.get_type(tree.element)
                 tree.size += 1
             else:
@@ -1629,7 +1631,7 @@ def symbol_table(
     # XXX UN-IMPLEMENTED
     elif isinstance(tree, GoCompositeLit):
         logging.info(
-            "tree.dtype {}, tree.value {}".format(tree.dtype.name, tree.value)
+            "tree.dtype {}, tree.value {}".format(tree.dtype, tree.value)
         )
         symbol_table(
             tree.dtype, table, name, block_type, scope_label=scope_label
@@ -1707,6 +1709,7 @@ def symbol_table(
                     exit()
                 tree_type = tree_type.dtype
                 tree_value = tree_value[0].element
+            lit_name = ""
 
         elif isinstance(tree.dtype, GoType):  # handles structs
             struct_name = tree.dtype.name
@@ -1737,13 +1740,14 @@ def symbol_table(
             struct_obj = GoStruct([])
             struct_obj.size = table.check_struct(struct_name, type_list)
             struct_obj.name = struct_name
+            lit_name = struct_name
             # struct_obj.size = table.struct_size(struct_name)
             # table.struct_size(struct_name)
             # table.variables(insert_var(struct_name, struct_obj, "struct"))
 
             DTYPE = struct_obj
 
-        ir_code += "{} = {}{{".format(store_var, tree.dtype.name)
+        ir_code += "{} = {}{{".format(store_var, lit_name)
         ir_code += ",".join(
             [
                 "{}:__elem{}_{}".format(key, i, depth_num)

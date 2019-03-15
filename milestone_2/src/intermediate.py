@@ -54,6 +54,7 @@ class SymbTable:
             * Imports (dict of `GoImportSpec`): The imports and their aliases
             * Parent (`SymbTable`): The reference to the parent scope (if it
                 exists)
+            * 3AC Code (str): The IR code in 3AC for this function/method/scope
         """
         self.variables = {}
         self.intermediates = {}
@@ -67,6 +68,7 @@ class SymbTable:
         self.constants = {}
         self.imports = {}
         self.parent = parent
+        self.ir_code = ""
 
         if use is None:
             if self.parent:
@@ -554,16 +556,14 @@ def symbol_table(
         #     symbol_table(body, table, (name, class_name), "method", scope_label = scope_label,insert = True)
 
         for rec in receiver:
-            ir_code = "func begin {}_{}\n".format(name, rec.name)
-            ir_code += symbol_table(
+            symbol_table(
                 body,
                 table,
                 (name, rec),
                 "method",
                 scope_label=scope_label,
                 insert=True,
-            )[1]
-            ir_code += "func end\n"
+            )
         DTYPE = None
 
     # function declarations
@@ -573,13 +573,9 @@ def symbol_table(
         result = tree.result
         body = tree.body  # instance of GoBlock
         table.insert_func(name, params, result)
-        ir_code = "func begin {}\n".format(name)
-        ir_code += symbol_table(
+        symbol_table(
             body, table, name, "function", scope_label=scope_label, insert=True
-        )[1]
-        if result is None:
-            ir_code += "return\n"
-        ir_code += "func end\n"
+        )
         DTYPE = None
 
     elif isinstance(tree, GoDecl) and tree.kind == "var":
@@ -723,7 +719,7 @@ def symbol_table(
         DTYPE = None
 
     elif isinstance(tree, GoBlock):
-        #print("Scope = {}".format(scope_label))
+        # print("Scope = {}".format(scope_label))
         statement_list = tree.statements
         if not name:
             child_table = SymbTable(table)
@@ -757,7 +753,6 @@ def symbol_table(
             child_table = SymbTable(table)
             table.scopes.append(child_table)
 
-
         for statement in statement_list:
             if (
                 statement is None
@@ -773,6 +768,17 @@ def symbol_table(
                 scope_label=scope_label,
             )[1]
         DTYPE = None
+
+        if block_type == "function" and insert:
+            if table.functions[name]["result"] is None:
+                ir_code += "return\n"
+            child_table.ir_code = ir_code
+        elif block_type == "method" and insert:
+            key = (name[0], name[1].dtype.name)
+            if table.methods[key]["result"] is None:
+                ir_code += "return\n"
+            ir_code += "return\n"
+            child_table.ir_code = ir_code
 
     elif isinstance(tree, GoAssign):
         depth_num = global_count
@@ -1164,7 +1170,14 @@ def symbol_table(
             ):
                 print("Error in for loop Condition")
                 exit()
-            elif (tree.clause.post is not None) and not isinstance(tree.clause.post, GoAssign) and not( isinstance(tree.clause.post, GoUnaryExpr) and tree.clause.post.op in ["++","--"] ):
+            elif (
+                (tree.clause.post is not None)
+                and not isinstance(tree.clause.post, GoAssign)
+                and not (
+                    isinstance(tree.clause.post, GoUnaryExpr)
+                    and tree.clause.post.op in ["++", "--"]
+                )
+            ):
                 print("Error in for loop post expression")
                 exit()
 
@@ -1216,7 +1229,9 @@ def symbol_table(
 
     elif isinstance(tree, GoSwitch):
         new_table = SymbTable(table)
-        symbol_table(tree.stmt, new_table, name, block_type, scope_label=scope_label)
+        symbol_table(
+            tree.stmt, new_table, name, block_type, scope_label=scope_label
+        )
         table.scopes.append(new_table)
 
         newtable = SymbTable(new_table)
@@ -2172,6 +2187,7 @@ if __name__ == "__main__":
 
     table = SymbTable()
     ir_code = symbol_table(tree, table)[1]
+    table.ir_code = ir_code
     get_csv(table)
 
     print("=" * 50)

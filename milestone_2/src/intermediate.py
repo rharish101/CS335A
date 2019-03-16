@@ -145,11 +145,11 @@ class SymbTable:
         else:
             actual_type = self.get_actual(name)
             if actual_type is None:
-                if check is False:
-                    print("Error:'{}' is unregistered dtype".format(name))
-                    exit()
-                else:
-                    return None
+                #can be a struct
+                size = self.struct_size(name)
+                # print("SIZE OF STRUCT {}".format(size))
+                return size
+              
             temp = actual_type
             while temp is not None:
                 if isinstance(temp, GoType):
@@ -182,6 +182,7 @@ class SymbTable:
             print(
                 "Error: Attempt to use '{}': undeclared function".format(name)
             )
+            exit()
 
     def get_method(self, name, info):
         if name in self.methods:
@@ -396,6 +397,7 @@ class SymbTable:
             )
             exit()
 
+        #XXX doesn't handle array of structs as the struct name is in GoType class     
         if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
@@ -430,6 +432,8 @@ class SymbTable:
                 ]:
                     print("Error: '{}' is unregistered dtype".format(name))
                     exit()
+
+            type_error = False        
             if dtype1.basic_lit or dtype2.basic_lit:
                 if name1 in INT_TYPES:
                     name1 = "int"
@@ -445,7 +449,22 @@ class SymbTable:
                 elif name2 in ["complex64", "complex128", "complex"]:
                     name2 = "complex"
 
-            if name1 != name2:
+                # print("HERE")
+                # print("name1 {}, name2 {}".format(name1,name2))
+                #ensures that int can be assigned to float but not vice versa
+                if name1 == "int" and name1 != name2:
+                    type_error = True
+                elif name1 == "float":
+                    if name2 != "int" and name2 != "float":
+                        type_error = True       
+                elif name1 != name2:
+                    type_error = True
+            else:
+                if name1 != name2:
+                    type_error = True            
+                    
+
+            if type_error:
                 # print("'{}', '{}'".format(name1,name2))
                 if use == "function call":
                     print(
@@ -537,6 +556,7 @@ def symbol_table(
             struct_name = (table.nested_module(parent)).dtype.name
             logging.info("struct name '{}'".format(struct_name))
             DTYPE = table.get_struct(struct_name, child).dtype
+        # print("MODULE TYPE {}".format(DTYPE.name))
 
         if store_var == "":
             ir_code = str(tree.name)
@@ -1004,6 +1024,7 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += rhs_code
+            # print("DTYPE SHORT DECL {}".format(dtype))
             table.insert_var(var, dtype)
 
         DTYPE = None
@@ -1897,6 +1918,7 @@ def symbol_table(
         else:
             ir_code = "goto {}\n".format(scope_label.split("|")[0])
 
+    #XXX Doesn't handle the case when function is defined to return something but doesn't have the 'return' statement        
     elif isinstance(tree, GoReturn):
         depth_num = global_count
         global_count += 1

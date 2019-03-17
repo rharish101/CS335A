@@ -185,6 +185,8 @@ class SymbTable:
             exit()
 
     def get_method(self, name, info):
+        if isinstance(name[1],GoParam):
+            print("STRUCT {}".format(name[1].dtype.name) )
         if name in self.methods:
             return self.methods[name][info]
         elif self.parent:
@@ -433,7 +435,8 @@ class SymbTable:
                     print("Error: '{}' is unregistered dtype".format(name))
                     exit()
 
-            type_error = False        
+            type_error = False    
+   
             if dtype1.basic_lit or dtype2.basic_lit:
                 if name1 in INT_TYPES:
                     name1 = "int"
@@ -451,14 +454,21 @@ class SymbTable:
 
                 # print("HERE")
                 # print("name1 {}, name2 {}".format(name1,name2))
-                #ensures that int can be assigned to float but not vice versa
-                if name1 == "int" and name1 != name2:
-                    type_error = True
-                elif name1 == "float":
-                    if name2 != "int" and name2 != "float":
-                        type_error = True       
-                elif name1 != name2:
-                    type_error = True
+                # in case of expression only one of the operands will have basic_lit = True as the case when both are basic lit is handled in the parser
+                if use == "expression":
+                    if name1 != name2:
+                        type_error = True  
+                #ensures that int can be assigned to float but not vice versa  
+                #need to ensure that only dtype2 is basic_lit in case of all non-expression type checking 
+                #assert dtype1.basic_lit is False       
+                else:
+                    if name1 == "int" and name1 != name2:
+                        type_error = True
+                    elif name1 == "float":
+                        if name2 != "int" and name2 != "float":
+                            type_error = True       
+                    elif name1 != name2:
+                        type_error = True
             else:
                 if name1 != name2:
                     type_error = True            
@@ -1918,7 +1928,7 @@ def symbol_table(
         else:
             ir_code = "goto {}\n".format(scope_label.split("|")[0])
 
-    #XXX Doesn't handle the case when function is defined to return something but doesn't have the 'return' statement        
+    #XXX Doesn't handle the case when function is defined to return something but doesn't have the 'return' statement     
     elif isinstance(tree, GoReturn):
         depth_num = global_count
         global_count += 1
@@ -1926,7 +1936,9 @@ def symbol_table(
         if block_type == "function":
             results = table.get_func(name, "result")
         elif block_type == "method":
-            results = table.get_method(name, "result")
+            # print("name {} {}".format(name[0],name[1]))
+            key = (name[0],name[1].dtype.name)
+            results = table.get_method(key, "result")
         else:
             go_traceback(tree)
             print("Error: Return statement not inside any function or method")

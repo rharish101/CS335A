@@ -1870,7 +1870,7 @@ def symbol_table(
         table.insert_var(
             "__opd_{}".format(depth_num), opd_dtype, use="intermediate"
         )
-        ir_code += "{} = {} __opd\n".format(store_var, tree.op)
+        ir_code += "{} = {} __opd_{}\n".format(store_var, tree.op,depth_num)
 
         if tree.op == "&" or tree.op == "*":
             if type(tree.expr) is str:

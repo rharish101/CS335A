@@ -391,7 +391,29 @@ class SymbTable:
     def type_check(
         self, dtype1, dtype2, use="", use_name=None, param_name=None
     ):
-        if dtype1.__class__ is not dtype2.__class__:
+
+        #handles initialisation of arrays    
+        if (isinstance(dtype1,GoStruct) and isinstance(dtype2,GoType)) or (isinstance(dtype1,GoType) and isinstance(dtype2,GoStruct)):
+            name1 = dtype1.name
+            name2 = dtype2.name    
+            # print("NAME1 {}, NAME2 {}".format(name1,name2))
+            actual1 = self.get_actual(name1)
+            actual2 = self.get_actual(name2)
+
+            while actual1 is not None:
+                if isinstance(actual1, GoType):
+                    name1 = actual1.name
+                    actual1 = self.get_actual(actual1.name)
+
+            while actual2 is not None:
+                if isinstance(actual2, GoType):
+                    name2 = actual2.name
+                    actual2 = self.get_actual(actual2.name) 
+            if name1 != name2:
+                print("Error: Operands in array initialization of different types {} and {}".format(name1,name2))
+                exit()
+
+        elif dtype1.__class__ is not dtype2.__class__:
             print(
                 "Error: Operands in '{}' of different type classes '{}' and '{}'".format(
                     use, dtype1.__class__, dtype2.__class__
@@ -400,7 +422,7 @@ class SymbTable:
             exit()
 
         #XXX doesn't handle array of structs as the struct name is in GoType class     
-        if isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
+        elif isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
             logging.info("name1 '{}', name2 '{}'".format(name1, name2))
@@ -495,8 +517,9 @@ class SymbTable:
                     )
                 exit()
 
-        if isinstance(dtype1, GoPointType) and isinstance(dtype2, GoPointType):
+        elif isinstance(dtype1, GoPointType) and isinstance(dtype2, GoPointType):
             self.type_check(dtype1.dtype, dtype2.dtype)
+        
 
 
 # Global variable for labelling statements, ensuring unique variables, etc.
@@ -1760,7 +1783,7 @@ def symbol_table(
                         print("Error: Incorrect number of elements in array")
                         exit()
 
-                table.type_check(element_type, dtype, "array initialization")
+                table.type_check(dtype, element_type, "array initialization")
             #
             DTYPE = tree.dtype
             if depth != tree.dtype.depth:

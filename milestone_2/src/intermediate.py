@@ -100,7 +100,11 @@ class SymbTable:
 
     def get_actual(self, alias):
         if alias in self.types:
-            return self.types[alias]
+            actual = self.types[alias]
+            while actual.name in self.types:
+                actual = self.types[actual.name]
+            # return self.types[alias]
+            return actual
         elif self.parent:
             return self.parent.get_actual(alias)
         else:
@@ -143,18 +147,23 @@ class SymbTable:
                 size = len(value)
             # print("Warning: size of string is not defined")
         else:
+            # print("NAME {}".format(name))
             actual_type = self.get_actual(name)
             if actual_type is None:
-                #can be a struct
                 size = self.struct_size(name)
-                # print("SIZE OF STRUCT {}".format(size))
                 return size
+            # assert actual_type is not None
+            # if actual_type is None:
+            #     #can be a struct
+            #     size = self.struct_size(name)
+            #     # print("SIZE OF STRUCT {}".format(size))
+            #     return size
               
-            temp = actual_type
-            while temp is not None:
-                if isinstance(temp, GoType):
-                    actual_type = temp
-                    temp = self.get_actual(actual_type.name)
+            # temp = actual_type
+            # while temp is not None:
+            #     if isinstance(temp, GoType):
+            #         actual_type = temp
+            #         temp = self.get_actual(actual_type.name)
 
             actual_type.value = value
             size = self.get_size(actual_type)
@@ -185,8 +194,8 @@ class SymbTable:
             exit()
 
     def get_method(self, name, info):
-        if isinstance(name[1],GoParam):
-            print("STRUCT {}".format(name[1].dtype.name) )
+        # if isinstance(name[1],GoParam):
+        #     print("STRUCT {}".format(name[1].dtype.name) )
         if name in self.methods:
             return self.methods[name][info]
         elif self.parent:
@@ -399,16 +408,21 @@ class SymbTable:
             # print("NAME1 {}, NAME2 {}".format(name1,name2))
             actual1 = self.get_actual(name1)
             actual2 = self.get_actual(name2)
+            if actual1:
+                name1 = actual1.name
+            if actual2:
+                name2 = actual2.name    
 
-            while actual1 is not None:
-                if isinstance(actual1, GoType):
-                    name1 = actual1.name
-                    actual1 = self.get_actual(actual1.name)
+            # while actual1 is not None:
+            #     if isinstance(actual1, GoType):
+            #         name1 = actual1.name
+            #         actual1 = self.get_actual(actual1.name)
 
-            while actual2 is not None:
-                if isinstance(actual2, GoType):
-                    name2 = actual2.name
-                    actual2 = self.get_actual(actual2.name) 
+            # while actual2 is not None:
+            #     if isinstance(actual2, GoType):
+            #         name2 = actual2.name
+            #         actual2 = self.get_actual(actual2.name) 
+
             if name1 != name2:
                 print("Error: Operands in array initialization of different types {} and {}".format(name1,name2))
                 exit()
@@ -430,16 +444,20 @@ class SymbTable:
             # handles recursive typdef/aliases
             actual1 = self.get_actual(name1)
             actual2 = self.get_actual(name2)
+            if actual1:
+                name1 = actual1.name
+            if actual2:
+                name2 = actual2.name    
 
-            while actual1 is not None:
-                if isinstance(actual1, GoType):
-                    name1 = actual1.name
-                    actual1 = self.get_actual(actual1.name)
+            # while actual1 is not None:
+            #     if isinstance(actual1, GoType):
+            #         name1 = actual1.name
+            #         actual1 = self.get_actual(actual1.name)
 
-            while actual2 is not None:
-                if isinstance(actual2, GoType):
-                    name2 = actual2.name
-                    actual2 = self.get_actual(actual2.name)
+            # while actual2 is not None:
+            #     if isinstance(actual2, GoType):
+            #         name2 = actual2.name
+            #         actual2 = self.get_actual(actual2.name)
 
             for name in [name1, name2]:
                 if name not in INT_TYPES and name not in [

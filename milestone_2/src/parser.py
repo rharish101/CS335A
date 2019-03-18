@@ -1066,9 +1066,11 @@ def p_UnaryExpr(p):
                 elif p[1][0] == "*":
                     error = True
                 elif p[1][0] == "++":
-                    p[2].item += 1
+                    #p[2].item += 1
+                    error = True
                 elif p[1][0] == "--":
-                    p[2].item -= 1
+                    #p[2].item -= 1
+                    error = True
                 else:
                     error = True
             except Exception:
@@ -1087,6 +1089,16 @@ def p_UnaryExpr(p):
                 p[0] = p[2]
         else:
             # 1st arg. is expression, 2nd arg. is unary_op
+            if p[1][0] in ["++","--"]:
+                position = go_traceback(p.slice[1].value)
+                # XXX TODO : lineno. and position in error message 
+                print(
+                    'SyntaxError: Unary operator "{}" not applicable '
+                    'at position {}'.format(
+                        p[1][0], position
+                    )
+                )
+                exit()
             p[0] = GoUnaryExpr(p[2], p[1][0])
             p[0].lineno = adjust_lineno(p[1][1])
 
@@ -1168,7 +1180,16 @@ def p_IncDecStmt(p):
                   | Expression DECR
     """
     # 1st arg. is expression, 2nd arg. is unary_op
-    p[0] = GoUnaryExpr(p[1], p[2])
+    #p[0] = GoUnaryExpr(p[1], p[2])
+    if p[2] == "++":
+    	temp = GoExpression(p[1],GoBasicLit(1, GoType("int", True, 1)),"+")
+    else:
+    	temp = GoExpression(p[1],GoBasicLit(1, GoType("int", True, 1)),"-")
+    temp.lineno = adjust_lineno(p.slice[2].lineno)
+    lhs = [p[1]]
+    rhs = [temp]
+    p[0] = GoAssign(lhs,rhs,"=")
+    p[0].lineno = adjust_lineno(lexer.lineno - 1)
 
 
 def p_Assignment(p):

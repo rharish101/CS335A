@@ -231,8 +231,7 @@ class SymbTable:
             elif isinstance(dtype, GoArray):
                 logging.info("ARRAY DTYPE {}".format(dtype.dtype))
                 # #assert isinstance(dtype.final_type, GoType)
-                dtype.size = dtype.length.item * self.get_size(dtype.final_type)
-                #print("DTYPE SIZE = {}".format(dtype.size))
+                dtype.size = dtype.size * self.get_size(dtype.final_type)
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
                 logging.info("ARRAY SIZE: {}".format(dtype.size))

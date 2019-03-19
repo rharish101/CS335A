@@ -1233,7 +1233,7 @@ def symbol_table(
         endif_label = "EndIf{}".format(global_count)
         global_count += 1
 
-        ir_code += "if __cond goto {}\n".format(if_label)
+        ir_code += "if __cond_{} goto {}\n".format(depth_num,if_label)
         if (
             not (
                 isinstance(tree.cond, GoExpression)

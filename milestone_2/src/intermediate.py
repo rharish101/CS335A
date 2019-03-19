@@ -117,7 +117,9 @@ class SymbTable:
         if isinstance(dtype, GoStruct):
             return self.struct_size(dtype.name)
         elif isinstance(dtype,GoPointType):
-            return 4    
+            return 4
+        elif isinstance(dtype,GoArray):
+            return dtype.length.item * self.get_size(dtype.final_type)
         name = dtype.name
         logging.info("SIZE: getting size of {}".format(name))
         value = dtype.value
@@ -939,6 +941,20 @@ def symbol_table(
                                 loc_lhs += "*"
                             curr = curr.expr
                             should_break = False
+                        elif isinstance(curr.expr, GoUnaryExpr):
+                            # if not isinstance(
+                            #     curr.expr.dtype, GoPointType
+                            # ):
+                            #     go_traceback(tree)
+                            #     print(
+                            #         "Error: {} not pointer type".format(
+                            #             curr.expr.dtype
+                            #         )
+                            #     )
+                            #     exit()
+                            loc_lhs += "*"
+                            curr = curr.expr
+                            should_break = False
 
                     else:
                         error = True
@@ -953,7 +969,6 @@ def symbol_table(
                     exit()
                 elif type(curr) is str:
                     loc_lhs += curr
-
                 if error:
                     go_traceback(tree)
                     print(

@@ -947,11 +947,16 @@ def p_Expression(p):
             error = False
             try:
                 p[0] = GoBasicLit(p[1].item, None)
-
                 if p[2] == "||":
-                    p[0].item = p[1].item or p[3].item
+                    if p[1].dtype.name != "bool" or p[3].dtype.name != "bool":
+                        error = True
+                    else:
+                        p[0].item = p[1].item or p[3].item
                 elif p[2] == "&&":
-                    p[0].item = p[1].item and p[3].item
+                    if p[1].dtype.name != "bool" or p[3].dtype.name != "bool":
+                        error = True
+                    else:
+                        p[0].item = p[1].item and p[3].item
                 elif p[2] == "==":
                     p[0].item = p[1].item == p[3].item
                 elif p[2] == "!=":
@@ -969,23 +974,47 @@ def p_Expression(p):
                 elif p[2] == "-":
                     p[0].item -= p[3].item
                 elif p[2] == "|":
-                    p[0].item |= p[3].item
+                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
+                        error = True
+                    else:
+                        p[0].item |= p[3].item
                 elif p[2] == "^":
-                    p[0].item ^= p[3].item
+                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
+                        error = True
+                    else:
+                        p[0].item ^= p[3].item
                 elif p[2] == "*":
                     p[0].item *= p[3].item
                 elif p[2] == "/":
-                    p[0].item /= p[3].item
+                    if p[1].dtype.name == "int" and p[3].dtype.name == "int":
+                        p[0].item //= p[3].item
+                    else:
+                        p[0].item /= p[3].item
                 elif p[2] == "%":
-                    p[0].item %= p[3].item
+                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
+                        error = True
+                    else:
+                        p[0].item %= p[3].item
                 elif p[2] == "<<":
-                    p[0].item <<= p[3].item
+                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
+                        error = True
+                    else:
+                        p[0].item <<= p[3].item
                 elif p[2] == ">>":
-                    p[0].item >>= p[3].item
+                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
+                        error = True
+                    else:
+                        p[0].item >>= p[3].item
                 elif p[2] == "&":
-                    p[0].item &= p[3].item
+                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
+                        error = True
+                    else:
+                        p[0].item &= p[3].item
                 elif p[2] == "&^":
-                    p[0].item &= ~p[3].item
+                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
+                        error = True
+                    else:
+                        p[0].item &= ~p[3].item
                 else:
                     error = True
 

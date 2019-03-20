@@ -231,7 +231,11 @@ class SymbTable:
             elif isinstance(dtype, GoArray):
                 logging.info("ARRAY DTYPE {}".format(dtype.dtype))
                 # #assert isinstance(dtype.final_type, GoType)
-                dtype.size = dtype.size * self.get_size(dtype.final_type)
+                if isinstance(dtype.final_type,GoType) and dtype.size != 0:   # Short Declaration
+                    dtype.size = dtype.size * self.get_size(dtype.final_type)
+                else:                                                         # Long Declaration
+                    dtype.size = dtype.length.item * self.get_size(dtype.final_type)
+
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
                 logging.info("ARRAY SIZE: {}".format(dtype.size))
@@ -701,11 +705,11 @@ def symbol_table(
                         store_var="__decl{}_{}".format(i, depth_num),
                         scope_label=scope_label,
                     )
-                    table.insert_var(
-                        "__decl{}_{}".format(i, depth_num),
-                        expr_dtype,
-                        use="intermediate",
-                    )
+                    # table.insert_var(
+                    #     "__decl{}_{}".format(i, depth_num),
+                    #     expr_dtype,
+                    #     use="intermediate",
+                    # )
                     ir_code += expr_code
                     evaluated_types.append(expr_dtype)
                 if len(rhs) != 0:
@@ -782,11 +786,11 @@ def symbol_table(
                         store_var="__const{}_{}".format(i, depth_num),
                         scope_label=scope_label,
                     )
-                    table.insert_var(
-                        "__const{}_{}".format(i, depth_num),
-                        expr_dtype,
-                        use="intermediate",
-                    )
+                    # table.insert_var(
+                    #     "__const{}_{}".format(i, depth_num),
+                    #     expr_dtype,
+                    #     use="intermediate",
+                    # )
                     ir_code += expr_code
                     evaluated_types.append(expr_dtype)
 
@@ -906,11 +910,11 @@ def symbol_table(
                             ),
                             scope_label=scope_label,
                         )
-                        table.insert_var(
-                            "__index{}_{}".format(ind_cnt, depth_num),
-                            dtype,
-                            use="intermediate",
-                        )
+                        # table.insert_var(
+                        #     "__index{}_{}".format(ind_cnt, depth_num),
+                        #     dtype,
+                        #     use="intermediate",
+                        # )
                         table.type_check(dtype, GoType("int", True))
                         ir_code += index_code
                         loc_rhs = (
@@ -988,10 +992,16 @@ def symbol_table(
                 # print(table.get_type(var.lhs))
                 # dtype1 = table.get_type(var.lhs).dtype
                 left = var
+                depth = 0
                 while isinstance(left.lhs, GoPrimaryExpr):
                     left = left.lhs
+                    depth = depth + 1
                 #
                 dtype1 = table.get_type(left.lhs).dtype
+                while depth>0:
+                    dtype1 = dtype1.dtype
+                    depth = depth - 1
+                
                 # dtype1 = table.get_type(left.lhs)
 
             elif type(var) is str:
@@ -1115,9 +1125,9 @@ def symbol_table(
             store_var="__lhs_{}".format(depth_num),
             scope_label=scope_label,
         )
-        table.insert_var(
-            "__lhs_{}".format(depth_num), dtype1, use="intermediate"
-        )
+        # table.insert_var(
+        #     "__lhs_{}".format(depth_num), dtype1, use="intermediate"
+        # )
         dtype2, rhs_code = symbol_table(
             rhs,
             table,
@@ -1126,9 +1136,9 @@ def symbol_table(
             store_var="__rhs_{}".format(depth_num),
             scope_label=scope_label,
         )
-        table.insert_var(
-            "__rhs_{}".format(depth_num), dtype1, use="intermediate"
-        )
+        # table.insert_var(
+        #     "__rhs_{}".format(depth_num), dtype1, use="intermediate"
+        # )
         ir_code += lhs_code + rhs_code
         ir_code += "{} = __lhs_{} {} __rhs_{}\n".format(
             store_var, depth_num, op, depth_num
@@ -1224,9 +1234,9 @@ def symbol_table(
             scope_label=scope_label,
         )
         ir_code += cond_code
-        table.insert_var(
-            "__cond_{}".format(depth_num), cond_dtype, use="intermediate"
-        )
+        # table.insert_var(
+        #     "__cond_{}".format(depth_num), cond_dtype, use="intermediate"
+        # )
 
         # Choosing the labels
         if_label = "If{}".format(global_count)
@@ -1314,9 +1324,9 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += fcond_code
-            table.insert_var(
-                "__fcond_{}".format(depth_num), fcond_dtype, use="intermediate"
-            )
+            # table.insert_var(
+            #     "__fcond_{}".format(depth_num), fcond_dtype, use="intermediate"
+            # )
             ir_code += "if __fcond_{} goto {}\ngoto {}\n{}: ".format(
                 depth_num, for_label, endfor_label, for_label
             )
@@ -1495,9 +1505,9 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += lhs_code
-            table.insert_var(
-                "__indlhs_{}".format(depth_num), lhs_dtype, use="intermediate"
-            )
+            # table.insert_var(
+            #     "__indlhs_{}".format(depth_num), lhs_dtype, use="intermediate"
+            # )
             rhs_dtype, rhs_code = symbol_table(
                 rhs,
                 table,
@@ -1507,9 +1517,9 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += rhs_code
-            table.insert_var(
-                "__indrhs_{}".format(depth_num), rhs_dtype, use="intermediate"
-            )
+            # table.insert_var(
+            #     "__indrhs_{}".format(depth_num), rhs_dtype, use="intermediate"
+            # )
             ir_code += "{} = __indlhs_{}[__indrhs_{}]\n".format(
                 store_var, depth_num, depth_num, scope_label=scope_label
             )
@@ -1588,11 +1598,11 @@ def symbol_table(
                     scope_label=scope_label,
                 )
                 ir_code += arg_code
-                table.insert_var(
-                    "__arg{}_{}".format(i, depth_num),
-                    arg_dtype,
-                    use="intermediate",
-                )
+                # table.insert_var(
+                #     "__arg{}_{}".format(i, depth_num),
+                #     arg_dtype,
+                #     use="intermediate",
+                # )
                 actual_dtype = param.dtype
                 given_dtype, eval_code = symbol_table(
                     argument, table, name, block_type, scope_label=scope_label
@@ -1678,11 +1688,11 @@ def symbol_table(
                             scope_label=scope_label,
                         )
                         ir_code += child_code
-                        table.insert_var(
-                            "__child{}_{}".format(child_count, depth_num),
-                            child_dtype,
-                            use="intermediate",
-                        )
+                        # table.insert_var(
+                        #     "__child{}_{}".format(child_count, depth_num),
+                        #     child_dtype,
+                        #     use="intermediate",
+                        # )
                         child_count += 1
                         if depth == 0:
                             depth = child.depth
@@ -1791,11 +1801,11 @@ def symbol_table(
                         scope_label=scope_label,
                     )
                     ir_code += elem_code
-                    table.insert_var(
-                        "__elem{}_{}".format(elem_num, depth_num),
-                        elem_dtype,
-                        use="intermediate",
-                    )
+                    # table.insert_var(
+                    #     "__elem{}_{}".format(elem_num, depth_num),
+                    #     elem_dtype,
+                    #     use="intermediate",
+                    # )
                     elem_num += 1
                     keys.append(child.key)
 
@@ -1857,11 +1867,11 @@ def symbol_table(
                     store_var="__elem{}_{}".format(i, depth_num),
                     scope_label=scope_label,
                 )
-                table.insert_var(
-                    "__elem{}_{}".format(i, depth_num),
-                    field_type,
-                    use="intermediate",
-                )
+                # table.insert_var(
+                #     "__elem{}_{}".format(i, depth_num),
+                #     field_type,
+                #     use="intermediate",
+                # )
                 keys.append(field.key)
                 ir_code += elem_code
                 type_list.append(field_type)
@@ -1900,9 +1910,9 @@ def symbol_table(
             scope_label=scope_label,
         )
         ir_code += opd_code
-        table.insert_var(
-            "__opd_{}".format(depth_num), opd_dtype, use="intermediate"
-        )
+        # table.insert_var(
+        #     "__opd_{}".format(depth_num), opd_dtype, use="intermediate"
+        # )
         ir_code += "{} = {} __opd_{}\n".format(store_var, tree.op,depth_num)
 
         if tree.op == "&" or tree.op == "*":
@@ -2018,11 +2028,11 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += expr_code
-            table.insert_var(
-                "__retval{}_{}".format(i, depth_num),
-                expr_dtype,
-                use="intermediate",
-            )
+            # table.insert_var(
+            #     "__retval{}_{}".format(i, depth_num),
+            #     expr_dtype,
+            #     use="intermediate",
+            # )
             table.type_check(res.dtype, expr_dtype, use="return")
 
         ir_code += "return "

@@ -20,3 +20,9 @@ milestone_2/src/parsetab.py
 milestone_2/src/symbol_table/
 milestone_2/src/*.dot
 milestone_2/src/*.ps
+
+milestone_3/src/parser.out
+milestone_3/src/parsetab.py
+milestone_3/src/symbol_table/
+milestone_3/src/*.dot
+milestone_3/src/*.ps

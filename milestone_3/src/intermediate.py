@@ -993,12 +993,27 @@ def symbol_table(
                 # dtype1 = table.get_type(var.lhs).dtype
                 left = var
                 depth = 0
+                indexes = []
                 while isinstance(left.lhs, GoPrimaryExpr):
+                    indexes.append(left.rhs.index.item)
                     left = left.lhs
                     depth = depth + 1
+                indexes.append(left.rhs.index.item)
+                #print(indexes)
                 #
-                dtype1 = table.get_type(left.lhs).dtype
+                dtype1 = table.get_type(left.lhs)
+                if dtype1.length.item <= indexes[len(indexes)-1]:
+                    go_traceback(tree)
+                    print("Error : Index Out of bound")
+                    exit()
+                indexes.pop()
+                dtype1 = dtype1.dtype
                 while depth>0:
+                    if dtype1.length.item <= indexes[len(indexes)-1]:
+                        go_traceback(tree)
+                        print("Error : Index Out of bound")
+                        exit()
+                    indexes.pop()
                     dtype1 = dtype1.dtype
                     depth = depth - 1
                 
@@ -1846,6 +1861,9 @@ def symbol_table(
                     go_traceback(tree)
                     print("Error: Array declaration of incorrect size")
                     exit()
+
+                elif tree_type.length == "variable":
+                    tree_type.length = GoBasicLit(len(tree_value),GoType("int", True))
                 tree_type = tree_type.dtype
                 tree_value = tree_value[0].element
             lit_name = ""

@@ -1542,6 +1542,7 @@ def symbol_table(
 
                 # print("dtype: '{}'".format(table.get_type(lhs)))
                 tree.dtype = (table.get_type(lhs)).dtype
+                
                 # print("dtype: '{}'".format(table.get_type(lhs)))
 
                 #
@@ -1555,6 +1556,11 @@ def symbol_table(
                 store_var="__indlhs_{}".format(depth_num),
                 scope_label=scope_label,
             )
+            
+            if isinstance(lhs, GoPrimaryExpr):
+                tree.dtype = lhs.dtype.dtype
+                DTYPE = tree.dtype
+            
             ir_code += lhs_code
             table.insert_var(
                 "__indlhs_{}".format(depth_num), lhs_dtype, use="intermediate"

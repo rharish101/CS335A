@@ -40,7 +40,8 @@ func temp(x int,y int ){
 	n := &m
 	t := person{{"string"},2}
 	t.age = 2
-	k := ++t.age + *n
+	t.age++
+	k := t.age + *n
 
 
 	var d int_t = 4

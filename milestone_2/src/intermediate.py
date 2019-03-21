@@ -1651,8 +1651,10 @@ def symbol_table(
 
     # To be done later : check number of elements in array same as that
     # specified
-    # TODO: 3AC
     elif isinstance(tree, GoKeyedElement):
+        depth_num = global_count
+        global_count += 1
+
         # symbol_table(tree.element, table)
         logging.info("-" * 50)
         logging.info(store_var, tree.use)
@@ -1754,6 +1756,7 @@ def symbol_table(
             if (
                 isinstance(element, GoBasicLit)
                 or isinstance(element, GoExpression)
+                or isinstance(element, GoCompositeLit)
                 or type(element) is str
             ):
                 element_type, ir_code = symbol_table(
@@ -1765,14 +1768,19 @@ def symbol_table(
                     store_var=store_var,
                 )
 
-            # TODO: 3AC
             elif type(element) is list:
                 element_type = []
-                for item in element:
+                for i, item in enumerate(element):
                     item.use = "struct"
-                    item_type, _ = symbol_table(
-                        item, table, name, block_type, scope_label=scope_label
+                    item_type, item_code = symbol_table(
+                        item,
+                        table,
+                        name,
+                        block_type,
+                        scope_label=scope_label,
+                        store_var="{}[{}]".format(store_var, i),
                     )
+                    ir_code += item_code
                     element_type.append(item_type)
                 logging.info("LIST {}".format(list(element_type)))
             tree.dtype = element_type
@@ -1808,19 +1816,15 @@ def symbol_table(
             for child in tree.value:
                 if isinstance(child, GoKeyedElement):
                     child.use = "array"
-                    elem_var = "__elem{}_{}".format(elem_num, depth_num)
                     elem_dtype, elem_code = symbol_table(
                         child,
                         table,
                         name,
                         block_type,
-                        store_var=elem_var,
+                        store_var=store_var + "[{}]".format(elem_num),
                         scope_label=scope_label,
                     )
-                    ir_code += elem_code.replace(
-                        elem_var, store_var + "[{}]".format(elem_num)
-                    )
-                    table.insert_var(elem_var, elem_dtype, use="intermediate")
+                    ir_code += elem_code
                     elem_num += 1
 
                     if depth == 0:
@@ -1862,7 +1866,6 @@ def symbol_table(
                     exit()
                 tree_type = tree_type.dtype
                 tree_value = tree_value[0].element
-            lit_name = ""
 
         elif isinstance(tree.dtype, GoType):  # handles structs
             struct_name = tree.dtype.name
@@ -1875,16 +1878,6 @@ def symbol_table(
                 field.use = "struct"
                 # field.name = struct_name
                 # assert isinstance(field, GoKeyedElement)
-                elem_var = "__elem{}_{}".format(i, depth_num)
-                field_type, elem_code = symbol_table(
-                    field,
-                    table,
-                    name,
-                    block_type,
-                    store_var=elem_var,
-                    scope_label=scope_label,
-                )
-                type_list.append(field_type)
                 if field.key is not None:
                     elem_key = field.key
                     unnamed_keys = False
@@ -1894,15 +1887,22 @@ def symbol_table(
                     go_traceback(tree)
                     print("Error: Cannot mix named and unnamed keys")
                     exit()
-                ir_code += elem_code.replace(
-                    elem_var, store_var + "." + elem_key
+
+                field_type, elem_code = symbol_table(
+                    field,
+                    table,
+                    name,
+                    block_type,
+                    store_var=store_var + "." + elem_key,
+                    scope_label=scope_label,
                 )
+                type_list.append(field_type)
+                ir_code += elem_code
 
             logging.info("FINAL LIST '{}'".format(type_list))
             struct_obj = GoStruct([])
             struct_obj.size = table.check_struct(struct_name, type_list)
             struct_obj.name = struct_name
-            lit_name = struct_name
             # struct_obj.size = table.struct_size(struct_name)
             # table.struct_size(struct_name)
             # table.variables(insert_var(struct_name, struct_obj, "struct"))

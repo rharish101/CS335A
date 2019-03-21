@@ -82,6 +82,7 @@ def p_Type(p):
             p[0] = GoType(p[2])
     else:  # ID DOT ID
         p[0] = GoFromModule(p[2], p[4])
+        p[0].lineno = adjust_lineno(p.slice[2].lineno)
 
 
 def p_TypeLit(p):
@@ -109,6 +110,7 @@ def p_ArrayType(p):
         length = p[2]
     elif len(p) == 7:  # ID DOT ID
         arr_type = GoFromModule(p[4], p[6])
+        arr_type.lineno = adjust_lineno(p.slice[4].lineno)
         length = p[2]
     elif len(p) == 4:
         if isinstance(p[3], GoBaseType):  # Type
@@ -118,6 +120,7 @@ def p_ArrayType(p):
         length = "variable"
     else:
         arr_type = GoFromModule(p[3], p[5])
+        arr_type.lineno = adjust_lineno(p.slice[3].lineno)
         length = "variable"
 
     p[0] = GoArray(length, arr_type)
@@ -139,7 +142,7 @@ def p_StructType(p):
     except ValueError as msg:
         position = go_traceback(p.slice[1])
         print("{} at position {}".format(msg, position))
-        exit()
+        exit(1)
 
 
 def p_FieldDecl(p):
@@ -165,6 +168,7 @@ def p_FieldDecl(p):
                 field_type = GoType(p[2])
         else:  # ID DOT ID
             field_type = GoFromModule(p[2], p[4])
+            field_type.lineno = adjust_lineno(p.slice[2].lineno)
         if type(p[1]) is list:
             var_list = p[1]
         else:
@@ -175,8 +179,10 @@ def p_FieldDecl(p):
         field_type = GoBaseType("embedded")
         if len(p) == 6:
             var_list = [GoDeref(GoFromModule(p[2], p[4]))]
+            var_list[0].var.lineno = adjust_lineno(p.slice[2].lineno)
         elif len(p) == 5:
             var_list = [GoFromModule(p[1], p[3])]
+            var_list[0].lineno = adjust_lineno(p.slice[1].lineno)
         elif len(p) == 4:
             var_list = [GoDeref(p[2])]
         else:
@@ -214,6 +220,7 @@ def p_PointerType(p):
         point_to = p[2]
     elif len(p) == 5:  # ID DOT ID
         point_to = GoFromModule(p[2], p[4])
+        point_to.lineno = adjust_lineno(p.slice[2].lineno)
     else:  # ID
         point_to = GoType(p[2])
     p[0] = GoPointType(point_to)
@@ -252,6 +259,7 @@ def p_Result(p):
             dtype = p[1]
         elif len(p) == 4:  # ID DOT ID
             dtype = GoFromModule(p[1], p[3])
+            dtype.lineno = adjust_lineno(p.slice[1].lineno)
         else:  # ID
             dtype = GoType(p[1])
         # p[0] = GoParam(dtype=dtype)
@@ -308,6 +316,7 @@ def p_ParameterDecl(p):
         dtype = new_p[-1]
     elif len(new_p) > 3:  # ID DOT ID
         dtype = GoFromModule(new_p[-3], new_p[-1])
+        dtype.lineno = adjust_lineno(p.slice[1].lineno)
     else:  # ID
         dtype = GoType(new_p[-1])
 
@@ -322,7 +331,7 @@ def p_InterfaceType(p):
     except ValueError as msg:
         position = go_traceback(p.slice[1])
         print("{} at position {}".format(msg, position))
-        exit()
+        exit(1)
 
 
 def p_MethodSpecList(p):
@@ -344,6 +353,7 @@ def p_MethodSpec(p):
         p[0] = GoMethodFunc(p[1], *p[2])
     elif len(p) == 4:  # ID DOT ID element
         p[0] = GoFromModule(p[1], p[3])
+        p[0].lineno = adjust_lineno(p.slice[1].lineno)
     else:  # ID element
         p[0] = GoType(p[1])
 
@@ -357,6 +367,7 @@ def p_Block(p):
     """Block : LCURLBR StatementList RCURLBR
     """
     p[0] = GoBlock(p[2])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_StatementList(p):
@@ -448,6 +459,7 @@ def p_ConstSpec(p):
         dtype = p[2]
     elif len(p) == 7:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
+        dtype.lineno = adjust_lineno(p.slice[2].lineno)
     elif len(p) == 5:  # ID
         dtype = GoType(p[2])
     else:  # Type-less
@@ -540,6 +552,7 @@ def p_AliasDecl(p):
         dtype = p[3]
     elif len(p) == 6:  # ID DOT ID
         dtype = GoFromModule(p[3], p[5])
+        dtype.lineno = adjust_lineno(p.slice[3].lineno)
     else:  # ID
         dtype = GoType(p[3])
     p[0] = GoTypeDefAlias("alias", p[1], dtype)
@@ -554,6 +567,7 @@ def p_TypeDef(p):
         dtype = p[2]
     elif len(p) == 5:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
+        dtype.lineno = adjust_lineno(p.slice[2].lineno)
     else:  # ID
         dtype = GoType(p[2])
     p[0] = GoTypeDefAlias("typedef", p[1], dtype)
@@ -592,6 +606,7 @@ def p_VarSpec(p):
         dtype = p[2]
     elif len(p) == 6:  # ID DOT ID
         dtype = GoFromModule(p[2], p[4])
+        dtype.lineno = adjust_lineno(p.slice[2].lineno)
     elif type(p[2]) is str:  # ID
         dtype = GoType(p[2])
     else:  # No type given
@@ -657,6 +672,7 @@ def p_FunctionDecl(p):
     """FunctionDecl : FUNC FunctionName FunctionDeclTail
     """
     p[0] = GoFuncDecl(p[2], *p[3])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_FunctionDeclTail(p):
@@ -693,6 +709,7 @@ def p_MethodDecl(p):
     """
     # FunctionDeclTail is a tuple of (Parameters, Results, Body)
     p[0] = GoMethDecl(p[2], p[3], *p[4])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_Receiver(p):
@@ -745,6 +762,7 @@ def p_BasicLit(p):
 
     value = p.slice[1].value
     p[0] = GoBasicLit(p[1], GoType(dtype, True, value))
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_CompositeLit(p):
@@ -760,13 +778,16 @@ def p_CompositeLit(p):
             dtype = p[1]
         elif len(p) == 5:  # ID DOT ID
             dtype = GoFromModule(p[1], p[3])
+            dtype.lineno = adjust_lineno(p.slice[1].lineno)
         else:  # ID
             dtype = GoType(p[1])
     elif isinstance(p[4], GoBaseType):  # Type
         dtype = GoArray("variable", p[4])
         dtype.lineno = adjust_lineno(p.slice[3].lineno)
     elif len(p) == 8:  # ID DOT ID
-        dtype = GoArray("variable", GoFromModule(p[4], p[6]))
+        arr_dtype = GoFromModule(p[4], p[6])
+        arr_dtype.lineno = adjust_lineno(p.slice[4].lineno)
+        dtype = GoArray("variable", arr_dtype)
         dtype.lineno = adjust_lineno(p.slice[3].lineno)
     else:
         dtype = GoArray("variable", GoType(p[4]))
@@ -899,8 +920,12 @@ def p_MethodExpr(p):
     """
     if len(p) == 4:  # Single import from ReceiverType/package
         p[0] = GoFromModule(p[1], p[3])
+        p[0].lineno = adjust_lineno(p.slice[1].lineno)
     else:  # Double import from package/class
-        p[0] = GoFromModule(GoFromModule(p[1], p[3]), p[5])
+        first = GoFromModule(p[1], p[3])
+        first.lineno = adjust_lineno(p.slice[1].lineno)
+        p[0] = GoFromModule(first, p[5])
+        p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 # XXX
@@ -910,7 +935,9 @@ def p_ReceiverType(p):
                     | LBRACK ReceiverType RBRACK
     """
     if len(p) == 7:  # Deferencing a package import
-        p[0] = GoDeref(GoFromModule(p[3], p[5]))
+        var = GoFromModule(p[3], p[5])
+        var.lineno = adjust_lineno(p.slice[3].lineno)
+        p[0] = GoDeref(var)
     elif len(p) == 5:  # Deferencing a variable
         p[0] = GoDeref(p[3])
     else:  # ReceiverType
@@ -947,6 +974,7 @@ def p_Expression(p):
             error = False
             try:
                 p[0] = GoBasicLit(p[1].item, None)
+                p[0].lineno = adjust_lineno(p.slice[2].lineno)
                 if p[2] == "||":
                     if p[1].dtype.name != "bool" or p[3].dtype.name != "bool":
                         error = True
@@ -1042,7 +1070,7 @@ def p_Expression(p):
                         p[2], p[1].dtype.name, p[3].dtype.name
                     )
                 )
-                exit()
+                exit(1)
         else:
             # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
             p[0] = GoExpression(p[1], p[3], p[2])
@@ -1095,10 +1123,10 @@ def p_UnaryExpr(p):
                 elif p[1][0] == "*":
                     error = True
                 elif p[1][0] == "++":
-                    #p[2].item += 1
+                    # p[2].item += 1
                     error = True
                 elif p[1][0] == "--":
-                    #p[2].item -= 1
+                    # p[2].item -= 1
                     error = True
                 else:
                     error = True
@@ -1113,21 +1141,19 @@ def p_UnaryExpr(p):
                         p[1][0], p[2].dtype.name.lower(), position
                     )
                 )
-                exit()
+                exit(1)
             else:
                 p[0] = p[2]
         else:
             # 1st arg. is expression, 2nd arg. is unary_op
-            if p[1][0] in ["++","--"]:
+            if p[1][0] in ["++", "--"]:
                 position = go_traceback(p.slice[1].value)
-                # XXX TODO : lineno. and position in error message 
+                # XXX TODO : lineno. and position in error message
                 print(
                     'SyntaxError: Unary operator "{}" not applicable '
-                    'at position {}'.format(
-                        p[1][0], position
-                    )
+                    "at position {}".format(p[1][0], position)
                 )
-                exit()
+                exit(1)
             p[0] = GoUnaryExpr(p[2], p[1][0])
             p[0].lineno = adjust_lineno(p[1][1])
 
@@ -1209,15 +1235,17 @@ def p_IncDecStmt(p):
                   | Expression DECR
     """
     # 1st arg. is expression, 2nd arg. is unary_op
-    #p[0] = GoUnaryExpr(p[1], p[2])
+    # p[0] = GoUnaryExpr(p[1], p[2])
+    constant = GoBasicLit(1, GoType("int", True, 1))
+    constant.lineno = adjust_lineno(p.slice[2].lineno)
     if p[2] == "++":
-    	temp = GoExpression(p[1],GoBasicLit(1, GoType("int", True, 1)),"+")
+        temp = GoExpression(p[1], constant, "+")
     else:
-    	temp = GoExpression(p[1],GoBasicLit(1, GoType("int", True, 1)),"-")
+        temp = GoExpression(p[1], constant, "-")
     temp.lineno = adjust_lineno(p.slice[2].lineno)
     lhs = [p[1]]
     rhs = [temp]
-    p[0] = GoAssign(lhs,rhs,"=")
+    p[0] = GoAssign(lhs, rhs, "=")
     p[0].lineno = adjust_lineno(lexer.lineno - 1)
 
 
@@ -1299,6 +1327,7 @@ def p_ExprSwitchStmt(p):
     else:
         stmt = p[3]
     p[0] = GoSwitch(stmt, p[len(p) - 5], p[len(p) - 2])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_ExprCaseClauseList(p):
@@ -1432,6 +1461,7 @@ def p_SourceFile(p):
     """SourceFile : PACKAGE ID SEMICOLON ImportDeclList TopLevelDeclList
     """
     p[0] = GoSourceFile(p[2], p[4], p[5])
+    p[0].lineno = adjust_lineno(p.slice[1].lineno)
 
 
 def p_ImportDecl(p):

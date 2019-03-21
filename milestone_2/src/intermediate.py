@@ -758,6 +758,13 @@ def symbol_table(
                     for var in lhs:
                         logging.info('var "{}":"{}"'.format(var, dtype))
                         ir_code += "{} = 0\n".format(var)
+                        if isinstance(dtype,GoArray):
+                            depth = 1
+                            curr = dtype
+                            while isinstance(curr.dtype, GoArray):
+                                depth = depth + 1
+                                curr = curr.dtype
+                            dtype.depth = depth
                         table.insert_var(var, dtype)
         DTYPE = None
 
@@ -1527,7 +1534,7 @@ def symbol_table(
                 elif tree.depth != table.get_type(lhs).depth:
                     go_traceback(tree)
                     print(
-                        "Error: Incorect number of indexes in array '{}'".format(
+                        "Error: Incorrect number of indexes in array '{}'".format(
                             lhs
                         )
                     )

@@ -1818,7 +1818,6 @@ def symbol_table(
         depth_num = global_count
         global_count += 1
 
-        keys = []
         elem_num = 0
         # How does this handle array of structs
         if isinstance(tree.dtype, GoArray):
@@ -1848,7 +1847,6 @@ def symbol_table(
                     )
                     table.insert_var(elem_var, elem_dtype, use="intermediate")
                     elem_num += 1
-                    keys.append(child.key)
 
                     if depth == 0:
                         depth = child.depth
@@ -1887,7 +1885,7 @@ def symbol_table(
                     go_traceback(tree)
                     print("Error: Array declaration of incorrect size")
                     exit()
-                    
+
                 elif tree_type.length == "variable":
                     tree_type.length = GoBasicLit(len(tree_value),GoType("int", True))
                 tree_type = tree_type.dtype

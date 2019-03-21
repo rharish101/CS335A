@@ -1018,10 +1018,16 @@ def symbol_table(
                 depth = 0
                 indexes = []
                 while isinstance(left.lhs, GoPrimaryExpr):
-                    indexes.append(left.rhs.index.item)
+                    if isinstance(left.rhs, GoBasicLit):
+                        indexes.append(left.rhs.index.item)
+                    else:
+                        indexes.append(0)
                     left = left.lhs
                     depth = depth + 1
-                indexes.append(left.rhs.index.item)
+                if isinstance(left.rhs, GoBasicLit):
+                    indexes.append(left.rhs.index.item)
+                else:
+                    indexes.append(0)
                 #print(indexes)
                 #
                 dtype1 = table.get_type(left.lhs)

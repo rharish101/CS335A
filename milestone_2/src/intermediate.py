@@ -766,6 +766,13 @@ def symbol_table(
                         for var in lhs:
                             logging.info('var "{}":"{}"'.format(var, dtype))
                             ir_code += "{} = 0\n".format(var)
+                            if isinstance(dtype,GoArray):
+                                depth = 1
+                                curr = dtype
+                                while isinstance(curr.dtype, GoArray):
+                                    depth = depth + 1
+                                    curr = curr.dtype
+                                dtype.depth = depth
                             table.insert_var(var, dtype)
             DTYPE = None
 
@@ -1020,10 +1027,16 @@ def symbol_table(
                     depth = 0
                     indexes = []
                     while isinstance(left.lhs, GoPrimaryExpr):
-                        indexes.append(left.rhs.index.item)
+                        if isinstance(left.rhs, GoBasicLit):
+                            indexes.append(left.rhs.index.item)
+                        else:
+                            indexes.append(0)
                         left = left.lhs
                         depth = depth + 1
-                    indexes.append(left.rhs.index.item)
+                    if isinstance(left.rhs, GoBasicLit):
+                        indexes.append(left.rhs.index.item)
+                    else:
+                        indexes.append(0)
                     # print(indexes)
                     #
                     dtype1 = table.get_type(left.lhs)
@@ -1549,6 +1562,11 @@ def symbol_table(
                     store_var="__indlhs_{}".format(depth_num),
                     scope_label=scope_label,
                 )
+                
+                if isinstance(lhs, GoPrimaryExpr):
+                    tree.dtype = lhs.dtype.dtype
+                    DTYPE = tree.dtype
+                
                 ir_code += lhs_code
                 table.insert_var(
                     "__indlhs_{}".format(depth_num),

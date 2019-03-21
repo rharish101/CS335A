@@ -201,9 +201,11 @@ def t_NEWLINES(t):
 
 def go_traceback(token_val):
     """Print traceback for the custom error message and return position."""
-    print("Traceback (for Go source code):")
-    print(" " * 2 + 'File "{}", line {}'.format(lexer.filename, lexer.lineno))
-    print(" " * 4 + lexer.lines[lexer.lineno - 1])
+    print(
+        '  File "{}", line {}\n    {}'.format(
+            lexer.filename, lexer.lineno, lexer.lines[lexer.lineno - 1]
+        )
+    )
     return (
         lexer.lexpos
         - sum(map(lambda line: len(line) + 1, lexer.lines[: lexer.lineno - 1]))

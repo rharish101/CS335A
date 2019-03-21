@@ -356,9 +356,8 @@ class GoIndex:
 class GoArguments:
     """For arguments to a function."""
 
-    def __init__(self, expr_list,lineno=0):
+    def __init__(self, expr_list):
         self.expr_list = expr_list
-        self.lineno = lineno
 
 
 class GoExpression(GoBaseExpr):

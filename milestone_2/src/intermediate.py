@@ -231,7 +231,11 @@ class SymbTable:
             elif isinstance(dtype, GoArray):
                 logging.info("ARRAY DTYPE {}".format(dtype.dtype))
                 # #assert isinstance(dtype.final_type, GoType)
-                dtype.size = dtype.size * self.get_size(dtype.final_type)
+                if isinstance(dtype.final_type,GoType) and dtype.size != 0:   # Short Declaration
+                    dtype.size = dtype.size * self.get_size(dtype.final_type)
+                else:                                                         # Long Declaration
+                    dtype.size = dtype.length.item * self.get_size(dtype.final_type)
+                
                 dtype.offset = self.offset + dtype.size
                 self.offset = dtype.offset
                 logging.info("ARRAY SIZE: {}".format(dtype.size))
@@ -1011,10 +1015,31 @@ def symbol_table(
                 # print(table.get_type(var.lhs))
                 # dtype1 = table.get_type(var.lhs).dtype
                 left = var
+                depth = 0
+                indexes = []
                 while isinstance(left.lhs, GoPrimaryExpr):
+                    indexes.append(left.rhs.index.item)
                     left = left.lhs
+                    depth = depth + 1
+                indexes.append(left.rhs.index.item)
+                #print(indexes)
                 #
-                dtype1 = table.get_type(left.lhs).dtype
+                dtype1 = table.get_type(left.lhs)
+                if dtype1.length.item <= indexes[len(indexes)-1]:
+                    go_traceback(tree)
+                    print("Error : Index Out of bound")
+                    exit()
+                indexes.pop()
+                dtype1 = dtype1.dtype
+                while depth>0:
+                    if dtype1.length.item <= indexes[len(indexes)-1]:
+                        go_traceback(tree)
+                        print("Error : Index Out of bound")
+                        exit()
+                    indexes.pop()
+                    dtype1 = dtype1.dtype
+                    depth = depth - 1
+
                 # dtype1 = table.get_type(left.lhs)
 
             elif type(var) is str:
@@ -1864,6 +1889,9 @@ def symbol_table(
                     go_traceback(tree)
                     print("Error: Array declaration of incorrect size")
                     exit()
+
+                elif tree_type.length == "variable":
+                    tree_type.length = GoBasicLit(len(tree_value),GoType("int", True))
                 tree_type = tree_type.dtype
                 tree_value = tree_value[0].element
 

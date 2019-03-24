@@ -932,24 +932,28 @@ def symbol_table(
                             # No checking here; it is done ahead
                             loc_rhs = "." + curr.rhs.child + loc_rhs
                         elif isinstance(curr.rhs, GoIndex):
+                            index_name = "__index{}_{}".format(
+                                ind_cnt, depth_num
+                            )
                             dtype, index_code = symbol_table(
                                 curr.rhs.index,
                                 table,
                                 name,
                                 block_type,
-                                store_var="__index{}_{}".format(
-                                    ind_cnt, depth_num
-                                ),
+                                store_var=index_name,
                                 scope_label=scope_label,
                                 depth_num=depth_num + 1,
                             )
                             table.insert_var(
-                                "__index{}_{}".format(ind_cnt, depth_num),
-                                dtype,
-                                use="intermediate",
+                                index_name, dtype, use="intermediate"
                             )
                             table.type_check(dtype, GoType("int", True))
                             ir_code += index_code
+                            index_size = table.get_size(dtype)
+                            if index_size != 1:
+                                ir_code += "{} = {} * {}\n".format(
+                                    index_name, index_name, index_size
+                                )
                             loc_rhs = (
                                 "[__index{}_{}]".format(ind_cnt, depth_num)
                                 + loc_rhs
@@ -1712,14 +1716,15 @@ def symbol_table(
 
                 DTYPE = result_type
 
-                ir_code += "{} = {}(".format(store_var, func_loc)
-                ir_code += ",".join(
+                ir_code += "".join(
                     [
-                        "__arg{}_{}".format(i, depth_num)
+                        "param __arg{}_{}\n".format(i, depth_num)
                         for i in range(len(argument_list))
                     ]
                 )
-                ir_code += ")\n"
+                ir_code += "{} = call {}, {}\n".format(
+                    store_var, func_loc, len(argument_list)
+                )
 
         # To be done later : check number of elements in array same as that
         # specified
@@ -1985,7 +1990,7 @@ def symbol_table(
             table.insert_var(
                 "__opd_{}".format(depth_num), opd_dtype, use="intermediate"
             )
-            ir_code += "{} = {} __opd_{}\n".format(
+            ir_code += "{} = {}__opd_{}\n".format(
                 store_var, tree.op, depth_num
             )
 

@@ -9,6 +9,7 @@ import csv
 import subprocess
 import os
 import logging
+import re
 
 
 class GoException(Exception):
@@ -592,8 +593,8 @@ def symbol_table(
             methods
         store_var (str): The variable in which the 3AC results (for
             expressions) will be stored
-        scope_label (str): Denotes if the current object is inside a "for" loop
-            or a "switch" statement (to be passed to every recursive call)
+        scope_label (str): Denotes the target label(s) for possible
+            break/continue (to be passed to every recursive call)
         insert (bool): Whether to insert the function/method or not
         depth_num (int): The depth of the parse tree (used for intermediate
             variables and labels; recommended to pass to every recursive call)
@@ -1402,7 +1403,7 @@ def symbol_table(
                 table,
                 name,
                 block_type,
-                scope_label="For",
+                scope_label="{}|{}".format(endfor_label, postfor_label),
                 depth_num=depth_num + 1,
             )[1]
             ir_code += "{}: ".format(postfor_label) + post_code
@@ -1460,14 +1461,20 @@ def symbol_table(
             if_conv = prev_stmts[0]
             if_conv.stmt = tree.stmt
             copy_table = deepcopy(table)
-            return symbol_table(
+            switch_label = "Switch{}".format(depth_num)
+            DTYPE, ir_code = symbol_table(
                 if_conv,
                 copy_table,
                 name,
                 block_type,
-                scope_label="Switch",
-                depth_num=depth_num,
+                scope_label=switch_label,
+                depth_num=depth_num + 1,
             )
+
+            old_switch_label = re.search(
+                r"\w+", ir_code.split("\n")[-1][::-1]
+            ).group()[::-1]
+            ir_code = ir_code.replace(old_switch_label, switch_label)
 
         # : 3AC necessary ??
         # DTYPE needs to be verified
@@ -2061,7 +2068,7 @@ def symbol_table(
                 raise GoException(
                     "Error: {} not valid in this scope".format(tree.keyword)
                 )
-            elif tree.keyword == "continue" and scope_label is "Switch":
+            elif tree.keyword == "continue" and scope_label == "Switch":
                 raise GoException(
                     'Error: "continue" not valid in a "switch" scope'
                 )

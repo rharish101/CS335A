@@ -34,11 +34,11 @@ func add(x uint, y uint)uint {
 }
 
 func temp(x int,y int ){
-	r := person{{"vishwas"},2}
+	r := person{help{"vishwas"},2}
 	f := r.age
 	m := 2
 	n := &m
-	t := person{{"string"},2}
+	t := person{help{"string"},2}
 	t.age = 2
 	t.age++
 	k := t.age + *n

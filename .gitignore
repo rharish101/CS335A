@@ -25,6 +25,5 @@ milestone_2/src/*.ps
 
 milestone_3/src/parser.out
 milestone_3/src/parsetab.py
-milestone_3/src/symbol_table/
-milestone_3/src/*.dot
-milestone_3/src/*.ps
+milestone_3/src/*/*.csv
+milestone_3/src/*/*.txt

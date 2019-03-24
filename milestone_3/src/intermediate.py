@@ -766,7 +766,7 @@ def symbol_table(
                         for var in lhs:
                             logging.info('var "{}":"{}"'.format(var, dtype))
                             ir_code += "{} = 0\n".format(var)
-                            if isinstance(dtype,GoArray):
+                            if isinstance(dtype, GoArray):
                                 depth = 1
                                 curr = dtype
                                 while isinstance(curr.dtype, GoArray):
@@ -1562,11 +1562,11 @@ def symbol_table(
                     store_var="__indlhs_{}".format(depth_num),
                     scope_label=scope_label,
                 )
-                
+
                 if isinstance(lhs, GoPrimaryExpr):
                     tree.dtype = lhs.dtype.dtype
                     DTYPE = tree.dtype
-                
+
                 ir_code += lhs_code
                 table.insert_var(
                     "__indlhs_{}".format(depth_num),
@@ -1714,9 +1714,7 @@ def symbol_table(
             global_count += 1
 
             # symbol_table(tree.element, table)
-            logging.info("-" * 50)
-            logging.info(store_var, tree.use)
-            logging.info("-" * 50)
+            logging.info("keyedelement: {} {}".format(store_var, tree.use))
             if tree.use == "array":
                 if isinstance(tree.element, GoBasicLit) or isinstance(
                     tree.element, GoExpression
@@ -1827,20 +1825,9 @@ def symbol_table(
                     )
 
                 elif type(element) is list:
-                    element_type = []
-                    for i, item in enumerate(element):
-                        item.use = "struct"
-                        item_type, item_code = symbol_table(
-                            item,
-                            table,
-                            name,
-                            block_type,
-                            scope_label=scope_label,
-                            store_var="{}[{}]".format(store_var, i),
-                        )
-                        ir_code += item_code
-                        element_type.append(item_type)
-                    logging.info("LIST {}".format(list(element_type)))
+                    raise GoException(
+                        "Error: Missing type in composite literal"
+                    )
                 tree.dtype = element_type
 
             #

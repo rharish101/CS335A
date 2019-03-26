@@ -675,14 +675,16 @@ def symbol_table(
             #     symbol_table(body, table, (name, class_name), "method", scope_label = scope_label,insert = True)
 
             for rec in receiver:
-                symbol_table(
+                ir_code += "func begin {}.{}\n".format(rec.dtype.name, name)
+                ir_code += symbol_table(
                     body,
                     table,
                     (name, rec),
                     "method",
                     scope_label=scope_label,
                     insert=True,
-                )
+                )[1]
+                ir_code += "func end\n"
             DTYPE = None
 
         # function declarations
@@ -692,14 +694,16 @@ def symbol_table(
             result = tree.result
             body = tree.body  # instance of GoBlock
             table.insert_func(name, params, result)
-            symbol_table(
+            ir_code += "func begin {}\n".format(name)
+            ir_code += symbol_table(
                 body,
                 table,
                 name,
                 "function",
                 scope_label=scope_label,
                 insert=True,
-            )
+            )[1]
+            ir_code += "func end\n"
             DTYPE = None
 
         elif isinstance(tree, GoDecl) and tree.kind == "var":
@@ -902,13 +906,11 @@ def symbol_table(
             if block_type == "function" and insert:
                 if table.functions[name]["result"] is None:
                     ir_code += "return\n"
-                child_table.ir_code = ir_code
             elif block_type == "method" and insert:
                 key = (name[0], name[1].dtype.name)
                 if table.methods[key]["result"] is None:
                     ir_code += "return\n"
                 ir_code += "return\n"
-                child_table.ir_code = ir_code
 
         elif isinstance(tree, GoAssign):
             lhs = tree.lhs
@@ -2366,6 +2368,8 @@ if __name__ == "__main__":
     if args.output is None:
         # Output directory name is source filename (w/o extension)
         args.output = args.input.split("/")[-1][:-3]
+    if args.output[-1] != "/":
+        args.output += "/"
 
     with open(args.input, "r") as go:
         input_text = go.read()
@@ -2382,6 +2386,7 @@ if __name__ == "__main__":
         logging.getLogger().setLevel(logging.INFO)
     table = SymbTable()
     ir_code = symbol_table(tree, table)[1]
-    # Insert 3AC into global table
-    table.ir_code = ir_code
+
     get_csv(table, args.output)
+    with open(args.output + "3ac.txt", "w") as ir_file:
+        ir_file.write(ir_code)

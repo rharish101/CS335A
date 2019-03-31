@@ -903,7 +903,9 @@ def p_Arguments(p):
 
     if type(new_p[2]) is list:  # ExpressionList
         expressions = new_p[2]
-    elif isinstance(new_p[2], GoBaseExpr):  # Expression
+    elif (
+        isinstance(new_p[2], GoBaseExpr) or type(new_p[2]) is str
+    ):  # Expression
         expressions = [new_p[2]]
     else:  # no expressions, only type
         expressions = []

@@ -40,6 +40,19 @@ INT_TYPES = [
     "rune",
 ]
 
+OTHER_TYPES = [
+    "float",
+    "float32",
+    "float64",
+    "complex",
+    "byte",
+    "complex64",
+    "complex128",
+    "string",
+    "unintptr",
+    "bool",
+]
+
 
 class SymbTable:
     """The class for all symbol tables."""
@@ -190,13 +203,30 @@ class SymbTable:
 
     def get_func(self, name, info):
         if name in self.functions:
-            return self.functions[name][info]
+            return self.functions[name][info], False
         elif self.parent:
             return self.parent.get_func(name, info)
         else:
-            raise GoException(
-                "Error: Attempt to use '{}': undeclared function".format(name)
-            )
+            # Check for possible type-casting
+            actual = self.get_actual(name)
+            if actual is not None:
+                name = actual.name
+            if name not in INT_TYPES and name not in OTHER_TYPES:
+                # Not type-casting
+                raise GoException(
+                    "Error: Attempt to use '{}': undeclared function".format(
+                        name
+                    )
+                )
+            else:
+                # Type-casting
+                result_type = GoType(name)
+                result_type.size = self.get_size(result_type)
+                func = {
+                    "params": [GoParam(dtype=result_type)],
+                    "result": [GoParam(dtype=result_type)],
+                }
+                return func[info], True
 
     def get_method(self, name, info):
         # if isinstance(name[1],GoParam):
@@ -493,18 +523,7 @@ class SymbTable:
             #         actual2 = self.get_actual(actual2.name)
 
             for name in [name1, name2]:
-                if name not in INT_TYPES and name not in [
-                    "float",
-                    "float32",
-                    "float64",
-                    "complex",
-                    "byte",
-                    "complex64",
-                    "complex128",
-                    "string",
-                    "unintptr",
-                    "bool",
-                ]:
+                if name not in INT_TYPES and name not in OTHER_TYPES:
                     raise GoException(
                         "Error: '{}' is unregistered dtype".format(name)
                     )
@@ -543,9 +562,8 @@ class SymbTable:
                             type_error = True
                     elif name1 != name2:
                         type_error = True
-            else:
-                if name1 != name2:
-                    type_error = True
+            elif use != "type casting" and name1 != name2:
+                type_error = True
 
             if type_error:
                 # print("'{}', '{}'".format(name1,name2))
@@ -1611,6 +1629,7 @@ def symbol_table(
 
             elif isinstance(rhs, GoArguments):  # fuction call
                 argument_list = rhs.expr_list
+                is_type_cast = False  # Type-casting has the same syntax
 
                 if type(lhs) is str:
                     logging.info("FUNCTION CALL '{}'".format(lhs))
@@ -1618,9 +1637,13 @@ def symbol_table(
                     # assert isinstance(rhs, GoArguments)
                     # type checking of arguments passed to function
                     argument_list = rhs.expr_list
-                    params_list = table.get_func(func_name, "params")
+                    params_list, is_type_cast = table.get_func(
+                        func_name, "params"
+                    )
+                    if is_type_cast:
+                        logging.info("type-casting '{}'".format(func_name))
 
-                    result = table.get_func(func_name, "result")
+                    result = table.get_func(func_name, "result")[0]
                     # print(result)
                     # #assert result is None or isinstance(result, GoParam) ## Functions with no return value
 
@@ -1689,44 +1712,38 @@ def symbol_table(
                         arg_dtype,
                         use="intermediate",
                     )
-                    actual_dtype = param.dtype
-                    given_dtype, eval_code = symbol_table(
-                        argument,
-                        table,
-                        name,
-                        block_type,
-                        scope_label=scope_label,
-                        depth_num=depth_num + 1,
-                    )
                     table.type_check(
-                        actual_dtype,
-                        given_dtype,
-                        "function call",
+                        param.dtype,
+                        arg_dtype,
+                        "type casting" if is_type_cast else "function call",
                         func_name,
                         param.name,
                     )
-                if len(result) > 0:
-                    result_type = []
-                    for item in result:
-                        result_type.append(item.dtype)
-                    if len(result_type) == 1:
-                        result_type = result_type[0]
-                    tree.dtype = result_type
+
+                if len(result) > 1:
+                    result_type = [item.dtype for item in result]
+                elif len(result) == 1:
+                    result_type = result[0].dtype
                 else:
                     result_type = []
-                    tree.dtype = []
+                tree.dtype = []
 
                 DTYPE = result_type
 
-                ir_code += "".join(
-                    [
-                        "param __arg{}_{}\n".format(i, depth_num)
-                        for i in range(len(argument_list))
-                    ]
-                )
-                ir_code += "{} = call {}, {}\n".format(
-                    store_var, func_loc, len(argument_list)
-                )
+                if is_type_cast:
+                    ir_code += "{} = {} __arg0_{}\n".format(
+                        store_var, result_type.name, depth_num
+                    )
+                else:
+                    ir_code += "".join(
+                        [
+                            "param __arg{}_{}\n".format(i, depth_num)
+                            for i in range(len(argument_list))
+                        ]
+                    )
+                    ir_code += "{} = call {}, {}\n".format(
+                        store_var, func_loc, len(argument_list)
+                    )
 
         # To be done later : check number of elements in array same as that
         # specified
@@ -2088,7 +2105,7 @@ def symbol_table(
         # XXX Doesn't handle the case when function is defined to return something but doesn't have the 'return' statement
         elif isinstance(tree, GoReturn):
             if block_type == "function":
-                results = table.get_func(name, "result")
+                results = table.get_func(name, "result")[0]
             elif block_type == "method":
                 # print("name {} {}".format(name[0],name[1]))
                 key = (name[0], name[1].dtype.name)

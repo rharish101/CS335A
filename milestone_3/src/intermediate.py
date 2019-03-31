@@ -303,7 +303,7 @@ class SymbTable:
             self.used.add(alias)
         else:
             raise GoException(
-                "Error: Already used alias/typedef name '{}'".format(name)
+                "Error: Already used alias/typedef name '{}'".format(alias)
             )
 
     def helper_get_struct(self, struct_name, field):

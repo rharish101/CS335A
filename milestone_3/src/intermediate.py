@@ -25,35 +25,6 @@ def go_traceback(tree):
     print(" " * 4 + lexer.lines[tree.lineno - 1])
 
 
-INT_TYPES = [
-    "int",
-    "int8",
-    "int16",
-    "int32",
-    "int64",
-    "uint",
-    "uint8",
-    "uint16",
-    "uint32",
-    "uint64",
-    "byte",
-    "rune",
-]
-
-OTHER_TYPES = [
-    "float",
-    "float32",
-    "float64",
-    "complex",
-    "byte",
-    "complex64",
-    "complex128",
-    "string",
-    "unintptr",
-    "bool",
-]
-
-
 class SymbTable:
     """The class for all symbol tables."""
 
@@ -74,15 +45,17 @@ class SymbTable:
                 is done by a tuple of (name, receiver).
             * Scopes (list of `SymbTable`): A list of the scope, using children
                 symbol tables
-            * Types (dict of `GoBaseType`): A dictionary of typedefs/aliases
-                (NOTE: Aliases must have a reference to another type, while
-                typedefs should have a copy)
+            * Aliases (dict of `GoBaseType`): A dictionary of aliases (NOTE:
+                Aliases have a reference to another type, while typedefs have a
+                copy)
+            * Basic Types (dict of dict): A dictionary of basic types
+                (including typedefs) with their sizes and kind
+                (integer/float/complex/other)
             * Used (set of str): Set of used variable/alias/const names
             * Constants (dict of GoConstants) : Their types
             * Imports (dict of `GoImportSpec`): The imports and their aliases
             * Parent (`SymbTable`): The reference to the parent scope (if it
                 exists)
-            * 3AC Code (str): The IR code in 3AC for this function/method/scope
         """
         self.variables = {}
         self.intermediates = {}
@@ -91,12 +64,64 @@ class SymbTable:
         self.functions = {}
         self.methods = {}
         self.scopes = []
-        self.types = {}
+        self.aliases = {}
         self.used = set()
         self.constants = {}
         self.imports = {}
         self.parent = parent
-        self.ir_code = ""
+
+        self.basic_types = {}
+
+        for type_str in [
+            "int",
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+            "byte",
+            "rune",
+        ]:
+            self.basic_types[type_str] = {"kind": "int"}
+        for type_str in ["float", "float32", "float64"]:
+            self.basic_types[type_str] = {"kind": "float"}
+        for type_str in ["complex", "complex64", "complex128"]:
+            self.basic_types[type_str] = {"kind": "complex"}
+        for type_str in ["byte", "string", "uintptr", "bool"]:
+            self.basic_types[type_str] = {"kind": "other"}
+
+        for name in self.basic_types:
+            if name in ["uint8", "int8", "byte", "bool"]:
+                self.basic_types[name]["size"] = 1
+            elif name in ["uint16", "int16"]:
+                self.basic_types[name]["size"] = 2
+            elif name in [
+                "uint32",
+                "int32",
+                "float32",
+                "rune",
+                "int",
+                "uint",
+                "uintptr",
+            ]:
+                self.basic_types[name]["size"] = 4
+            elif name in [
+                "uint64",
+                "int64",
+                "complex",
+                "complex64",
+                "float64",
+                "float",
+            ]:
+                self.basic_types[name]["size"] = 8
+            elif name == "complex128":
+                self.basic_types[name]["size"] = 16
+            else:  # Only for string
+                self.basic_types[name]["size"] = None
 
         if use is None:
             if self.parent:
@@ -116,13 +141,32 @@ class SymbTable:
         else:
             return False
 
+    def check_basic_type(self, name):
+        if name in self.basic_types:
+            return True
+        elif self.parent is not None:
+            return self.parent.check_basic_type(name)
+        else:
+            return False
+
+    def get_basic_type(self, name):
+        if name in self.basic_types:
+            return self.basic_types[name]
+        elif self.parent is not None:
+            return self.parent.get_basic_type(name)
+        else:
+            raise GoException('"{}" is unregistered dtype'.format(name))
+
     def get_actual(self, alias):
-        if alias in self.types:
-            actual = self.types[alias]
-            while actual.name in self.types:
-                actual = self.types[actual.name]
-            # return self.types[alias]
-            return actual
+        if alias in self.aliases:
+            actual = self.aliases[alias]
+            while actual.name in self.aliases:
+                actual = self.aliases[actual.name]
+            if self.parent:
+                parent_actual = self.parent.get_actual(actual.name)
+            else:
+                parent_actual = None
+            return actual if parent_actual is None else parent_actual
         elif self.parent:
             return self.parent.get_actual(alias)
         else:
@@ -141,31 +185,18 @@ class SymbTable:
         name = dtype.name
         logging.info("SIZE: getting size of {}".format(name))
         value = dtype.value
-        if name in ["uint8", "int8", "byte", "bool"]:
-            size = 1
-        elif name in ["uint16", "int16"]:
-            size = 2
-        elif name in [
-            "uint32",
-            "int32",
-            "float32",
-            "rune",
-            "int",
-            "uint",
-            "uintptr",
-        ]:
-            size = 4
-        elif name in ["unint64", "int64", "complex64", "float64", "float"]:
-            size = 8
-        elif name == "complex128":
-            size = 16
-        elif name == "string":
-            # print("NAME XXXX{}".format(value))
-            if value is None:
-                size = 0
-            else:
-                size = len(value)
-            # print("Warning: size of string is not defined")
+
+        if self.check_basic_type(name):
+            basic_type = self.get_basic_type(name)
+            if basic_type["size"] is not None:
+                size = basic_type["size"]
+            else:  # string or its typedef
+                # print("NAME XXXX{}".format(value))
+                if value is None:
+                    size = 0
+                else:
+                    size = len(value)
+                # print("Warning: size of string is not defined")
         else:
             # print("NAME {}".format(name))
             actual_type = self.get_actual(name)
@@ -211,7 +242,7 @@ class SymbTable:
             actual = self.get_actual(name)
             if actual is not None:
                 name = actual.name
-            if name not in INT_TYPES and name not in OTHER_TYPES:
+            if not self.check_basic_type(name):
                 # Not type-casting
                 raise GoException(
                     "Error: Attempt to use '{}': undeclared function".format(
@@ -297,9 +328,53 @@ class SymbTable:
                 'Error: Already declared "{}" name "{}"'.format(use, name)
             )
 
-    def insert_alias(self, alias, actual):
+    def insert_alias(self, alias, actual, kind):
         if alias not in self.used:
-            self.types[alias] = actual
+            if kind == "alias":
+                self.aliases[alias] = actual
+            elif kind == "typedef":
+                # Check structs
+                try:
+                    obj = self.get_struct_obj(actual.name)
+                except GoException:
+                    pass
+                else:
+                    self.insert_struct(alias, obj)
+                    return
+
+                # Check interfaces
+                try:
+                    obj = self.get_interface(actual.name)
+                except GoException:
+                    pass
+                else:
+                    self.insert_interface(alias, obj)
+                    return
+
+                obj = self.get_actual(actual.name)
+                if obj is not None:
+                    print("yo")
+                    if isinstance(obj, GoStruct):
+                        self.insert_struct(alias, obj)
+                        return
+                    elif isinstance(obj, GoInterfaceType):
+                        self.insert_interface(alias, obj)
+                        return
+                    else:
+                        actual = obj
+
+                if self.check_basic_type(actual.name):
+                    self.basic_types[alias] = self.get_basic_type(actual.name)
+                else:
+                    raise GoException(
+                        'Typedef "{}" to undefined "{}"'.format(
+                            alias, actual.name
+                        )
+                    )
+            else:
+                raise ValueError(
+                    'Alias/typedef kind "{}" is invalid'.format(kind)
+                )
             self.used.add(alias)
         else:
             raise GoException(
@@ -353,6 +428,22 @@ class SymbTable:
             raise GoException(
                 "Error: Attempt to access undeclared struct '{}'".format(
                     struct_name
+                )
+            )
+
+    def get_interface(self, interface_name):
+        actual_name = self.get_actual(interface_name)
+        if actual_name is not None:
+            if isinstance(actual_name, GoType):
+                interface_name = actual_name.name
+        if interface_name in self.interfaces:
+            return self.interfaces[interface_name]
+        elif self.parent:
+            return self.parent.get_interface(interface_name)
+        else:
+            raise GoException(
+                "Error: Attempt to access undeclared interface '{}'".format(
+                    interface_name
                 )
             )
 
@@ -523,7 +614,7 @@ class SymbTable:
             #         actual2 = self.get_actual(actual2.name)
 
             for name in [name1, name2]:
-                if name not in INT_TYPES and name not in OTHER_TYPES:
+                if not self.get_basic_type(name):
                     raise GoException(
                         "Error: '{}' is unregistered dtype".format(name)
                     )
@@ -531,19 +622,14 @@ class SymbTable:
             type_error = False
 
             if dtype1.basic_lit or dtype2.basic_lit:
-                if name1 in INT_TYPES:
-                    name1 = "int"
-                elif name1 in ["float32", "float64", "float"]:
-                    name1 = "float"
-                elif name1 in ["complex64", "complex128", "complex"]:
-                    name1 = "complex"
-
-                if name2 in INT_TYPES:
-                    name2 = "int"
-                elif name2 in ["float32", "float64", "float"]:
-                    name2 = "float"
-                elif name2 in ["complex64", "complex128", "complex"]:
-                    name2 = "complex"
+                if self.check_basic_type(name1):
+                    new_name = self.get_basic_type(name1)["kind"]
+                    if new_name != "other":
+                        name1 = new_name
+                if self.check_basic_type(name2):
+                    new_name = self.get_basic_type(name2)["kind"]
+                    if new_name != "other":
+                        name2 = new_name
 
                 # print("HERE")
                 # print("name1 {}, name2 {}".format(name1,name2))
@@ -804,6 +890,7 @@ def symbol_table(
             # iterating over AliasDecl and Typedef
             for item in type_list:
                 # assert isinstance(item, GoTypeDefAlias)
+                kind = item.kind
                 alias = item.alias
                 actual = item.actual
                 if isinstance(actual, GoStruct):
@@ -811,9 +898,9 @@ def symbol_table(
                 elif isinstance(actual, GoInterfaceType):
                     table.insert_interface(alias, actual)
                 else:
-                    table.insert_alias(alias, actual)
+                    table.insert_alias(alias, actual, kind)
 
-                logging.info('typedef/alias "{}" : "{}"'.format(alias, actual))
+                logging.info('{} "{}" : "{}"'.format(kind, alias, actual))
             DTYPE = None
 
         elif isinstance(tree, GoDecl) and tree.kind == "constant":
@@ -1240,9 +1327,9 @@ def symbol_table(
                             name1, name2
                         )
                     )
-                elif (
-                    op in [">>", "<<", "&", "&^", "^", "|", "%"]
-                    and name not in INT_TYPES
+                elif op in [">>", "<<", "&", "&^", "^", "|", "%"] and (
+                    not table.check_basic_type(name)
+                    or table.get_basic_type(name)["kind"] != "int"
                 ):
                     raise GoException(
                         "Error: Operator '{}' is not applicable for '{}'".format(
@@ -1533,7 +1620,10 @@ def symbol_table(
                 dtype = length.dtype
 
             # Need to handle the case for typedef/alias of dtype.name
-            if isinstance(dtype, GoType) and dtype.name not in INT_TYPES:
+            if isinstance(dtype, GoType) and (
+                not table.check_basic_type(dtype.name)
+                or table.get_basic_type(dtype.name)["kind"] != "int"
+            ):
                 tree.size = dtype.value * tree.dtype.size
                 logging.info("ARRAY SIZE: {}".format(tree.size))
                 raise GoException("Error: Array length must be an integer")
@@ -1554,7 +1644,10 @@ def symbol_table(
             )
             if isinstance(dtype, GoType):
                 name = dtype.name
-                if name not in INT_TYPES:
+                if (
+                    not table.check_basic_type(name)
+                    or table.get_basic_type(name)["kind"] != "int"
+                ):
                     raise GoException("Error: Index of array is not integer")
             DTYPE = dtype
 
@@ -2229,8 +2322,16 @@ def csv_writer(table, name, dir_name):
         writer.writerow(["#ALIASES"])
         writer.writerow(["alias", "actual"])
 
-        for alias in table.types:
-            row = [alias, table.types[alias].name]
+        for alias in table.aliases:
+            row = [alias, table.aliases[alias].name]
+            writer.writerow(row)
+
+        writer.writerow([])
+        writer.writerow(["#BUILTINS"])
+        writer.writerow(["name", "size"])
+
+        for builtin in table.basic_types:
+            row = [builtin, table.basic_types[builtin]["size"]]
             writer.writerow(row)
 
         writer.writerow([])
@@ -2344,10 +2445,6 @@ def csv_writer(table, name, dir_name):
             # writer.writerow(["}"])
 
     file.close()
-
-    if len(table.ir_code) > 0:
-        with open(dir_name + "{}.txt".format(name), "w") as ir_file:
-            ir_file.write(table.ir_code)
 
 
 def get_csv(table, dir_name):

@@ -16,6 +16,17 @@ type person struct {
 }
 type custom person
 type custom1 custom
+type check struct {
+	name string 
+	age int 
+}
+type check1 struct{
+	age int
+}
+type person1 struct{
+	age  check1
+	age1 int
+}
 
 type T struct {
 	f1     string "f one"
@@ -38,11 +49,25 @@ func add(x uint, y uint) uint {
 }
 
 func temp(x int, y int) {
-	r := person{help{"vishwas"}, 2}
+	gu := help{"vishwas"}
+	r := person{gu, 2}
 	f := r.age
+	 emp3 := struct {
+        firstName, lastName string
+        age, salary         int
+    }{
+        firstName: "Andreah",
+        lastName:  "Nikola",
+        age:       31,
+        salary:    5000,
+    }
+
 	m := 2
 	n := &m
-	t := person{help{"string"}, 2}
+	t := person{help{"vishwas"}, 2}
+	t1 := check{"string", 2}
+	t2 := person1{check1{2},3}
+	t2.age1 = 4
 	t.age = 2
 	t.age++
 	k := t.age + *n

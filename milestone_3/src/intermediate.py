@@ -548,7 +548,7 @@ class SymbTable:
 
     def field2index(self, struct, field):
         index = 0
-        for struct_field in table.get_struct_obj(struct).vars:
+        for struct_field in struct.vars:
             if struct_field[0] == field:
                 break
             index += table.get_size(struct_field[1].dtype)
@@ -719,7 +719,8 @@ def symbol_table(
 
             # currently handles accessing a field of a struct
             if type(parent) is str:
-                struct_name = table.get_type(parent).name
+                struct_obj = table.get_type(parent)
+                struct_name = struct_obj.name
                 parent_name = parent
             else:
                 parent_name = "__parent_{}".format(depth_num)
@@ -734,11 +735,12 @@ def symbol_table(
                 )
                 ir_code += parent_code
                 table.insert_var(parent_name, parent_dtype, "intermediate")
+                struct_obj = parent_dtype
                 struct_name = parent_dtype.name
 
             DTYPE = table.get_struct(struct_name, child).dtype
             this_name = "{}[{}]".format(
-                parent_name, table.field2index(struct_name, child)
+                parent_name, table.field2index(struct_obj, child)
             )
             if store_var == "":
                 ir_code += str(this_name)
@@ -1093,8 +1095,18 @@ def symbol_table(
                             scope_label=scope_label,
                             depth_num=depth_num + 1,
                         )[0]
+                        if not isinstance(parent_dtype, GoStruct):
+                            if hasattr(curr.parent, "name"):
+                                parent_name = curr.parent.name
+                            else:
+                                parent_name = str(curr.parent)
+                            raise GoException(
+                                'Cannot access attribute "{}" as "{}" is not a struct'.format(
+                                    curr.child, parent_name
+                                )
+                            )
                         child_index = table.field2index(
-                            parent_dtype.name, curr.child
+                            parent_dtype, curr.child
                         )
                         loc_rhs = "[{}]".format(child_index) + loc_rhs
                         curr = curr.parent
@@ -2125,7 +2137,7 @@ def symbol_table(
                 if type(tree.expr) is str:
                     if tree.op == "&":
                         tree.dtype = GoPointType(table.get_type(tree.expr))
-                    elif tree.op == "*":
+                    else:
                         if not isinstance(
                             table.get_type(tree.expr), GoPointType
                         ):
@@ -2138,47 +2150,40 @@ def symbol_table(
                 elif isinstance(tree.expr, GoPrimaryExpr) or isinstance(
                     tree.expr, GoFromModule
                 ):
-                    eval_type, _ = symbol_table(
-                        tree.expr,
-                        table,
-                        name,
-                        block_type,
-                        scope_label=scope_label,
-                    )
                     if tree.op == "&":
-                        tree.dtype = GoPointType(eval_type)
-                    elif tree.op == "*":
-                        if not isinstance(eval_type, GoPointType):
+                        tree.dtype = GoPointType(opd_dtype)
+                    else:
+                        if not isinstance(opd_dtype, GoPointType):
                             raise GoException(
-                                "Error: {} not pointer type".format(eval_type)
+                                "Error: {} not pointer type".format(opd_dtype)
                             )
                         else:
-                            tree.dtype = eval_type.dtype
+                            tree.dtype = opd_dtype.dtype
 
                 elif isinstance(tree.expr, GoUnaryExpr):
-                    eval_type, _ = symbol_table(
-                        tree.expr,
-                        table,
-                        name,
-                        block_type,
-                        scope_label=scope_label,
-                    )
-
                     if tree.op == "&":
                         if tree.expr.op == "&":
                             raise GoException(
                                 "Error: Cannot take address of address"
                             )
                         elif tree.expr.op == "*":
-                            tree.dtype = GoPointType(eval_type)
+                            tree.dtype = GoPointType(opd_dtype)
 
-                    elif tree.op == "*":
-                        if not isinstance(eval_type, GoPointType):
+                    else:
+                        if not isinstance(opd_dtype, GoPointType):
                             raise GoException(
-                                "Error: {} not pointer type".format(eval_type)
+                                "Error: {} not pointer type".format(opd_dtype)
                             )
                         else:
-                            tree.dtype = eval_type.dtype
+                            tree.dtype = opd_dtype.dtype
+
+                elif isinstance(tree.expr, GoCompositeLit):
+                    if tree.op == "&":
+                        tree.dtype = GoPointType(opd_dtype)
+                    else:
+                        raise GoException(
+                            'Operator "*" not applicable over composite literals'
+                        )
 
             # TODO: need to add better type checking
             else:

@@ -74,7 +74,8 @@ class GoStruct(GoBaseType):
 
     def __init__(self, fields):
         super().__init__("struct")
-        # vars and tags should be lists so as to enforce order on the inputs given to the struct
+        # vars and tags should be lists so as to enforce order on the inputs
+        # given to the struct
         self.vars = []
         self.tags = []
         # XXX don't know about this

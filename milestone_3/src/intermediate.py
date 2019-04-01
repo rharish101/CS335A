@@ -516,6 +516,14 @@ class SymbTable:
             struct_name = struct_object.name
             return self.get_struct(struct_name, child)
 
+    def field2index(self, struct, field):
+        index = 0
+        for struct_field in table.get_struct_obj(struct).vars:
+            if struct_field[0] == field:
+                break
+            index += table.get_size(struct_field[1].dtype)
+        return index
+
     def type_check(
         self, dtype1, dtype2, use="", use_name=None, param_name=None
     ):
@@ -676,23 +684,36 @@ def symbol_table(
         elif isinstance(tree, GoFromModule):
             parent = tree.parent
             child = tree.child
+            this_name = tree.name
             logging.info("parent '{}', child '{}'".format(parent, child))
 
             # currently handles accessing a field of a struct
             if type(parent) is str:
                 struct_name = table.get_type(parent).name
-                DTYPE = table.get_struct(struct_name, child).dtype
-
-            # handles nesting of structs
-            elif isinstance(parent, GoFromModule):
-                struct_name = (table.nested_module(parent)).dtype.name
-                logging.info("struct name '{}'".format(struct_name))
-                DTYPE = table.get_struct(struct_name, child).dtype
-
-            if store_var == "":
-                ir_code = str(tree.name)
+                parent_name = parent
             else:
-                ir_code = "{} = {}\n".format(store_var, tree.name)
+                parent_name = "__parent_{}".format(depth_num)
+                parent_dtype, parent_code = symbol_table(
+                    parent,
+                    table,
+                    name,
+                    block_type,
+                    store_var=parent_name,
+                    scope_label=scope_label,
+                    depth_num=depth_num + 1,
+                )
+                ir_code += parent_code
+                table.insert_var(parent_name, parent_dtype, "intermediate")
+                struct_name = parent_dtype.name
+
+            DTYPE = table.get_struct(struct_name, child).dtype
+            this_name = "{}[{}]".format(
+                parent_name, table.field2index(struct_name, child)
+            )
+            if store_var == "":
+                ir_code += str(this_name)
+            else:
+                ir_code += "{} = {}\n".format(store_var, this_name)
 
         # TODO: Store modules
         elif isinstance(tree, GoSourceFile):
@@ -755,8 +776,8 @@ def symbol_table(
                 rhs = item.rhs
                 if len(lhs) != len(rhs) and len(rhs) != 0:
                     raise GoException(
-                        "Error: different number of variables and values in var "
-                        "declaration"
+                        "Error: different number of variables and values in "
+                        "var declaration"
                     )
                 elif len(rhs) == 0 and dtype is None:
                     raise GoException(
@@ -845,8 +866,8 @@ def symbol_table(
                 expr_list = item.expr
                 if len(id_list) != len(expr_list):
                     raise GoException(
-                        "Error: different number of variables and values in const "
-                        "declaration"
+                        "Error: different number of variables and values in "
+                        "const declaration"
                     )
 
                 else:
@@ -952,7 +973,8 @@ def symbol_table(
             rhs = tree.rhs
             if len(lhs) != len(rhs):
                 raise GoException(
-                    "Error: Different number of variables and values in assign operation"
+                    "Error: Different number of variables and values in "
+                    "assign operation"
                 )
             lhs_3ac = []
 
@@ -1026,7 +1048,18 @@ def symbol_table(
                             error = True
                     elif isinstance(curr, GoFromModule):
                         # No checking here; it is done ahead
-                        loc_rhs = "." + curr.child + loc_rhs
+                        parent_dtype = symbol_table(
+                            curr.parent,
+                            table,
+                            name,
+                            block_type,
+                            scope_label=scope_label,
+                            depth_num=depth_num + 1,
+                        )[0]
+                        child_index = table.field2index(
+                            parent_dtype.name, curr.child
+                        )
+                        loc_rhs = "[{}]".format(child_index) + loc_rhs
                         curr = curr.parent
                         should_break = False
                     elif not table.lookup(curr):
@@ -1951,25 +1984,25 @@ def symbol_table(
                 field_list = tree.value
                 type_list = []
                 unnamed_keys = True
+                field_index = 0
                 for i, field in enumerate(field_list):
                     field.use = "struct"
                     if field.key is not None:
-                        elem_key = field.key
                         unnamed_keys = False
-                    elif unnamed_keys:
-                        elem_key = struct_obj.vars[i][0]
-                    else:
+                    elif not unnamed_keys:
                         GoException("Error: Cannot mix named and unnamed keys")
 
+                    field_name = store_var + "[{}]".format(field_index)
                     field_type, elem_code = symbol_table(
                         field,
                         table,
                         name,
                         block_type,
-                        store_var=store_var + "." + elem_key,
+                        store_var=field_name,
                         scope_label=scope_label,
                         depth_num=depth_num + 1,
                     )
+                    field_index += table.get_size(field_type)
                     type_list.append(field_type)
                     ir_code += elem_code
 

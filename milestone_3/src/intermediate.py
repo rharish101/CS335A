@@ -174,7 +174,7 @@ class SymbTable:
 
     # TODO: Need to handle dynamic entities like linked lists, strings etc
     def get_size(self, dtype, check=False):
-        if isinstance(dtype,GoBasicLit):
+        if isinstance(dtype, GoBasicLit):
             return self.get_size(dtype.dtype)
         elif isinstance(dtype, GoStruct):
             try:
@@ -187,58 +187,52 @@ class SymbTable:
             return 4
         elif isinstance(dtype, GoArray):
             return dtype.length.item * self.get_size(dtype.final_type)
-        elif isinstance(dtype,GoKeyedElement):
+        elif isinstance(dtype, GoKeyedElement):
             element = dtype.element
             try:
                 return self.get_type(element).size
             except GoException:
                 return self.get_size(element)
-        elif isinstance(dtype,GoCompositeLit):
+        elif isinstance(dtype, GoCompositeLit):
             values = dtype.value
-            size=0
-            # print(values)
+            size = 0
             for value in values:
-                size+=self.get_size(value)
-            # print(size)    
+                size += self.get_size(value)
             return size
 
-               
-        elif isinstance(dtype,GoType):    
+        elif isinstance(dtype, GoType):
             name = dtype.name
             logging.info("SIZE: getting size of {}".format(name))
             value = dtype.value
-
 
             if self.check_basic_type(name):
                 basic_type = self.get_basic_type(name)
                 if basic_type["size"] is not None:
                     size = basic_type["size"]
                 else:  # string or its typedef
-                    # print("STRING {}".format(value))
                     if value is None:
                         size = 0
                     else:
                         # -2 done to strip the quotes
-                        size = len(value)-2
+                        size = len(value) - 2
             else:
                 actual_type = self.get_actual(name)
                 if actual_type is None:
                     size = self.struct_size(name)
                     return size
                 actual_type.value = value
-                size = self.get_size(actual_type)   
+                size = self.get_size(actual_type)
             return size
         else:
             print("Warning: Returning zero size")
             return 0
 
-
     def infer_struct_size(self, dtype):
-        size=0
+        size = 0
         variables = dtype.vars
         for item in variables:
-            size+=self.get_size(item[1].dtype)
-        return size    
+            size += self.get_size(item[1].dtype)
+        return size
 
     def get_type(self, name, use="variable/array/struct"):
         if name in self.variables:
@@ -369,7 +363,6 @@ class SymbTable:
 
                 obj = self.get_actual(actual.name)
                 if obj is not None:
-                    print("yo")
                     if isinstance(obj, GoStruct):
                         self.insert_struct(alias, obj)
                         return
@@ -476,14 +469,13 @@ class SymbTable:
                     actual.dtype.name, given
                 )
             )
-            if isinstance(given,GoStruct):
+            if isinstance(given, GoStruct):
                 size += self.struct_size(given.name)
             else:
                 self.type_check(
                     actual.dtype, given, "structure initialization"
                 )
                 size += self.get_size(given)
-        # print(struct_name,size)        
         return size
 
     def struct_size(self, struct_name):
@@ -1147,7 +1139,6 @@ def symbol_table(
                     for i in range(len(func_dtype))
                 ]
                 return_struct = GoStruct(field_list)
-                # TODO: Make sure this works
                 table.insert_var(return_name, return_struct, "intermediate")
 
                 arg_index = 0
@@ -2066,9 +2057,8 @@ def symbol_table(
                     tree_type = tree_type.dtype
                     tree_value = tree_value[0].element
 
-            elif (
-                isinstance(tree.dtype, GoType)
-                or isinstance(tree.dtype, GoStruct)
+            elif isinstance(tree.dtype, GoType) or isinstance(
+                tree.dtype, GoStruct
             ):  # handles structs
                 if isinstance(tree.dtype, GoType):
                     struct_name = tree.dtype.name
@@ -2099,8 +2089,7 @@ def symbol_table(
                         scope_label=scope_label,
                         depth_num=depth_num + 1,
                     )
-                    # print(field_type, table.get_size(field))
-                    field_index += table.get_size(field_type)
+                    field_index += table.get_size(field)
                     type_list.append(field_type)
                     ir_code += elem_code
 
@@ -2238,9 +2227,7 @@ def symbol_table(
                 GoStructField(["__val{}".format(i)], results[i].dtype, "")
                 for i in range(len(results))
             ]
-            # print("XXXX :{} ".format(results))
             return_struct = GoStruct(field_list)
-            # TODO: Make sure this works
             table.insert_var(return_name, return_struct, use="intermediate")
 
             return_index = 0

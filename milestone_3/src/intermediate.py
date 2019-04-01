@@ -174,7 +174,9 @@ class SymbTable:
 
     # TODO: Need to handle dynamic entities like linked lists, strings etc
     def get_size(self, dtype, check=False):
-        if isinstance(dtype, GoStruct):
+        if isinstance(dtype,GoBasicLit):
+            return self.get_size(dtype.dtype)
+        elif isinstance(dtype, GoStruct):
             try:
                 self.get_struct(dtype.name)
             except GoException:  # Inline struct
@@ -185,30 +187,58 @@ class SymbTable:
             return 4
         elif isinstance(dtype, GoArray):
             return dtype.length.item * self.get_size(dtype.final_type)
-        name = dtype.name
-        logging.info("SIZE: getting size of {}".format(name))
-        value = dtype.value
+        elif isinstance(dtype,GoKeyedElement):
+            element = dtype.element
+            try:
+                return self.get_type(element).size
+            except GoException:
+                return self.get_size(element)
+        elif isinstance(dtype,GoCompositeLit):
+            values = dtype.value
+            size=0
+            # print(values)
+            for value in values:
+                size+=self.get_size(value)
+            # print(size)    
+            return size
 
-        if self.check_basic_type(name):
-            basic_type = self.get_basic_type(name)
-            if basic_type["size"] is not None:
-                size = basic_type["size"]
-            else:  # string or its typedef
-                if value is None:
-                    size = 0
-                else:
-                    size = len(value)
+               
+        elif isinstance(dtype,GoType):    
+            name = dtype.name
+            logging.info("SIZE: getting size of {}".format(name))
+            value = dtype.value
+
+
+            if self.check_basic_type(name):
+                basic_type = self.get_basic_type(name)
+                if basic_type["size"] is not None:
+                    size = basic_type["size"]
+                else:  # string or its typedef
+                    # print("STRING {}".format(value))
+                    if value is None:
+                        size = 0
+                    else:
+                        # -2 done to strip the quotes
+                        size = len(value)-2
+            else:
+                actual_type = self.get_actual(name)
+                if actual_type is None:
+                    size = self.struct_size(name)
+                    return size
+                actual_type.value = value
+                size = self.get_size(actual_type)   
+            return size
         else:
-            actual_type = self.get_actual(name)
-            if actual_type is None:
-                size = self.struct_size(name)
-                return size
-            actual_type.value = value
-            size = self.get_size(actual_type)
-        return size
+            print("Warning: Returning zero size")
+            return 0
+
 
     def infer_struct_size(self, dtype):
-        return 0
+        size=0
+        variables = dtype.vars
+        for item in variables:
+            size+=self.get_size(item[1].dtype)
+        return size    
 
     def get_type(self, name, use="variable/array/struct"):
         if name in self.variables:
@@ -435,7 +465,6 @@ class SymbTable:
 
     def check_struct(self, struct_name, type_list):
         actual_types = self.get_struct(struct_name)
-
         if len(actual_types) is not len(type_list):
             raise GoException(
                 "Error: Invalid number of values given for structure initialization"
@@ -447,13 +476,14 @@ class SymbTable:
                     actual.dtype.name, given
                 )
             )
-            if type(given) is list:
-                size += self.check_struct(actual.dtype.name, given)
+            if isinstance(given,GoStruct):
+                size += self.struct_size(given.name)
             else:
                 self.type_check(
                     actual.dtype, given, "structure initialization"
                 )
                 size += self.get_size(given)
+        # print(struct_name,size)        
         return size
 
     def struct_size(self, struct_name):
@@ -2069,6 +2099,7 @@ def symbol_table(
                         scope_label=scope_label,
                         depth_num=depth_num + 1,
                     )
+                    # print(field_type, table.get_size(field))
                     field_index += table.get_size(field_type)
                     type_list.append(field_type)
                     ir_code += elem_code
@@ -2076,9 +2107,9 @@ def symbol_table(
                 logging.info("FINAL LIST '{}'".format(type_list))
                 struct_obj = GoStruct([])
                 if isinstance(tree.dtype, GoType):
-                    struct_obj.size = table.check_struct(struct_name, type_list)
-                else:
-                    struct_obj.size = table.get_size(tree.dtype)
+                    table.check_struct(struct_name, type_list)
+
+                struct_obj.size = table.get_size(tree)
                 struct_obj.name = struct_name
 
                 DTYPE = struct_obj

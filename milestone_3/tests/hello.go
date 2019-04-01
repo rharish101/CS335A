@@ -29,6 +29,10 @@ func temp1(x uint, y uint) uint {
 	return x
 }
 
+func temp2(x uint, y uint) (uint, uint) {
+	return x, y
+}
+
 func add(x uint, y uint) uint {
 	return x + y
 }
@@ -45,6 +49,7 @@ func temp(x int, y int) {
 
 	var d int_t = 4
 	var b uint = 3
+	b, b = temp2(b, b)
 	c := uint(d) + b
 
 	a := c

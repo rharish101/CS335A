@@ -972,10 +972,17 @@ def symbol_table(
             lhs = tree.lhs
             rhs = tree.rhs
             if len(lhs) != len(rhs):
-                raise GoException(
-                    "Error: Different number of variables and values in "
-                    "assign operation"
-                )
+                # Check if RHS is function return
+                # Will be checked later for multiple return
+                if (
+                    len(rhs) != 1
+                    or not isinstance(rhs[0], GoPrimaryExpr)
+                    or not isinstance(rhs[0].rhs, GoArguments)
+                ):
+                    raise GoException(
+                        "Error: Different number of variables and values in "
+                        "assign operation"
+                    )
             lhs_3ac = []
 
             for var in lhs:
@@ -1077,107 +1084,151 @@ def symbol_table(
                         break
                 lhs_3ac.append(loc_lhs + loc_rhs)
 
-            for i, (var, expr) in enumerate(zip(lhs, rhs)):
-                logging.info('assign: "{}" : "{}"'.format(var, expr))
-                # can have only struct fields, variables, array on the LHS.
-                dtype1 = None
-                if isinstance(var, GoPrimaryExpr):
-                    left = var
-                    depth = 0
-                    indexes = []
-                    while isinstance(left.lhs, GoPrimaryExpr):
+            if len(lhs) != len(rhs):
+                # Check if function return RHS is valid
+                return_name = "__func_ret_{}".format(depth_num)
+                func_dtype, func_code = symbol_table(
+                    rhs[0],
+                    table,
+                    name,
+                    block_type,
+                    store_var=return_name,
+                    scope_label=scope_label,
+                    depth_num=depth_num + 1,
+                )
+                if len(lhs) != len(func_dtype):
+                    raise GoException(
+                        "Error: Different number of variables and values in "
+                        "function return; expected {}".format(len(func_dtype))
+                    )
+                else:
+                    ir_code += func_code
+
+                field_list = [
+                    GoStructField(["__val{}".format(i)], func_dtype[i], "")
+                    for i in range(len(func_dtype))
+                ]
+                return_struct = GoStruct(field_list)
+                # TODO: Make sure this works
+                table.insert_var(return_name, return_struct, "intermediate")
+
+                arg_index = 0
+                for i in range(len(func_dtype)):
+                    ir_code += "{} = {}[{}]\n".format(
+                        lhs_3ac[i], return_name, arg_index
+                    )
+                    arg_index += table.get_size(func_dtype[i])
+
+            else:
+                for i, (var, expr) in enumerate(zip(lhs, rhs)):
+                    logging.info('assign: "{}" : "{}"'.format(var, expr))
+                    # can have only struct fields, variables, array on the LHS.
+                    dtype1 = None
+                    if isinstance(var, GoPrimaryExpr):
+                        left = var
+                        depth = 0
+                        indexes = []
+                        while isinstance(left.lhs, GoPrimaryExpr):
+                            if isinstance(left.rhs, GoBasicLit):
+                                indexes.append(left.rhs.index.item)
+                            else:
+                                indexes.append(0)
+                            left = left.lhs
+                            depth = depth + 1
                         if isinstance(left.rhs, GoBasicLit):
                             indexes.append(left.rhs.index.item)
                         else:
                             indexes.append(0)
-                        left = left.lhs
-                        depth = depth + 1
-                    if isinstance(left.rhs, GoBasicLit):
-                        indexes.append(left.rhs.index.item)
-                    else:
-                        indexes.append(0)
 
-                    dtype1 = table.get_type(left.lhs)
-                    if dtype1.length.item <= indexes[len(indexes) - 1]:
-                        raise GoException("Error : Index Out of bound")
-                    indexes.pop()
-                    dtype1 = dtype1.dtype
-                    while depth > 0:
+                        dtype1 = table.get_type(left.lhs)
                         if dtype1.length.item <= indexes[len(indexes) - 1]:
                             raise GoException("Error : Index Out of bound")
                         indexes.pop()
                         dtype1 = dtype1.dtype
-                        depth = depth - 1
+                        while depth > 0:
+                            if dtype1.length.item <= indexes[len(indexes) - 1]:
+                                raise GoException("Error : Index Out of bound")
+                            indexes.pop()
+                            dtype1 = dtype1.dtype
+                            depth = depth - 1
 
-                elif type(var) is str:
-                    dtype1 = table.get_type(var)
+                    elif type(var) is str:
+                        dtype1 = table.get_type(var)
 
-                elif isinstance(var, GoUnaryExpr) and var.op == "*":
-                    symbol_table(
-                        var.expr,
+                    elif isinstance(var, GoUnaryExpr) and var.op == "*":
+                        symbol_table(
+                            var.expr,
+                            table,
+                            name,
+                            block_type,
+                            scope_label=scope_label,
+                            depth_num=depth_num + 1,
+                        )
+                        if type(var.expr) is str:
+                            if not isinstance(
+                                table.get_type(var.expr), GoPointType
+                            ):
+                                raise GoException(
+                                    "Error: {} not pointer type".format(
+                                        var.expr
+                                    )
+                                )
+                            var.dtype = table.get_type(var.expr).dtype
+                            dtype1 = var.dtype
+
+                        elif (
+                            isinstance(var.expr, GoUnaryExpr)
+                            and var.expr.op == "*"
+                        ):
+                            if not isinstance(var.expr.dtype, GoPointType):
+                                raise GoException(
+                                    "Error: {} not pointer type".format(
+                                        var.expr
+                                    )
+                                )
+                            var.dtype = var.expr.dtype.dtype
+                            dtype1 = var.dtype
+
+                    # NEW START
+                    elif isinstance(var, GoFromModule):
+                        parent = var.parent
+                        child = var.child
+                        # currently handles accessing a field of a struct
+                        if type(parent) is str:
+                            struct_name = table.get_type(parent).name
+                            dtype1 = table.get_struct(struct_name, child).dtype
+
+                        # handles nesting of structs
+                        elif isinstance(parent, GoFromModule):
+                            logging.info(
+                                "parent '{}', child '{}'".format(parent, child)
+                            )
+                            struct_name = (
+                                table.nested_module(parent)
+                            ).dtype.name
+                            logging.info(
+                                "struct name '{}'".format(struct_name)
+                            )
+                            dtype1 = table.get_struct(struct_name, child).dtype
+
+                    if dtype1 is None:
+                        print("Warning: Getting None dtype in Assignment")
+                    # NEW END
+
+                    dtype2, rhs_code = symbol_table(
+                        expr,
                         table,
                         name,
                         block_type,
+                        store_var=lhs_3ac[i],
                         scope_label=scope_label,
                         depth_num=depth_num + 1,
                     )
-                    if type(var.expr) is str:
-                        if not isinstance(
-                            table.get_type(var.expr), GoPointType
-                        ):
-                            raise GoException(
-                                "Error: {} not pointer type".format(var.expr)
-                            )
-                        var.dtype = table.get_type(var.expr).dtype
-                        dtype1 = var.dtype
+                    ir_code += rhs_code
 
-                    elif (
-                        isinstance(var.expr, GoUnaryExpr)
-                        and var.expr.op == "*"
-                    ):
-                        if not isinstance(var.expr.dtype, GoPointType):
-                            raise GoException(
-                                "Error: {} not pointer type".format(var.expr)
-                            )
-                        var.dtype = var.expr.dtype.dtype
-                        dtype1 = var.dtype
+                    table.type_check(dtype1, dtype2, "assignment")
 
-                # NEW START
-                elif isinstance(var, GoFromModule):
-                    parent = var.parent
-                    child = var.child
-                    # currently handles accessing a field of a struct
-                    if type(parent) is str:
-                        struct_name = table.get_type(parent).name
-                        dtype1 = table.get_struct(struct_name, child).dtype
-
-                    # handles nesting of structs
-                    elif isinstance(parent, GoFromModule):
-                        logging.info(
-                            "parent '{}', child '{}'".format(parent, child)
-                        )
-                        struct_name = (table.nested_module(parent)).dtype.name
-                        logging.info("struct name '{}'".format(struct_name))
-                        dtype1 = table.get_struct(struct_name, child).dtype
-
-                if dtype1 is None:
-                    print("Warning: Getting None dtype in Assignment")
-                # NEW END
-
-                dtype2, rhs_code = symbol_table(
-                    expr,
-                    table,
-                    name,
-                    block_type,
-                    store_var=lhs_3ac[i],
-                    scope_label=scope_label,
-                    depth_num=depth_num + 1,
-                )
-                ir_code += rhs_code
-
-                table.type_check(dtype1, dtype2, "assignment")
-
-                DTYPE = None
+                    DTYPE = None
 
         elif isinstance(tree, GoShortDecl):
             id_list = tree.id_list
@@ -1719,8 +1770,8 @@ def symbol_table(
 
                 if len(argument_list) is not len(params_list):
                     raise GoException(
-                        'Error: "{}" parameters passed to function "{}" instead '
-                        'of "{}"'.format(
+                        'Error: "{}" parameters passed to function "{}" '
+                        'instead of "{}"'.format(
                             len(argument_list), func_name, len(params_list)
                         )
                     )
@@ -2131,32 +2182,32 @@ def symbol_table(
                         len(tree.expr_list), len(results)
                     )
                 )
+
+            return_name = "__retval_{}".format(depth_num)
+            field_list = [
+                GoStructField(["__val{}".format(i)], results[i], "")
+                for i in range(len(results))
+            ]
+            return_struct = GoStruct(field_list)
+            # TODO: Make sure this works
+            table.insert_var(return_name, return_struct, use="intermediate")
+
+            return_index = 0
             for i, (res, expr) in enumerate(zip(results, tree.expr_list)):
+                return_name_i = return_name + "[{}]".format(return_index)
                 expr_dtype, expr_code = symbol_table(
                     expr,
                     table,
                     name=name,
                     block_type=block_type,
-                    store_var="__retval{}_{}".format(i, depth_num),
+                    store_var=return_name_i,
                     scope_label=scope_label,
                     depth_num=depth_num + 1,
                 )
                 ir_code += expr_code
-                table.insert_var(
-                    "__retval{}_{}".format(i, depth_num),
-                    expr_dtype,
-                    use="intermediate",
-                )
                 table.type_check(res.dtype, expr_dtype, use="return")
 
-            ir_code += "return "
-            ir_code += ",".join(
-                [
-                    "__retval{}_{}".format(i, depth_num)
-                    for i in range(len(results))
-                ]
-            )
-            ir_code += "\n"
+            ir_code += "return {}\n".format(return_name)
     except GoException as go_exp:
         go_traceback(tree)
         print(go_exp)

@@ -175,7 +175,12 @@ class SymbTable:
     # TODO: Need to handle dynamic entities like linked lists, strings etc
     def get_size(self, dtype, check=False):
         if isinstance(dtype, GoStruct):
-            return self.struct_size(dtype.name)
+            try:
+                self.get_struct(dtype.name)
+            except GoException:  # Inline struct
+                return self.infer_struct_size(dtype)
+            else:  # Pre-defined struct
+                return self.struct_size(dtype.name)
         elif isinstance(dtype, GoPointType):
             return 4
         elif isinstance(dtype, GoArray):
@@ -201,6 +206,9 @@ class SymbTable:
             actual_type.value = value
             size = self.get_size(actual_type)
         return size
+
+    def infer_struct_size(self, dtype):
+        return 0
 
     def get_type(self, name, use="variable/array/struct"):
         if name in self.variables:
@@ -2028,10 +2036,18 @@ def symbol_table(
                     tree_type = tree_type.dtype
                     tree_value = tree_value[0].element
 
-            elif isinstance(tree.dtype, GoType):  # handles structs
-                struct_name = tree.dtype.name
-                logging.info("Struct name {}".format(struct_name))
-                struct_obj = table.get_struct_obj(struct_name)
+            elif (
+                isinstance(tree.dtype, GoType)
+                or isinstance(tree.dtype, GoStruct)
+            ):  # handles structs
+                if isinstance(tree.dtype, GoType):
+                    struct_name = tree.dtype.name
+                    logging.info("Struct name {}".format(struct_name))
+                    struct_obj = table.get_struct_obj(struct_name)
+                else:
+                    struct_name = "__inline_struct"
+                    struct_obj = tree.dtype
+
                 field_list = tree.value
                 type_list = []
                 unnamed_keys = True
@@ -2059,7 +2075,10 @@ def symbol_table(
 
                 logging.info("FINAL LIST '{}'".format(type_list))
                 struct_obj = GoStruct([])
-                struct_obj.size = table.check_struct(struct_name, type_list)
+                if isinstance(tree.dtype, GoType):
+                    struct_obj.size = table.check_struct(struct_name, type_list)
+                else:
+                    struct_obj.size = table.get_size(tree.dtype)
                 struct_obj.name = struct_name
 
                 DTYPE = struct_obj
@@ -2185,9 +2204,10 @@ def symbol_table(
 
             return_name = "__retval_{}".format(depth_num)
             field_list = [
-                GoStructField(["__val{}".format(i)], results[i], "")
+                GoStructField(["__val{}".format(i)], results[i].dtype, "")
                 for i in range(len(results))
             ]
+            # print("XXXX :{} ".format(results))
             return_struct = GoStruct(field_list)
             # TODO: Make sure this works
             table.insert_var(return_name, return_struct, use="intermediate")
@@ -2205,6 +2225,7 @@ def symbol_table(
                     depth_num=depth_num + 1,
                 )
                 ir_code += expr_code
+                return_index += table.get_size(expr_dtype)
                 table.type_check(res.dtype, expr_dtype, use="return")
 
             ir_code += "return {}\n".format(return_name)

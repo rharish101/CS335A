@@ -10,6 +10,7 @@ import subprocess
 import os
 import logging
 import re
+from math import ceil
 
 
 class GoException(Exception):
@@ -299,7 +300,7 @@ class SymbTable:
                         self.offset, dtype.size
                     )
                 )
-                dtype.offset = self.offset + dtype.size
+                dtype.offset = self.offset + ceil(dtype.size/4)*4
                 self.offset = dtype.offset
 
             # TODO: need to handle array os structures seperately
@@ -314,12 +315,12 @@ class SymbTable:
                         dtype.final_type
                     )
 
-                dtype.offset = self.offset + dtype.size
+                dtype.offset = self.offset + ceil(dtype.size/4)*4
                 self.offset = dtype.offset
                 logging.info("ARRAY SIZE: {}".format(dtype.size))
 
             elif isinstance(dtype, GoStruct):
-                dtype.offset = self.offset + dtype.size
+                dtype.offset = self.offset + ceil(dtype.size/4)*4
                 self.offset = dtype.offset
                 logging.info("STRUCT SIZE {}".format(dtype.size))
 

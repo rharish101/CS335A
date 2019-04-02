@@ -1863,9 +1863,14 @@ def symbol_table(
                             for i in range(len(argument_list))
                         ]
                     )
-                    ir_code += "{} = call {}, {}\n".format(
-                        store_var, func_loc, len(argument_list)
-                    )
+                    if store_var == "":
+                        ir_code += "call {}, {}\n".format(
+                            func_loc, len(argument_list)
+                        )
+                    else:
+                        ir_code += "{} = call {}, {}\n".format(
+                            store_var, func_loc, len(argument_list)
+                        )
 
         # To be done later : check number of elements in array same as that
         # specified

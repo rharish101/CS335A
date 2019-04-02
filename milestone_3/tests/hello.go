@@ -52,19 +52,20 @@ func temp(x int, y int) {
 	gu := help{"vishwas"}
 	r := person{gu, 2}
 	f := r.age
+	tp := 2
 	emp3 := struct {
 		firstName, lastName string
-		age, salary         int
+		age, salary  int       
 	}{
 		firstName: "Andreah",
 		lastName:  "Nikola",
-		age:       31,
+		age:       tp,
 		salary:    5000,
 	}
 
 	m := 2
 	n := &m
-	t := person{help{"vishwas"}, 2}
+	t := person{age: 2, name : help{"vishwas"}}
 	t1 := check{"string", 2}
 	t2 := person1{check1{2}, 3}
 	t2.age1 = 4

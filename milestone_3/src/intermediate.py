@@ -120,8 +120,8 @@ class SymbTable:
                 self.basic_types[name]["size"] = 8
             elif name == "complex128":
                 self.basic_types[name]["size"] = 16
-            else:  # Only for string
-                self.basic_types[name]["size"] = None
+            elif name == "string":  # Only for string
+                self.basic_types[name]["size"] = 4
 
         if use is None:
             if self.parent:
@@ -209,12 +209,12 @@ class SymbTable:
                 basic_type = self.get_basic_type(name)
                 if basic_type["size"] is not None:
                     size = basic_type["size"]
-                else:  # string or its typedef
-                    if value is None:
-                        size = 0
-                    else:
-                        # -2 done to strip the quotes
-                        size = len(value) - 2
+                # else:  # string or its typedef
+                #     if value is None:
+                #         size = 0
+                #     else:
+                #         # -2 done to strip the quotes
+                #         size = len(value) - 2
             else:
                 actual_type = self.get_actual(name)
                 if actual_type is None:

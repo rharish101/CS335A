@@ -300,7 +300,7 @@ class SymbTable:
                         self.offset, dtype.size
                     )
                 )
-                dtype.offset = self.offset + ceil(dtype.size/4)*4
+                dtype.offset = self.offset + ceil(dtype.size / 4) * 4
                 self.offset = dtype.offset
 
             # TODO: need to handle array os structures seperately
@@ -315,12 +315,12 @@ class SymbTable:
                         dtype.final_type
                     )
 
-                dtype.offset = self.offset + ceil(dtype.size/4)*4
+                dtype.offset = self.offset + ceil(dtype.size / 4) * 4
                 self.offset = dtype.offset
                 logging.info("ARRAY SIZE: {}".format(dtype.size))
 
             elif isinstance(dtype, GoStruct):
-                dtype.offset = self.offset + ceil(dtype.size/4)*4
+                dtype.offset = self.offset + ceil(dtype.size / 4) * 4
                 self.offset = dtype.offset
                 logging.info("STRUCT SIZE {}".format(dtype.size))
 
@@ -709,6 +709,9 @@ def symbol_table(
             DTYPE = tree.dtype
             if store_var == "":
                 ir_code = str(tree.item)
+            elif hasattr(tree.dtype, "name") and tree.dtype.name == "string":
+                for i, char in enumerate(tree.item[1:-1]):
+                    ir_code += '{}[{}] = "{}"\n'.format(store_var, i, char)
             else:
                 ir_code = "{} = {}\n".format(store_var, tree.item)
 

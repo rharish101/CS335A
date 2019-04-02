@@ -1863,9 +1863,14 @@ def symbol_table(
                             for i in range(len(argument_list))
                         ]
                     )
-                    ir_code += "{} = call {}, {}\n".format(
-                        store_var, func_loc, len(argument_list)
-                    )
+                    if store_var == "":
+                        ir_code += "call {}, {}\n".format(
+                            func_loc, len(argument_list)
+                        )
+                    else:
+                        ir_code += "{} = call {}, {}\n".format(
+                            store_var, func_loc, len(argument_list)
+                        )
 
         # To be done later : check number of elements in array same as that
         # specified
@@ -2134,62 +2139,28 @@ def symbol_table(
             )
 
             if tree.op == "&" or tree.op == "*":
-                if type(tree.expr) is str:
-                    if tree.op == "&":
-                        tree.dtype = GoPointType(table.get_type(tree.expr))
-                    else:
-                        if not isinstance(
-                            table.get_type(tree.expr), GoPointType
-                        ):
-                            raise GoException(
-                                "Error: {} not pointer type".format(tree.expr)
-                            )
-                        else:
-                            tree.dtype = table.get_type(tree.expr).dtype
+                if tree.op == "&":
+                    tree.dtype = GoPointType(opd_dtype)
+                elif hasattr(opd_dtype, "dtype"):  # tree.op == "*"
+                    tree.dtype = opd_dtype.dtype
+                else:  # Not a pointer/array type
+                    raise GoException(
+                        'Error: "{}" not pointer type'.format(opd_dtype)
+                    )
 
-                elif isinstance(tree.expr, GoPrimaryExpr) or isinstance(
-                    tree.expr, GoFromModule
+                if (
+                    isinstance(tree.expr, GoUnaryExpr)
+                    and tree.op == "&"
+                    and tree.expr.op == "&"
                 ):
-                    if tree.op == "&":
-                        tree.dtype = GoPointType(opd_dtype)
-                    else:
-                        if not isinstance(opd_dtype, GoPointType):
-                            raise GoException(
-                                "Error: {} not pointer type".format(opd_dtype)
-                            )
-                        else:
-                            tree.dtype = opd_dtype.dtype
+                    raise GoException("Error: Cannot take address of address")
 
-                elif isinstance(tree.expr, GoUnaryExpr):
-                    if tree.op == "&":
-                        if tree.expr.op == "&":
-                            raise GoException(
-                                "Error: Cannot take address of address"
-                            )
-                        elif tree.expr.op == "*":
-                            tree.dtype = GoPointType(opd_dtype)
-
-                    else:
-                        if not isinstance(opd_dtype, GoPointType):
-                            raise GoException(
-                                "Error: {} not pointer type".format(opd_dtype)
-                            )
-                        else:
-                            tree.dtype = opd_dtype.dtype
-
-                elif isinstance(tree.expr, GoCompositeLit):
-                    if tree.op == "&":
-                        tree.dtype = GoPointType(opd_dtype)
-                    else:
-                        raise GoException(
-                            'Operator "*" not applicable over composite literals'
-                        )
+                elif isinstance(tree.expr, GoCompositeLit) and tree.op == "*":
+                    raise GoException("Cannot dereference composite literals")
 
             # TODO: need to add better type checking
             else:
-                tree.dtype, _ = symbol_table(
-                    tree.expr, table, name, block_type, scope_label=scope_label
-                )
+                tree.dtype = opd_dtype
 
             DTYPE = tree.dtype
 

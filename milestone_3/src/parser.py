@@ -903,12 +903,8 @@ def p_Arguments(p):
 
     if type(new_p[2]) is list:  # ExpressionList
         expressions = new_p[2]
-    elif (
-        isinstance(new_p[2], GoBaseExpr) or type(new_p[2]) is str
-    ):  # Expression
+    else:  # Expression
         expressions = [new_p[2]]
-    else:  # no expressions, only type
-        expressions = []
 
     p[0] = GoArguments(expressions)
     p[0].lineno = adjust_lineno(p.slice[1].lineno)

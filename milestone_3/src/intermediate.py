@@ -1271,6 +1271,11 @@ def symbol_table(
                     )
                     ir_code += rhs_code
 
+                    if type(dtype2) is list:
+                        raise GoException(
+                            "Function with multiple returns not applicable in "
+                            "single return context"
+                        )
                     table.type_check(dtype1, dtype2, "assignment")
 
                     DTYPE = None

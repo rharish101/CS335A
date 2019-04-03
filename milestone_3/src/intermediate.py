@@ -1768,10 +1768,15 @@ def symbol_table(
             if isinstance(tree.dtype, GoArray):
                 tree.depth = tree.dtype.depth + 1
                 tree.final_type = tree.dtype.final_type
+                if not isinstance(tree.dtype.dtype,GoArray):
+                    tree.dtype.dtype = tree.dtype.final_type
             else:
-                tree.final_type = tree.dtype 
-
-
+                try:
+                    dtype1 = table.get_struct(tree.dtype.name,complete_struct=True)
+                    tree.final_type = dtype1
+                except GoException:
+                    tree.final_type = tree.dtype 
+                
 
             length = tree.length
 

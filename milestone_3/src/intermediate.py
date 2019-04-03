@@ -1417,6 +1417,8 @@ def symbol_table(
                     depth_num=depth_num + 1,
                 )
                 ir_code += rhs_code
+                # if isinstance(dtype,GoArray) and isinstance(dtype.dtype,GoArray):
+                #     print(var,dtype.dtype.dtype)
                 table.insert_var(var, dtype)
 
             DTYPE = None
@@ -1838,8 +1840,8 @@ def symbol_table(
 
                     tree.dtype = (table.get_type(lhs)).dtype
                     #if the array if one dimensional then simply return the final_type of that array
-                    if not isinstance(tree.dtype,GoArray):
-                        tree.dtype = (table.get_type(lhs)).final_type
+                    # if not isinstance(tree.dtype,GoArray):
+                    #     tree.dtype = (table.get_type(lhs)).final_type
                     # print(lhs,tree.dtype)
                     DTYPE = tree.dtype
 
@@ -1858,8 +1860,11 @@ def symbol_table(
                     lhs_code = "__indlhs_{} = {}\n".format(depth_num, lhs)
 
                 if isinstance(lhs, GoPrimaryExpr):
-                    tree.dtype = lhs.dtype.dtype
+                #     if isinstance(lhs.dtype,GoArray) and isinstance(lhs.dtype.dtype,GoArray)
+                #         tree.dtype = lhs.dtype.dtype
+                    tree.dtype = lhs.dtype.dtype 
                     DTYPE = tree.dtype
+                    # print(tree.dtype.name)
                     # print("HERE")
 
                 ir_code += lhs_code
@@ -2195,6 +2200,10 @@ def symbol_table(
                         dtype, element_type, "array initialization"
                     )
 
+                if not isinstance(tree.dtype.dtype,GoArray):
+                    tree.dtype.dtype = tree.dtype.final_type
+                # if isinstance(tree.dtype.dtype,GoArray):
+                #     print(tree.dtype.dtype.dtype.name)    
                 DTYPE = tree.dtype
                 # print(DTYPE.final_type)
                 # print(tree.dtype,tree.dtype.final_type)

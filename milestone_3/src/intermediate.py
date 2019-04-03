@@ -479,31 +479,44 @@ class SymbTable:
                 size += self.get_size(given)
         return size
 
-    def check_inline_struct(self,struct_obj,type_dict):
+    def check_inline_struct(self, struct_obj, type_dict):
         variables = {}
         for item in struct_obj.vars:
             if item[0] not in variables:
                 variables[item[0]] = item[1].dtype
             else:
-                print("Error : field name {} already exists in inline struct".format(item[0]))
+                print(
+                    "Error : field name {} already exists in inline struct".format(
+                        item[0]
+                    )
+                )
                 exit()
             if item[0] not in type_dict:
-                print("Error: No value given for initialization of field '{}' in inline struct".format(item[0]))
-                exit()    
+                print(
+                    "Error: No value given for initialization of field '{}' in inline struct".format(
+                        item[0]
+                    )
+                )
+                exit()
         # print(variables)
         # print(type_dict)
         for key in type_dict:
             element = type_dict[key]
             if key in variables:
-                if isinstance(element,GoType):   
-                    self.type_check(variables[key],element,use="inline struct initialization")
-                #already covered in the recursive call of symbol_table
-                # elif isinstance(element,GoStruct): 
-                    #pass  
+                if isinstance(element, GoType):
+                    self.type_check(
+                        variables[key],
+                        element,
+                        use="inline struct initialization",
+                    )
+                # already covered in the recursive call of symbol_table
+                # elif isinstance(element,GoStruct):
+                # pass
             else:
-                print("Error : attempt to initialize un-existing field {} on inline struct").format(key)
-                exit()                    
-            
+                print(
+                    "Error : attempt to initialize un-existing field {} on inline struct"
+                ).format(key)
+                exit()
 
     def struct_size(self, struct_name):
         actual_types = self.get_struct(struct_name)
@@ -2129,10 +2142,17 @@ def symbol_table(
                     field.use = "struct"
                     if field.key is not None:
                         unnamed_keys = False
-                    #XXX GoException not working 
+                        field_name = store_var + "[{}]".format(
+                            table.field2index(struct_obj, field.key)
+                        )
+                    # XXX GoException not working
                     elif not unnamed_keys:
-                        GoException("Error: Cannot mix named and unnamed keys")    
-                    field_name = store_var + "[{}]".format(field_index)
+                        raise GoException(
+                            "Error: Cannot mix named and unnamed keys"
+                        )
+                    else:
+                        field_name = store_var + "[{}]".format(field_index)
+
                     field_type, elem_code = symbol_table(
                         field,
                         table,
@@ -2154,9 +2174,9 @@ def symbol_table(
                     if unnamed_keys:
                         table.check_struct(struct_name, type_list)
                     else:
-                        table.check_inline_struct(struct_obj,type_dict)    
+                        table.check_inline_struct(struct_obj, type_dict)
                 else:
-                    table.check_inline_struct(struct_obj,type_dict)     
+                    table.check_inline_struct(struct_obj, type_dict)
 
                 struct_obj.size = table.get_size(tree)
                 struct_obj.name = struct_name

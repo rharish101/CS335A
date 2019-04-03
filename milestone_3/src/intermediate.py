@@ -73,7 +73,7 @@ class SymbTable:
         if parent is not None:
             self.inline_count = parent.inline_count
         else:
-            self.inline_count = 0     
+            self.inline_count = 0
 
         self.basic_types = {}
 
@@ -743,46 +743,74 @@ def symbol_table(
     error = False
     logging.info(tree)
 
+    def string_handler(item, dtype, store_loc):
+        """Handle storing of an "str" item of given dtype into store_loc."""
+        local_ir = ""
+        if store_loc == "":
+            pass
+        elif isinstance(dtype, GoArray):  # TODO: Finish this
+            for arr_index in range(
+                0, table.get_size(dtype), table.get_size(dtype.dtype)
+            ):
+                arr_elem = GoPrimaryExpr(
+                    item,
+                    GoIndex(GoBasicLit(arr_index, GoType("int", True, 1))),
+                )
+                local_ir += symbol_table(
+                    arr_elem,
+                    table,
+                    name,
+                    block_type,
+                    store_var=store_loc + "[{}]".format(arr_index),
+                    scope_label=scope_label,
+                    depth_num=depth_num + 1,
+                )[1]
+        elif isinstance(dtype, GoStruct):
+            field_index = 0
+            for field, govar in dtype.vars:
+                local_ir += symbol_table(
+                    GoFromModule(item, field),
+                    table,
+                    name,
+                    block_type,
+                    store_var=store_loc + "[{}]".format(field_index),
+                    scope_label=scope_label,
+                    depth_num=depth_num + 1,
+                )[1]
+                field_index += table.get_size(govar.dtype)
+        elif hasattr(dtype, "name") and dtype.name == "string":
+            index_name = "__str_ind_{}".format(depth_num)
+            cond_name = "__str_cond_{}".format(depth_num)
+            table.insert_var(index_name, GoType("uint"))
+            table.insert_var(cond_name, GoType("bool"))
+
+            while_label = "StrStart{}".format(depth_num)
+            endwhile_label = "StrEnd{}".format(depth_num)
+
+            local_ir += "{} = 0\n".format(index_name)
+            local_ir += '{}: {} = {}[{}] == "\\0"\n'.format(
+                while_label, cond_name, item, index_name
+            )
+            local_ir += "if {} goto {}\n".format(cond_name, endwhile_label)
+            local_ir += "{}[{}] = {}[{}]\n".format(
+                store_loc, index_name, item, index_name
+            )
+            local_ir += "{} = {} + 1\n".format(cond_name, cond_name)
+            local_ir += "goto {}\n".format(while_label)
+            local_ir += '{}: {}[{}] = "\\0"\n'.format(
+                endwhile_label, store_loc, index_name
+            )
+        else:
+            local_ir += "{} = {}\n".format(store_loc, item)
+        return local_ir
+
     # If code enters here then it looks only for variables, hence
     # we need to make sure that sybmol table is not called uneccessary strings
     # otherwise code will fail
     if type(tree) is str:  # variable
         logging.info("STR: '{}'".format(tree))
         DTYPE = table.get_type(tree)
-        if store_var == "":
-            ir_code = tree
-        elif isinstance(DTYPE, GoArray):  # TODO: Finish this
-            for arr_index in range(
-                0, table.get_size(DTYPE), table.get_size(DTYPE.dtype)
-            ):
-                arr_elem = GoPrimaryExpr(
-                    tree,
-                    GoIndex(GoBasicLit(arr_index, GoType("int", True, 1))),
-                )
-                ir_code += symbol_table(
-                    arr_elem,
-                    table,
-                    name,
-                    block_type,
-                    store_var=store_var + "[{}]".format(arr_index),
-                    scope_label=scope_label,
-                    depth_num=depth_num + 1,
-                )[1]
-        elif isinstance(DTYPE, GoStruct):
-            field_index = 0
-            for field, govar in DTYPE.vars:
-                ir_code += symbol_table(
-                    GoFromModule(tree, field),
-                    table,
-                    name,
-                    block_type,
-                    store_var=store_var + "[{}]".format(field_index),
-                    scope_label=scope_label,
-                    depth_num=depth_num + 1,
-                )[1]
-                field_index += table.get_size(govar.dtype)
-        else:
-            ir_code = "{} = {}\n".format(store_var, tree)
+        ir_code += string_handler(tree, DTYPE, store_var)
 
     # Trying to catch GoException raised by SymbTable's methods
     try:
@@ -793,6 +821,9 @@ def symbol_table(
             elif hasattr(tree.dtype, "name") and tree.dtype.name == "string":
                 for i, char in enumerate(tree.item[1:-1]):
                     ir_code += '{}[{}] = "{}"\n'.format(store_var, i, char)
+                ir_code += '{}[{}] = "\\0"\n'.format(
+                    store_var, len(tree.item) - 2
+                )
             else:
                 ir_code = "{} = {}\n".format(store_var, tree.item)
 
@@ -830,10 +861,7 @@ def symbol_table(
             this_name = "{}[{}]".format(
                 parent_name, table.field2index(struct_obj, child)
             )
-            if store_var == "":
-                ir_code += str(this_name)
-            else:
-                ir_code += "{} = {}\n".format(store_var, this_name)
+            ir_code += string_handler(this_name, DTYPE, store_var)
 
         # TODO: Store modules
         elif isinstance(tree, GoSourceFile):
@@ -2198,8 +2226,10 @@ def symbol_table(
                     logging.info("Struct name {}".format(struct_name))
                     struct_obj = table.get_struct_obj(struct_name)
                 else:
-                    struct_name = "__inline_struct_{}".format(table.inline_count)
-                    table.inline_count+=1
+                    struct_name = "__inline_struct_{}".format(
+                        table.inline_count
+                    )
+                    table.inline_count += 1
                     struct_obj = tree.dtype
                     # print(struct_obj.vars)
 
@@ -2250,8 +2280,7 @@ def symbol_table(
                 struct_obj.size = table.get_size(tree)
                 struct_obj.name = struct_name
                 if struct_name.startswith("__inline_struct"):
-                    table.insert_struct(struct_name,struct_obj)
-
+                    table.insert_struct(struct_name, struct_obj)
 
                 DTYPE = struct_obj
 

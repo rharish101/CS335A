@@ -395,26 +395,29 @@ class SymbTable:
                 "Error: Already used alias/typedef name '{}'".format(alias)
             )
 
-    def helper_get_struct(self, struct_name, field):
+    def helper_get_struct(self, struct_name, field,complete_struct = False):
         if struct_name in self.structures:
-            if field is None:
-                types = []
-                for item in self.structures[struct_name].vars:
-                    logging.info("item {}".format(item))
-                    types.append(item[1])
-                return types
+            if complete_struct is False:
+                if field is None:
+                    types = []
+                    for item in self.structures[struct_name].vars:
+                        logging.info("item {}".format(item))
+                        types.append(item[1])
+                    return types
 
-            for item in self.structures[struct_name].vars:
-                if field == item[0]:
-                    return item[1]
-            else:
-                raise GoException(
-                    "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
-                        field, struct_name
+                for item in self.structures[struct_name].vars:
+                    if field == item[0]:
+                        return item[1]
+                else:
+                    raise GoException(
+                        "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
+                            field, struct_name
+                        )
                     )
-                )
+            else:
+                return self.structures[struct_name]        
         elif self.parent:
-            return self.parent.get_struct(struct_name, field)
+            return self.parent.get_struct(struct_name, field,complete_struct)
         else:
             raise GoException(
                 "Error: Attempt to access undeclared struct '{}'".format(
@@ -422,12 +425,12 @@ class SymbTable:
                 )
             )
 
-    def get_struct(self, struct_name, field=None):
+    def get_struct(self, struct_name, field=None,complete_struct=False):
         actual_name = self.get_actual(struct_name)
         if actual_name is not None:
             if isinstance(actual_name, GoType):
                 struct_name = actual_name.name
-        return self.helper_get_struct(struct_name, field)
+        return self.helper_get_struct(struct_name, field,complete_struct)
 
     def get_struct_obj(self, struct_name):
         actual_name = self.get_actual(struct_name)
@@ -592,6 +595,8 @@ class SymbTable:
 
     def field2index(self, struct, field):
         index = 0
+        # print(struct,field)
+        # print(struct.name,field)
         for struct_field in struct.vars:
             if struct_field[0] == field:
                 break
@@ -628,8 +633,11 @@ class SymbTable:
                     use, dtype1.__class__, dtype2.__class__
                 )
             )
+        elif isinstance(dtype1,GoStruct) and isinstance(dtype2,GoStruct):
+            if dtype1.name != dtype2.name:
+                raise GoException("Error : Structs {} and {} are of different types".format(dtype1.name,dtype2.name))    
 
-        # NOTE: doesn't handle array of structs as the struct name is in GoType class
+
         elif isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
             name1 = dtype1.name
             name2 = dtype2.name
@@ -793,13 +801,14 @@ def symbol_table(
             child = tree.child
             this_name = tree.name
             logging.info("parent '{}', child '{}'".format(parent, child))
+            # print(parent,child)
 
             # currently handles accessing a field of a struct
             if type(parent) is str:
-                # print(parent)
                 struct_obj = table.get_type(parent)
                 struct_name = struct_obj.name
                 # print(struct_name)
+                # print(struct_obj)
                 parent_name = parent
             else:
                 parent_name = "__parent_{}".format(depth_num)
@@ -816,7 +825,7 @@ def symbol_table(
                 table.insert_var(parent_name, parent_dtype, "intermediate")
                 struct_obj = parent_dtype
                 struct_name = parent_dtype.name
-
+            # print(struct_name,child)    
             DTYPE = table.get_struct(struct_name, child).dtype
             this_name = "{}[{}]".format(
                 parent_name, table.field2index(struct_obj, child)
@@ -1730,7 +1739,9 @@ def symbol_table(
                 tree.depth = tree.dtype.depth + 1
                 tree.final_type = tree.dtype.final_type
             else:
-                tree.final_type = tree.dtype
+                tree.final_type = tree.dtype 
+
+
 
             length = tree.length
 
@@ -1752,7 +1763,7 @@ def symbol_table(
                 logging.info("ARRAY SIZE: {}".format(tree.size))
                 raise GoException("Error: Array length must be an integer")
 
-            DTYPE = None
+            DTYPE = tree.final_type
 
         elif isinstance(tree, GoIndex):
             index = tree.index
@@ -1771,7 +1782,7 @@ def symbol_table(
                     not table.check_basic_type(name)
                     or table.get_basic_type(name)["kind"] != "int"
                 ):
-                    raise GoException("Error: Index of array is not integer")
+                    raise GoException("Error: Index of array is not integer")   
             DTYPE = dtype
 
         elif isinstance(tree, GoPrimaryExpr):
@@ -1798,7 +1809,7 @@ def symbol_table(
                         )
 
                     tree.dtype = (table.get_type(lhs)).dtype
-
+                    # print(lhs,tree.dtype)
                     DTYPE = tree.dtype
 
                 if type(lhs) is not str:
@@ -1818,6 +1829,7 @@ def symbol_table(
                 if isinstance(lhs, GoPrimaryExpr):
                     tree.dtype = lhs.dtype.dtype
                     DTYPE = tree.dtype
+                    # print("HERE")
 
                 ir_code += lhs_code
                 table.insert_var(
@@ -2029,11 +2041,12 @@ def symbol_table(
                             elif cur_size != child.size:
                                 raise GoException(
                                     "Error: Incorrect number of elements in array"
-                                )
-
+                                )   
                         if tree.dtype is None:
+                            # print(element_type.name)     
                             tree.dtype = element_type
                         else:
+                            # print(tree.dtype.name,element_type.name)     
                             table.type_check(
                                 tree.dtype, element_type, "array conflicts"
                             )
@@ -2051,6 +2064,7 @@ def symbol_table(
                         + "}\n"
                     )
                 tree.dtype = element_type
+                # print(tree.dtype)
                 logging.info("tree.dtype '{}'".format(tree.dtype))
 
             elif tree.use == "struct":
@@ -2079,8 +2093,11 @@ def symbol_table(
                 tree.dtype = element_type
 
             DTYPE = tree.dtype
+            # print(DTYPE.name)
 
         # UN-IMPLEMENTED
+        #XXX long declaration of arrays not working 
+        #XXX no check implemented for valid indicies in arrays
         elif isinstance(tree, GoCompositeLit):
             logging.info(
                 "tree.dtype {}, tree.value {}".format(tree.dtype, tree.value)
@@ -2100,6 +2117,13 @@ def symbol_table(
                     scope_label=scope_label,
                 )
                 dtype = tree.dtype.final_type
+                #if type of the array is a struct_name change it's type to GoStruct
+                try:
+                    dtype = table.get_struct(dtype.name,complete_struct=True)
+                    tree.dtype.final_type = dtype
+                except GoException:
+                    pass 
+
                 depth = 0
                 cur_size = 0
 
@@ -2134,12 +2158,16 @@ def symbol_table(
                             raise GoException(
                                 "Error: Incorrect number of elements in array"
                             )
-
+                              
+                    # print(dtype,element_type)    
                     table.type_check(
                         dtype, element_type, "array initialization"
                     )
 
                 DTYPE = tree.dtype
+                # print(DTYPE.final_type)
+                # print(tree.dtype,tree.dtype.final_type)
+
                 if depth != tree.dtype.depth:
                     raise GoException("Error: Wrong array declaration")
 

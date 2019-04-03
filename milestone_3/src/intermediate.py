@@ -839,7 +839,7 @@ def symbol_table(
                 struct_obj = table.get_type(parent)
                 struct_name = struct_obj.name
                 # print(struct_name)
-                # print(struct_obj)
+                # print(parent,struct_obj)
                 parent_name = parent
             else:
                 parent_name = "__parent_{}".format(depth_num)
@@ -1837,6 +1837,9 @@ def symbol_table(
                         )
 
                     tree.dtype = (table.get_type(lhs)).dtype
+                    #if the array if one dimensional then simply return the final_type of that array
+                    if not isinstance(tree.dtype,GoArray):
+                        tree.dtype = (table.get_type(lhs)).final_type
                     # print(lhs,tree.dtype)
                     DTYPE = tree.dtype
 
@@ -2217,6 +2220,7 @@ def symbol_table(
                         )
                     tree_type = tree_type.dtype
                     tree_value = tree_value[0].element
+
 
             elif isinstance(tree.dtype, GoType) or isinstance(
                 tree.dtype, GoStruct

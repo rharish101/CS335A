@@ -492,14 +492,14 @@ class SymbTable:
             if item[0] not in variables:
                 variables[item[0]] = item[1].dtype
             else:
-                print(
+                raise GoException(
                     "Error : field name {} already exists in inline struct".format(
                         item[0]
                     )
                 )
                 exit()
             if item[0] not in type_dict:
-                print(
+                raise GoException(
                     "Error: No value given for initialization of field '{}' in inline struct".format(
                         item[0]
                     )
@@ -520,7 +520,7 @@ class SymbTable:
                 # elif isinstance(element,GoStruct):
                 # pass
             else:
-                print(
+                raise GoException(
                     "Error : attempt to initialize un-existing field {} on inline struct"
                 ).format(key)
                 exit()
@@ -831,8 +831,7 @@ def symbol_table(
             parent = tree.parent
             child = tree.child
             this_name = tree.name
-            logging.info("parent '{}', child '{}'".format(parent, child))
-            # print(parent,child)
+            # print("parent '{}', child '{}'".format(parent, child))
 
             # currently handles accessing a field of a struct
             if type(parent) is str:

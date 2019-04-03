@@ -748,7 +748,7 @@ def symbol_table(
         local_ir = ""
         if store_loc == "":
             pass
-        elif isinstance(dtype, GoArray):  # TODO: Finish this
+        elif isinstance(dtype, GoArray):
             for arr_index in range(
                 0, table.get_size(dtype), table.get_size(dtype.dtype)
             ):
@@ -975,7 +975,44 @@ def symbol_table(
                     else:
                         for var in lhs:
                             logging.info('var "{}":"{}"'.format(var, dtype))
-                            ir_code += "{} = 0\n".format(var)
+
+                            def zero_initializer(dtype_loc, store_loc):
+                                local_ir = ""
+                                if isinstance(dtype_loc, GoArray):
+                                    for arr_index in range(
+                                        0,
+                                        table.get_size(dtype_loc),
+                                        table.get_size(dtype_loc.dtype),
+                                    ):
+                                        local_ir += zero_initializer(
+                                            dtype_loc.dtype,
+                                            store_loc=store_loc
+                                            + "[{}]".format(arr_index),
+                                        )
+                                elif isinstance(dtype_loc, GoStruct):
+                                    field_index = 0
+                                    for field, govar in dtype_loc.vars:
+                                        local_ir += zero_initializer(
+                                            dtype_loc.dtype,
+                                            store_loc=govar.dtype
+                                            + "[{}]".format(field_index),
+                                        )
+                                        field_index += table.get_size(
+                                            govar.dtype
+                                        )
+                                elif (
+                                    hasattr(dtype_loc, "name")
+                                    and dtype_loc.name == "string"
+                                ):
+                                    local_ir += '{} = "\\0"\n'.format(
+                                        store_loc
+                                    )
+                                else:
+                                    local_ir += "{} = 0\n".format(store_loc)
+                                return local_ir
+
+                            ir_code += zero_initializer(dtype, var)
+
                             if isinstance(dtype, GoArray):
                                 depth = 1
                                 curr = dtype

@@ -65,6 +65,8 @@ func temp(x int, y int) {
 		salary:    5000,
 	}
 
+	waste := emp3.age
+
 	m := 2
 	n := &m
 	t := person{age: 2, name: help{"vishwas"}}

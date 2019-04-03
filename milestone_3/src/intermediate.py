@@ -70,6 +70,10 @@ class SymbTable:
         self.constants = {}
         self.imports = {}
         self.parent = parent
+        if parent is not None:
+            self.inline_count = parent.inline_count
+        else:
+            self.inline_count = 0     
 
         self.basic_types = {}
 
@@ -792,8 +796,10 @@ def symbol_table(
 
             # currently handles accessing a field of a struct
             if type(parent) is str:
+                # print(parent)
                 struct_obj = table.get_type(parent)
                 struct_name = struct_obj.name
+                # print(struct_name)
                 parent_name = parent
             else:
                 parent_name = "__parent_{}".format(depth_num)
@@ -2164,8 +2170,10 @@ def symbol_table(
                     logging.info("Struct name {}".format(struct_name))
                     struct_obj = table.get_struct_obj(struct_name)
                 else:
-                    struct_name = "__inline_struct"
+                    struct_name = "__inline_struct_{}".format(table.inline_count)
+                    table.inline_count+=1
                     struct_obj = tree.dtype
+                    # print(struct_obj.vars)
 
                 field_list = tree.value
                 type_list = []
@@ -2213,6 +2221,9 @@ def symbol_table(
 
                 struct_obj.size = table.get_size(tree)
                 struct_obj.name = struct_name
+                if struct_name.startswith("__inline_struct"):
+                    table.insert_struct(struct_name,struct_obj)
+
 
                 DTYPE = struct_obj
 

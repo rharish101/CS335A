@@ -739,6 +739,36 @@ def symbol_table(
         DTYPE = table.get_type(tree)
         if store_var == "":
             ir_code = tree
+        elif isinstance(DTYPE, GoArray):  # TODO: Finish this
+            for arr_index in range(
+                0, table.get_size(DTYPE), table.get_size(DTYPE.dtype)
+            ):
+                arr_elem = GoPrimaryExpr(
+                    tree,
+                    GoIndex(GoBasicLit(arr_index, GoType("int", True, 1))),
+                )
+                ir_code += symbol_table(
+                    arr_elem,
+                    table,
+                    name,
+                    block_type,
+                    store_var=store_var + "[{}]".format(arr_index),
+                    scope_label=scope_label,
+                    depth_num=depth_num + 1,
+                )[1]
+        elif isinstance(DTYPE, GoStruct):
+            field_index = 0
+            for field, govar in DTYPE.vars:
+                ir_code += symbol_table(
+                    GoFromModule(tree, field),
+                    table,
+                    name,
+                    block_type,
+                    store_var=store_var + "[{}]".format(field_index),
+                    scope_label=scope_label,
+                    depth_num=depth_num + 1,
+                )[1]
+                field_index += table.get_size(govar.dtype)
         else:
             ir_code = "{} = {}\n".format(store_var, tree)
 
@@ -1765,15 +1795,19 @@ def symbol_table(
 
                     DTYPE = tree.dtype
 
-                lhs_dtype, lhs_code = symbol_table(
-                    lhs,
-                    table,
-                    name,
-                    block_type,
-                    store_var="__indlhs_{}".format(depth_num),
-                    scope_label=scope_label,
-                    depth_num=depth_num + 1,
-                )
+                if type(lhs) is not str:
+                    lhs_dtype, lhs_code = symbol_table(
+                        lhs,
+                        table,
+                        name,
+                        block_type,
+                        store_var="__indlhs_{}".format(depth_num),
+                        scope_label=scope_label,
+                        depth_num=depth_num + 1,
+                    )
+                else:
+                    lhs_dtype = table.get_type(lhs)
+                    lhs_code = "__indlhs_{} = {}\n".format(depth_num, lhs)
 
                 if isinstance(lhs, GoPrimaryExpr):
                     tree.dtype = lhs.dtype.dtype
@@ -2145,7 +2179,6 @@ def symbol_table(
                         field_name = store_var + "[{}]".format(
                             table.field2index(struct_obj, field.key)
                         )
-                    # XXX GoException not working
                     elif not unnamed_keys:
                         raise GoException(
                             "Error: Cannot mix named and unnamed keys"

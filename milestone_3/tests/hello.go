@@ -51,11 +51,13 @@ func add(x uint, y uint) uint {
 func temp(x int, y int) {
 	gu := help{"vishwas"}
 	r := person{gu, 2}
-	f := r.age
+	f := [3]int{1, 2, 3}
+	var g [3]int
+	g = f
 	tp := 2
 	emp3 := struct {
 		firstName, lastName string
-		age, salary  int       
+		age, salary         int
 	}{
 		firstName: "Andreah",
 		lastName:  "Nikola",
@@ -65,7 +67,7 @@ func temp(x int, y int) {
 
 	m := 2
 	n := &m
-	t := person{age: 2, name : help{"vishwas"}}
+	t := person{age: 2, name: help{"vishwas"}}
 	t1 := check{"string", 2}
 	t2 := person1{check1{2}, 3}
 	t2.age1 = 4

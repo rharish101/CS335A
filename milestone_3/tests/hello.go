@@ -54,10 +54,10 @@ func temp(x int, y int) {
 	add := oneD[1] + twoD[2][1]
 	gu := help{"vishwas"}
 	r := person{gu, 2}
-	struct_array := [2]help{gu,gu}
-	name := struct_array[1]
+	struct_array := [1][2]help{{gu,gu}}
+	name := struct_array[1][2]
 	item := name.b
-	name1 := struct_array[1].b
+/*	name1 := struct_array[1].b*/
 
 	f := [3]int{1, 2, 3}
 	var g [3]int

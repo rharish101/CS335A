@@ -395,29 +395,46 @@ class SymbTable:
                 "Error: Already used alias/typedef name '{}'".format(alias)
             )
 
-    def helper_get_struct(self, struct_name, field,complete_struct = False):
+    def helper_get_struct(self, struct_name, field):
         if struct_name in self.structures:
-            if complete_struct is False:
-                if field is None:
-                    types = []
-                    for item in self.structures[struct_name].vars:
-                        logging.info("item {}".format(item))
-                        types.append(item[1])
-                    return types
-
+            if field is None:
+                types = []
                 for item in self.structures[struct_name].vars:
-                    if field == item[0]:
-                        return item[1]
-                else:
-                    raise GoException(
-                        "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
-                            field, struct_name
-                        )
-                    )
+                    logging.info("item {}".format(item))
+                    type_item = deepcopy(item[1])
+                    # dtype = type_item.dtype
+                    # # print(dtype.name)
+                    # if isinstance(dtype,GoType):
+                    #     name = dtype.name
+                    #     try:
+                    #         type_item.dtype = self.get_struct_obj(name)
+                    #     except:
+                    #         pass    
+                    types.append(type_item)
+                return types
+
+            for item in self.structures[struct_name].vars:
+                # print(item,item[1].dtype)
+                if field == item[0]:
+                    type_item = deepcopy(item[1])
+                    # dtype = type_item.dtype
+                    # if isinstance(dtype,GoType):
+                    #     name = dtype.name
+                    #     try:
+                    #         type_item.dtype = self.get_struct_obj(name)
+                    #         # print(item[0],"found",self.get_struct_obj(name))
+                    #     except GoException:
+                    #         pass    
+                    # # print("here",type_item,type_item.dtype)        
+                    return type_item
             else:
-                return self.structures[struct_name]        
+                raise GoException(
+                    "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
+                        field, struct_name
+                    )
+                )    
         elif self.parent:
-            return self.parent.get_struct(struct_name, field,complete_struct)
+            return self.parent.get_struct(struct_name, field)
         else:
             raise GoException(
                 "Error: Attempt to access undeclared struct '{}'".format(
@@ -425,12 +442,12 @@ class SymbTable:
                 )
             )
 
-    def get_struct(self, struct_name, field=None,complete_struct=False):
+    def get_struct(self, struct_name, field=None):
         actual_name = self.get_actual(struct_name)
         if actual_name is not None:
             if isinstance(actual_name, GoType):
                 struct_name = actual_name.name
-        return self.helper_get_struct(struct_name, field,complete_struct)
+        return self.helper_get_struct(struct_name, field)
 
     def get_struct_obj(self, struct_name):
         actual_name = self.get_actual(struct_name)
@@ -596,11 +613,13 @@ class SymbTable:
     def field2index(self, struct, field):
         index = 0
         # print(struct,field)
-        # print(struct.name,field)
+        # print(struct,struct.name,field)
+        if isinstance(struct,GoType):
+            struct =  self.get_struct_obj(struct.name) 
         for struct_field in struct.vars:
             if struct_field[0] == field:
-                break
-            index += table.get_size(struct_field[1].dtype)
+                break   
+            index += self.get_size(struct_field[1].dtype)
         return index
 
     def type_check(
@@ -1808,7 +1827,7 @@ def symbol_table(
                     tree.dtype.dtype = tree.dtype.final_type
             else:
                 try:
-                    dtype1 = table.get_struct(tree.dtype.name,complete_struct=True)
+                    dtype1 = table.get_struct_obj(tree.dtype.name)
                     tree.final_type = dtype1
                 except GoException:
                     tree.final_type = tree.dtype 
@@ -2210,7 +2229,7 @@ def symbol_table(
                 dtype = tree.dtype.final_type
                 #if type of the array is a struct_name change it's type to GoStruct
                 try:
-                    dtype = table.get_struct(dtype.name,complete_struct=True)
+                    dtype = table.get_struct_obj(dtype.name)
                     tree.dtype.final_type = dtype
                 except GoException:
                     pass 
@@ -2514,7 +2533,8 @@ def csv_writer(table, name, dir_name):
                 ]
             elif isinstance(dtype, GoPointType):
                 row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
-            var_rows.append(row)
+            if row is not None:    
+                var_rows.append(row)
 
         var_rows = sorted(var_rows, key=lambda x: x[3])
         for row in var_rows:

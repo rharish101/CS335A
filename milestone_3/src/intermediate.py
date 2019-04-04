@@ -70,6 +70,8 @@ class SymbTable:
         self.constants = {}
         self.imports = {}
         self.parent = parent
+        self.use = None
+
         if parent is not None:
             self.inline_count = parent.inline_count
         else:
@@ -131,10 +133,16 @@ class SymbTable:
         if use is None:
             if self.parent:
                 self.offset = self.parent.offset
+                self.activation_record = parent.activation_record
+                self.use = parent.use
             else:
                 self.offset = 0
+                self.activation_record =  []
+                self.use = None   
         elif use == "function" or use == "method":
             self.offset = 0
+            self.activation_record = []
+            self.use = use
 
         logging.info("offset assigned: {}".format(self.offset))
 
@@ -333,10 +341,14 @@ class SymbTable:
                 dtype.offset = self.offset + 4
                 self.offset = dtype.offset
 
-            if use == "intermediate":
+            if use == "intermediate" and dtype is not None:
                 self.intermediates[name] = dtype
             else:
                 self.variables[name] = dtype
+
+            if self.use == "function" or self.use == "method":
+                self.activation_record.append((name,dtype))
+                
             self.used.add(name)
         elif use != "intermediate":
             raise GoException(
@@ -1125,6 +1137,8 @@ def symbol_table(
                     if param.name:
                         child_table.insert_var(param.name, param.dtype)
                     # TODO: need to handle parameters with None name
+                for item in ["dynamic_link","return_address","static_link"]:
+                    child_table.insert_var(item,None)    
                 table.functions[name]["body"] = child_table
 
             elif block_type == "method" and insert:
@@ -1139,6 +1153,8 @@ def symbol_table(
                 struct_obj.size = table.struct_size(name[1].dtype.name)
                 logging.info("STRUCT METHOD SIZE {}".format(struct_obj.size))
                 child_table.insert_var(name[1].name, struct_obj)
+                for item in ["dynamic_link","return_address","static_link"]:
+                    child_table.insert_var(item,None)
                 table.methods[key]["body"] = child_table
 
             else:
@@ -2523,7 +2539,7 @@ def resolve_dtype(dtype):
 
 
 #  Interfaces
-def csv_writer(table, name, dir_name):
+def csv_writer(table, name, dir_name,activation = False):
     if dir_name[-1] != "/":
         dir_name += "/"
 
@@ -2544,6 +2560,7 @@ def csv_writer(table, name, dir_name):
         var_rows = []
         for var in getattr(table, kind):
             dtype = getattr(table, kind)[var]
+            row = None
             if isinstance(dtype, GoType):
                 row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
             elif isinstance(dtype, GoStruct):
@@ -2573,6 +2590,12 @@ def csv_writer(table, name, dir_name):
         csv_writer(scope, "{}_scope_{}".format(name, count), dir_name)
         writer.writerow(row)
         count += 1
+        
+    if activation:
+        writer.writerow([])
+        writer.writerow(["#ACTIVATION RECORD"])
+        for item in table.activation_record:
+            writer.writerow([item[0],resolve_dtype(item[1])])       
 
     if name == "global":
         writer.writerow([])
@@ -2613,7 +2636,7 @@ def csv_writer(table, name, dir_name):
 
             row.append(param_string)
             row.append("{}.csv".format(func))
-            csv_writer(table.functions[func]["body"], func, dir_name)
+            csv_writer(table.functions[func]["body"], func, dir_name,activation = True)
             results = table.functions[func]["result"]
             result_string = ""
             if results is not None:
@@ -2624,7 +2647,7 @@ def csv_writer(table, name, dir_name):
                         resolve_dtype(results[len(results) - 1].dtype)
                     )
             row.append(result_string)
-            writer.writerow(row)
+            writer.writerow(row)    
 
         writer.writerow([])
         writer.writerow(["#METHODS"])
@@ -2648,9 +2671,8 @@ def csv_writer(table, name, dir_name):
             )
 
             row.append(param_string)
-
             row.append("{}_{}.csv".format(method[0], method[1]))
-
+            csv_writer(table.functions[method]["body"],"{}_{}".format(method[0], method[1]) , dir_name,activation = True)
             results = table.methods[method]["result"]
             result_string = ""
             if results is not None:

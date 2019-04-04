@@ -2082,15 +2082,31 @@ def symbol_table(
                     struct_name = lhs_dtype.name
                     if type(child) is str:
                         DTYPE = table.get_struct(struct_name, child).dtype
-        # To be done later : check number of elements in array same as that
+
+        # TODO(later): check number of elements in array same as that
         # specified
         elif isinstance(tree, GoKeyedElement):
             logging.info("keyedelement: {} {}".format(store_var, tree.use))
             if tree.use == "array":
+
+                def num2index(store_loc, element_type):
+                    search = re.search(r"--\[([^\]]*)\]--", store_loc)
+                    if search is not None:
+                        store_index = table.get_size(element_type) * int(
+                            search.groups()[0]
+                        )
+                        store_loc = re.sub(
+                            r"--\[([^\]]*)\]--",
+                            "[{}]".format(store_index),
+                            store_loc,
+                        )
+                    return store_loc
+
                 if isinstance(tree.element, GoBasicLit) or isinstance(
                     tree.element, GoExpression
                 ):
-                    store_var = re.sub(r"--\[([^\]]*)\]--", r"[\1]", store_var)
+                    element_type = tree.element.dtype
+                    store_var = num2index(store_var, element_type)
                     if isinstance(tree.element, GoExpression):
                         ir_code += symbol_table(
                             tree.element,
@@ -2105,29 +2121,27 @@ def symbol_table(
                         ir_code += "{} = {}\n".format(
                             store_var, tree.element.item
                         )
-                    element_type = tree.element.dtype
                     tree.size += 1
                 elif type(tree.element) is str:
-                    store_var = re.sub(r"--\[([^\]]*)\]--", r"[\1]", store_var)
-                    ir_code = "{} = {}".format(store_var, tree.element)
                     element_type = table.get_type(tree.element)
+                    store_var = num2index(store_var, element_type)
+                    ir_code = "{} = {}".format(store_var, tree.element)
                     tree.size += 1
-                else:
-                    # LiteralValue is a list
-                    valid_children = [
-                        child
-                        for child in tree.element
-                        if isinstance(child, GoKeyedElement)
-                    ]
+                else:  # LiteralValue is a list
+                    # Convert multiple indexing ([][]) to single indexing ([])
+                    len_arr = len(
+                        [
+                            True
+                            for child in tree.element
+                            if isinstance(child, GoKeyedElement)
+                        ]
+                    )
                     search = re.search(r"--\[([^\]]*)\]--", store_var)
-                    # Used for converting [1][2] into [1 * size + 2]
                     if search is None:
                         parent_index = 0
                     else:
-                        store_var = store_var[: int(search.start())]
-                        parent_index = len(valid_children) * table.get_size(
-                            valid_children[0].dtype
-                        )
+                        parent_index = len_arr * int(search.groups()[0])
+                        store_var = store_var[: search.start()]
 
                     depth = 0
                     child_count = 0
@@ -2138,7 +2152,7 @@ def symbol_table(
                             store_loc = "{}--[{}]--".format(
                                 store_var, parent_index + child_count
                             )
-                            ir_code += symbol_table(
+                            child_dtype, child_code = symbol_table(
                                 child,
                                 table,
                                 name,
@@ -2146,7 +2160,9 @@ def symbol_table(
                                 store_var=store_loc,
                                 scope_label=scope_label,
                                 depth_num=depth_num + 1,
-                            )[1]
+                            )
+                            ir_code += child_code
+                            child.dtype = child_dtype
                             child_count += 1
 
                             count = 1

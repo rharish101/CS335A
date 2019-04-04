@@ -1859,7 +1859,7 @@ def symbol_table(
         elif isinstance(tree, GoPrimaryExpr):
             rhs = tree.rhs
             lhs = tree.lhs
-
+            # print(lhs,rhs)
             if isinstance(rhs, GoIndex):  # array indexing
                 logging.info("array = '{}'".format(lhs))
                 # TODO: need to handle multiple return from function
@@ -2048,7 +2048,21 @@ def symbol_table(
                         ir_code += "{} = call {}, {}\n".format(
                             store_var, func_loc, len(argument_list)
                         )
-
+            #XXX @Harish : Handle the 3AC for GoSelector             
+            elif isinstance(rhs,GoSelector):
+                child = rhs.child
+                lhs_dtype,lhs_code = symbol_table(lhs,
+                        table,
+                        name,
+                        block_type,
+                        store_var="__indlhs_{}".format(depth_num),
+                        scope_label=scope_label,
+                        depth_num=depth_num + 1)
+                # print(lhs_dtype)      
+                if isinstance(lhs_dtype,GoStruct):
+                    struct_name = lhs_dtype.name
+                    if type(child) is str:
+                        DTYPE = table.get_struct(struct_name, child).dtype      
         # To be done later : check number of elements in array same as that
         # specified
         elif isinstance(tree, GoKeyedElement):

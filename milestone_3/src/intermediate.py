@@ -290,7 +290,7 @@ class SymbTable:
                 )
             )
 
-    def insert_var(self, name, dtype, use="variable"):
+    def insert_var(self, name, dtype, use="variable", count=1):
         if type(name) is not str:
             raise GoException(
                 "Error: Variable name {} is not string".format(name)
@@ -298,7 +298,7 @@ class SymbTable:
         dtype = deepcopy(dtype)
         if name not in self.used:
             if isinstance(dtype, GoType):
-                dtype.size = self.get_size(dtype)
+                dtype.size = (self.get_size(dtype))*count
                 logging.info(
                     "previous offset {}, size {}".format(
                         self.offset, dtype.size
@@ -2130,10 +2130,18 @@ def symbol_table(
                                 depth_num=depth_num + 1,
                             )
                             ir_code += child_code
+
+                            count = 1
+                            temp_child = child
+                            while type(temp_child.element) is list:
+                                count = count * len(temp_child.element)
+                                temp_child = temp_child.element[0]
+
                             table.insert_var(
                                 "__child{}_{}".format(child_count, depth_num),
                                 child_dtype,
                                 use="intermediate",
+                                count=count,
                             )
                             child_count += 1
                             if depth == 0:

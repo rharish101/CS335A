@@ -341,10 +341,11 @@ class SymbTable:
                 dtype.offset = self.offset + 4
                 self.offset = dtype.offset
 
-            if use == "intermediate" and dtype is not None:
-                self.intermediates[name] = dtype
-            else:
-                self.variables[name] = dtype
+            if dtype is not None:    
+                if use == "intermediate":
+                    self.intermediates[name] = dtype
+                else:
+                    self.variables[name] = dtype
 
             if self.use == "function" or self.use == "method":
                 self.activation_record.append((name,dtype))
@@ -2590,7 +2591,7 @@ def csv_writer(table, name, dir_name,activation = False):
         csv_writer(scope, "{}_scope_{}".format(name, count), dir_name)
         writer.writerow(row)
         count += 1
-        
+
     if activation:
         writer.writerow([])
         writer.writerow(["#ACTIVATION RECORD"])

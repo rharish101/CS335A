@@ -135,14 +135,17 @@ class SymbTable:
                 self.offset = self.parent.offset
                 self.activation_record = parent.activation_record
                 self.use = parent.use
+                self.activation_offset = parent.activation_offset
             else:
                 self.offset = 0
                 self.activation_record =  []
                 self.use = None   
+                self.activation_offset =0
         elif use == "function" or use == "method":
             self.offset = 0
             self.activation_record = []
             self.use = use
+            self.activation_offset = 0
 
         logging.info("offset assigned: {}".format(self.offset))
 
@@ -341,7 +344,7 @@ class SymbTable:
                 dtype.offset = self.offset + 4
                 self.offset = dtype.offset
 
-            if dtype is not None:    
+            if  name not in ["dynamic_link","return_address","static_link"]:    
                 if use == "intermediate":
                     self.intermediates[name] = dtype
                 else:
@@ -349,6 +352,8 @@ class SymbTable:
 
             if self.use == "function" or self.use == "method":
                 self.activation_record.append((name,dtype))
+                dtype.activation_offset = self.activation_offset - ceil(dtype.size/4)*4
+                self.activation_offset = dtype.activation_offset
                 
             self.used.add(name)
         elif use != "intermediate":
@@ -1138,8 +1143,13 @@ def symbol_table(
                     if param.name:
                         child_table.insert_var(param.name, param.dtype)
                     # TODO: need to handle parameters with None name
+                if len(child_table.activation_record) > 0:
+                    last_offset = child_table.activation_record[-1][1].activation_offset
+                for i in range(len(child_table.activation_record)):
+                    child_table.activation_record[i][1].activation_offset -= last_offset
+                child_table.activation_offset = 0
                 for item in ["dynamic_link","return_address","static_link"]:
-                    child_table.insert_var(item,None)    
+                    child_table.insert_var(item,GoPointType(None))    
                 table.functions[name]["body"] = child_table
 
             elif block_type == "method" and insert:
@@ -1154,8 +1164,13 @@ def symbol_table(
                 struct_obj.size = table.struct_size(name[1].dtype.name)
                 logging.info("STRUCT METHOD SIZE {}".format(struct_obj.size))
                 child_table.insert_var(name[1].name, struct_obj)
+                if len(child_table.activation_record) > 0:
+                    last_offset = child_table.activation_record[-1][1].activation_offset
+                for i in range(len(child_table.activation_record)):
+                    child_table.activation_record[i][1].activation_offset -= last_offset
+                child_table.activation_offset = 0
                 for item in ["dynamic_link","return_address","static_link"]:
-                    child_table.insert_var(item,None)
+                    child_table.insert_var(item,GoPointType(None)) 
                 table.methods[key]["body"] = child_table
 
             else:
@@ -2596,7 +2611,7 @@ def csv_writer(table, name, dir_name,activation = False):
         writer.writerow([])
         writer.writerow(["#ACTIVATION RECORD"])
         for item in table.activation_record:
-            writer.writerow([item[0],resolve_dtype(item[1])])       
+            writer.writerow([item[0],item[1].activation_offset, resolve_dtype(item[1])])       
 
     if name == "global":
         writer.writerow([])

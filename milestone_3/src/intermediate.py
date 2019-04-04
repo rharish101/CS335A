@@ -298,7 +298,7 @@ class SymbTable:
         dtype = deepcopy(dtype)
         if name not in self.used:
             if isinstance(dtype, GoType):
-                dtype.size = (self.get_size(dtype))*count
+                dtype.size = (self.get_size(dtype)) * count
                 logging.info(
                     "previous offset {}, size {}".format(
                         self.offset, dtype.size
@@ -402,14 +402,14 @@ class SymbTable:
                 for item in self.structures[struct_name].vars:
                     logging.info("item {}".format(item))
                     type_item = deepcopy(item[1])
-                    # dtype = type_item.dtype
-                    # # print(dtype.name)
-                    # if isinstance(dtype,GoType):
-                    #     name = dtype.name
-                    #     try:
-                    #         type_item.dtype = self.get_struct_obj(name)
-                    #     except:
-                    #         pass    
+                    dtype = type_item.dtype
+                    # print(dtype.name)
+                    if isinstance(dtype, GoType):
+                        name = dtype.name
+                        try:
+                            type_item.dtype = self.get_struct_obj(name)
+                        except GoException:
+                            pass
                     types.append(type_item)
                 return types
 
@@ -417,22 +417,22 @@ class SymbTable:
                 # print(item,item[1].dtype)
                 if field == item[0]:
                     type_item = deepcopy(item[1])
-                    # dtype = type_item.dtype
-                    # if isinstance(dtype,GoType):
-                    #     name = dtype.name
-                    #     try:
-                    #         type_item.dtype = self.get_struct_obj(name)
-                    #         # print(item[0],"found",self.get_struct_obj(name))
-                    #     except GoException:
-                    #         pass    
-                    # # print("here",type_item,type_item.dtype)        
+                    dtype = type_item.dtype
+                    if isinstance(dtype, GoType):
+                        name = dtype.name
+                        try:
+                            type_item.dtype = self.get_struct_obj(name)
+                            # print(item[0],"found",self.get_struct_obj(name))
+                        except GoException:
+                            pass
+                    # print("here",type_item,type_item.dtype)
                     return type_item
             else:
                 raise GoException(
                     "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
                         field, struct_name
                     )
-                )    
+                )
         elif self.parent:
             return self.parent.get_struct(struct_name, field)
         else:
@@ -614,11 +614,11 @@ class SymbTable:
         index = 0
         # print(struct,field)
         # print(struct,struct.name,field)
-        if isinstance(struct,GoType):
-            struct =  self.get_struct_obj(struct.name) 
+        if isinstance(struct, GoType):
+            struct = self.get_struct_obj(struct.name)
         for struct_field in struct.vars:
             if struct_field[0] == field:
-                break   
+                break
             index += self.get_size(struct_field[1].dtype)
         return index
 
@@ -652,10 +652,13 @@ class SymbTable:
                     use, dtype1.__class__, dtype2.__class__
                 )
             )
-        elif isinstance(dtype1,GoStruct) and isinstance(dtype2,GoStruct):
+        elif isinstance(dtype1, GoStruct) and isinstance(dtype2, GoStruct):
             if dtype1.name != dtype2.name:
-                raise GoException("Error : Structs {} and {} are of different types".format(dtype1.name,dtype2.name))    
-
+                raise GoException(
+                    "Error : Structs {} and {} are of different types".format(
+                        dtype1.name, dtype2.name
+                    )
+                )
 
         elif isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
             name1 = dtype1.name
@@ -787,15 +790,11 @@ def symbol_table(
         elif isinstance(dtype, GoStruct):
             field_index = 0
             for field, govar in dtype.vars:
-                local_ir += symbol_table(
-                    GoFromModule(item, field),
-                    table,
-                    name,
-                    block_type,
-                    store_var=store_loc + "[{}]".format(field_index),
-                    scope_label=scope_label,
-                    depth_num=depth_num + 1,
-                )[1]
+                local_ir += string_handler(
+                    item + "[{}]".format(field_index),
+                    govar.dtype,
+                    store_loc + "[{}]".format(field_index),
+                )
                 field_index += table.get_size(govar.dtype)
         elif hasattr(dtype, "name") and dtype.name == "string":
             index_name = "__str_ind_{}".format(depth_num)
@@ -874,7 +873,7 @@ def symbol_table(
                 table.insert_var(parent_name, parent_dtype, "intermediate")
                 struct_obj = parent_dtype
                 struct_name = parent_dtype.name
-            # print(struct_name,child)    
+            # print(struct_name,child)
             DTYPE = table.get_struct(struct_name, child).dtype
             this_name = "{}[{}]".format(
                 parent_name, table.field2index(struct_obj, child)
@@ -1823,15 +1822,14 @@ def symbol_table(
             if isinstance(tree.dtype, GoArray):
                 tree.depth = tree.dtype.depth + 1
                 tree.final_type = tree.dtype.final_type
-                if not isinstance(tree.dtype.dtype,GoArray):
+                if not isinstance(tree.dtype.dtype, GoArray):
                     tree.dtype.dtype = tree.dtype.final_type
             else:
                 try:
                     dtype1 = table.get_struct_obj(tree.dtype.name)
                     tree.final_type = dtype1
                 except GoException:
-                    tree.final_type = tree.dtype 
-                
+                    tree.final_type = tree.dtype
 
             length = tree.length
 
@@ -1872,7 +1870,7 @@ def symbol_table(
                     not table.check_basic_type(name)
                     or table.get_basic_type(name)["kind"] != "int"
                 ):
-                    raise GoException("Error: Index of array is not integer")   
+                    raise GoException("Error: Index of array is not integer")
             DTYPE = dtype
 
         elif isinstance(tree, GoPrimaryExpr):
@@ -1899,7 +1897,7 @@ def symbol_table(
                         )
 
                     tree.dtype = (table.get_type(lhs)).dtype
-                    #if the array if one dimensional then simply return the final_type of that array
+                    # if the array if one dimensional then simply return the final_type of that array
                     # if not isinstance(tree.dtype,GoArray):
                     #     tree.dtype = (table.get_type(lhs)).final_type
                     # print(lhs,tree.dtype)
@@ -1920,9 +1918,9 @@ def symbol_table(
                     lhs_code = "__indlhs_{} = {}\n".format(depth_num, lhs)
 
                 if isinstance(lhs, GoPrimaryExpr):
-                #     if isinstance(lhs.dtype,GoArray) and isinstance(lhs.dtype.dtype,GoArray)
-                #         tree.dtype = lhs.dtype.dtype
-                    tree.dtype = lhs.dtype.dtype 
+                    #     if isinstance(lhs.dtype,GoArray) and isinstance(lhs.dtype.dtype,GoArray)
+                    #         tree.dtype = lhs.dtype.dtype
+                    tree.dtype = lhs.dtype.dtype
                     DTYPE = tree.dtype
                     # print(tree.dtype.name)
                     # print("HERE")
@@ -2067,21 +2065,23 @@ def symbol_table(
                         ir_code += "{} = call {}, {}\n".format(
                             store_var, func_loc, len(argument_list)
                         )
-            #XXX @Harish : Handle the 3AC for GoSelector             
-            elif isinstance(rhs,GoSelector):
+            # XXX @Harish : Handle the 3AC for GoSelector
+            elif isinstance(rhs, GoSelector):
                 child = rhs.child
-                lhs_dtype,lhs_code = symbol_table(lhs,
-                        table,
-                        name,
-                        block_type,
-                        store_var="__indlhs_{}".format(depth_num),
-                        scope_label=scope_label,
-                        depth_num=depth_num + 1)
-                # print(lhs_dtype)      
-                if isinstance(lhs_dtype,GoStruct):
+                lhs_dtype, lhs_code = symbol_table(
+                    lhs,
+                    table,
+                    name,
+                    block_type,
+                    store_var="__indlhs_{}".format(depth_num),
+                    scope_label=scope_label,
+                    depth_num=depth_num + 1,
+                )
+                # print(lhs_dtype)
+                if isinstance(lhs_dtype, GoStruct):
                     struct_name = lhs_dtype.name
                     if type(child) is str:
-                        DTYPE = table.get_struct(struct_name, child).dtype      
+                        DTYPE = table.get_struct(struct_name, child).dtype
         # To be done later : check number of elements in array same as that
         # specified
         elif isinstance(tree, GoKeyedElement):
@@ -2090,6 +2090,7 @@ def symbol_table(
                 if isinstance(tree.element, GoBasicLit) or isinstance(
                     tree.element, GoExpression
                 ):
+                    store_var = re.sub(r"--\[([^\]]*)\]--", r"[\1]", store_var)
                     if isinstance(tree.element, GoExpression):
                         ir_code += symbol_table(
                             tree.element,
@@ -2107,43 +2108,52 @@ def symbol_table(
                     element_type = tree.element.dtype
                     tree.size += 1
                 elif type(tree.element) is str:
+                    store_var = re.sub(r"--\[([^\]]*)\]--", r"[\1]", store_var)
                     ir_code = "{} = {}".format(store_var, tree.element)
                     element_type = table.get_type(tree.element)
                     tree.size += 1
                 else:
                     # LiteralValue is a list
+                    valid_children = [
+                        child
+                        for child in tree.element
+                        if isinstance(child, GoKeyedElement)
+                    ]
+                    search = re.search(r"--\[([^\]]*)\]--", store_var)
+                    # Used for converting [1][2] into [1 * size + 2]
+                    if search is None:
+                        parent_index = 0
+                    else:
+                        store_var = store_var[: int(search.start())]
+                        parent_index = len(valid_children) * table.get_size(
+                            valid_children[0].dtype
+                        )
+
                     depth = 0
                     child_count = 0
                     cur_size = 0
                     for child in tree.element:
                         if isinstance(child, GoKeyedElement):
                             child.use = "array"
-                            child_dtype, child_code = symbol_table(
+                            store_loc = "{}--[{}]--".format(
+                                store_var, parent_index + child_count
+                            )
+                            ir_code += symbol_table(
                                 child,
                                 table,
                                 name,
                                 block_type,
-                                store_var="__child{}_{}".format(
-                                    child_count, depth_num
-                                ),
+                                store_var=store_loc,
                                 scope_label=scope_label,
                                 depth_num=depth_num + 1,
-                            )
-                            ir_code += child_code
+                            )[1]
+                            child_count += 1
 
                             count = 1
                             temp_child = child
                             while type(temp_child.element) is list:
                                 count = count * len(temp_child.element)
                                 temp_child = temp_child.element[0]
-
-                            table.insert_var(
-                                "__child{}_{}".format(child_count, depth_num),
-                                child_dtype,
-                                use="intermediate",
-                                count=count,
-                            )
-                            child_count += 1
                             if depth == 0:
                                 depth = child.depth
                             elif depth != child.depth:
@@ -2159,28 +2169,17 @@ def symbol_table(
                             elif cur_size != child.size:
                                 raise GoException(
                                     "Error: Incorrect number of elements in array"
-                                )   
+                                )
                         if tree.dtype is None:
-                            # print(element_type.name)     
+                            # print(element_type.name)
                             tree.dtype = element_type
                         else:
-                            # print(tree.dtype.name,element_type.name)     
+                            # print(tree.dtype.name,element_type.name)
                             table.type_check(
                                 tree.dtype, element_type, "array conflicts"
                             )
 
                     tree.depth = depth + 1
-
-                    ir_code += (
-                        "{} = {{".format(store_var)
-                        + ",".join(
-                            [
-                                "__child{}_{}".format(i, depth_num)
-                                for i in range(child_count)
-                            ]
-                        )
-                        + "}\n"
-                    )
                 tree.dtype = element_type
                 # print(tree.dtype)
                 logging.info("tree.dtype '{}'".format(tree.dtype))
@@ -2214,8 +2213,8 @@ def symbol_table(
             # print(DTYPE.name)
 
         # UN-IMPLEMENTED
-        #XXX long declaration of arrays not working 
-        #XXX no check implemented for valid indicies in arrays
+        # XXX long declaration of arrays not working
+        # XXX no check implemented for valid indicies in arrays
         elif isinstance(tree, GoCompositeLit):
             logging.info(
                 "tree.dtype {}, tree.value {}".format(tree.dtype, tree.value)
@@ -2235,12 +2234,12 @@ def symbol_table(
                     scope_label=scope_label,
                 )
                 dtype = tree.dtype.final_type
-                #if type of the array is a struct_name change it's type to GoStruct
+                # if type of the array is a struct_name change it's type to GoStruct
                 try:
                     dtype = table.get_struct_obj(dtype.name)
                     tree.dtype.final_type = dtype
                 except GoException:
-                    pass 
+                    pass
 
                 depth = 0
                 cur_size = 0
@@ -2253,7 +2252,7 @@ def symbol_table(
                             table,
                             name,
                             block_type,
-                            store_var=store_var + "[{}]".format(elem_num),
+                            store_var=store_var + "--[{}]--".format(elem_num),
                             scope_label=scope_label,
                             depth_num=depth_num + 1,
                         )
@@ -2276,16 +2275,16 @@ def symbol_table(
                             raise GoException(
                                 "Error: Incorrect number of elements in array"
                             )
-                              
-                    # print(dtype,element_type)    
+
+                    # print(dtype,element_type)
                     table.type_check(
                         dtype, element_type, "array initialization"
                     )
 
-                if not isinstance(tree.dtype.dtype,GoArray):
+                if not isinstance(tree.dtype.dtype, GoArray):
                     tree.dtype.dtype = tree.dtype.final_type
                 # if isinstance(tree.dtype.dtype,GoArray):
-                #     print(tree.dtype.dtype.dtype.name)    
+                #     print(tree.dtype.dtype.dtype.name)
                 DTYPE = tree.dtype
                 # print(DTYPE.final_type)
                 # print(tree.dtype,tree.dtype.final_type)
@@ -2311,7 +2310,6 @@ def symbol_table(
                         )
                     tree_type = tree_type.dtype
                     tree_value = tree_value[0].element
-
 
             elif isinstance(tree.dtype, GoType) or isinstance(
                 tree.dtype, GoStruct
@@ -2483,6 +2481,8 @@ def symbol_table(
 
             ir_code += "return {}\n".format(return_name)
     except GoException as go_exp:
+        if not hasattr(tree, "lineno"):
+            raise GoException(go_exp)  # Will be handled by the caller
         go_traceback(tree)
         print(go_exp)
         exit(1)
@@ -2541,7 +2541,7 @@ def csv_writer(table, name, dir_name):
                 ]
             elif isinstance(dtype, GoPointType):
                 row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
-            if row is not None:    
+            if row is not None:
                 var_rows.append(row)
 
         var_rows = sorted(var_rows, key=lambda x: x[3])

@@ -309,7 +309,7 @@ class SymbTable:
         dtype = deepcopy(dtype)
         if name not in self.used:
             if isinstance(dtype, GoType):
-                dtype.size = (self.get_size(dtype)) * count
+                dtype.size = self.get_size(dtype)
                 logging.info(
                     "previous offset {}, size {}".format(
                         self.offset, dtype.size
@@ -321,20 +321,14 @@ class SymbTable:
             # TODO: need to handle array os structures seperately
             elif isinstance(dtype, GoArray):
                 logging.info("ARRAY DTYPE {}".format(dtype.dtype))
-                if (
-                    isinstance(dtype.final_type, GoType) and dtype.size != 0
-                ):  # Short Declaration
-                    dtype.size = dtype.size * self.get_size(dtype.final_type)
-                else:  # Long Declaration
-                    dtype.size = dtype.length.item * self.get_size(
-                        dtype.final_type
-                    )
+                dtype.size = self.get_size(dtype)
 
                 dtype.offset = self.offset + ceil(dtype.size / 4) * 4
                 self.offset = dtype.offset
                 logging.info("ARRAY SIZE: {}".format(dtype.size))
 
             elif isinstance(dtype, GoStruct):
+                dtype.size = self.get_size(dtype)
                 dtype.offset = self.offset + ceil(dtype.size / 4) * 4
                 self.offset = dtype.offset
                 logging.info("STRUCT SIZE {}".format(dtype.size))

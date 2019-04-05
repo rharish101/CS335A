@@ -2113,23 +2113,31 @@ def symbol_table(
                         ir_code += "{} = call {}, {}\n".format(
                             store_var, func_loc, len(argument_list)
                         )
-            # XXX @Harish : Handle the 3AC for GoSelector
+
+            # TODO (@Harish): Handle the 3AC for GoSelector
             elif isinstance(rhs, GoSelector):
                 child = rhs.child
+                lhs_name = "__sellhs_{}".format(depth_num)
                 lhs_dtype, lhs_code = symbol_table(
                     lhs,
                     table,
                     name,
                     block_type,
-                    store_var="__indlhs_{}".format(depth_num),
+                    store_var=lhs_name,
                     scope_label=scope_label,
                     depth_num=depth_num + 1,
                 )
-                # print(lhs_dtype)
+                ir_code += lhs_code
                 if isinstance(lhs_dtype, GoStruct):
                     struct_name = lhs_dtype.name
                     if type(child) is str:
                         DTYPE = table.get_struct(struct_name, child).dtype
+                    struct_obj = table.get_struct_obj(struct_name)
+                    ir_code += "{} = {}[{}]\n".format(
+                        store_var,
+                        lhs_name,
+                        table.field2index(struct_obj, child),
+                    )
 
         # TODO(later): check number of elements in array same as that
         # specified

@@ -3,7 +3,7 @@ package main
 // Yo
 /* Hello "world" program
    In Go*/
-
+//contains most of the functionalities that our language supports
 var c int64 = 2
 
 type help struct {
@@ -54,6 +54,33 @@ func add(x uint, y uint) uint {
 	return x + y
 }
 
+func FibonacciRecursion(n int) int {
+    if( n <= 1 ){
+        return n
+    }
+    return FibonacciRecursion(n-1) + FibonacciRecursion(n-2)
+}
+
+func Factorial(n uint64)(result uint64) {
+	if (n > 0) {
+		var result uint64 = n * Factorial(n-1)
+		return result
+	}
+	return 1
+}
+
+func loop(){
+	var sum int = 0
+		for(i:=0;i<100;i++){
+			sum += i
+		}
+
+		// infinte loop
+		for(;;){
+			
+		}
+}
+
 func temp(x int, y int) {
 	oneD := [2]int{1, 2}
 	threeD := [5][2][3]int{{{0, 0, 0}, {0, 0, 0}}, {{1, 1, 1}, {2, 2, 2}}, {{2, 2, 2}, {4, 4, 4}}, {{3, 3, 3}, {6, 6, 6}}, {{4, 4, 4}, {8, 8, 8}}}
@@ -64,7 +91,6 @@ func temp(x int, y int) {
 	struct_array := [1][2]person{{r, r}}
 	harish := struct_array[1][2]
 	item := harish.name
-	/*	name1 := struct_array[1].b*/
 
 	f := [3]int{1, 2, 3}
 	var g [3]int

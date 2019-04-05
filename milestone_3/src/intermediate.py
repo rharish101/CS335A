@@ -1925,6 +1925,8 @@ def symbol_table(
                     or table.get_basic_type(name)["kind"] != "int"
                 ):
                     raise GoException("Error: Index of array is not integer")
+            else:
+                raise GoException("Error: Index of array is not integer")
             DTYPE = dtype
 
         elif isinstance(tree, GoPrimaryExpr):

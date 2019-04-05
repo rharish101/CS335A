@@ -1742,6 +1742,7 @@ def symbol_table(
             DTYPE = None
 
         elif isinstance(tree, GoFor):
+            new_table = SymbTable(table)
             logging.info("Entered GoFor")
             cond_label = "ForCond{}".format(inter_count)
             for_label = "For{}".format(inter_count)
@@ -1780,7 +1781,7 @@ def symbol_table(
 
                 ir_code += symbol_table(
                     tree.clause.init,
-                    table,
+                    new_table,
                     name,
                     block_type,
                     scope_label=scope_label,
@@ -1789,7 +1790,7 @@ def symbol_table(
                 fcond_name = "__fcond_{}".format(inter_count)
                 fcond_dtype, fcond_code = symbol_table(
                     tree.clause.expr,
-                    table,
+                    new_table,
                     name,
                     block_type,
                     store_var=fcond_name,
@@ -1797,7 +1798,7 @@ def symbol_table(
                 )
                 ir_code += fcond_code
                 if tree.clause.expr is not None:
-                    table.insert_var(
+                    new_table.insert_var(
                         fcond_name,
                         fcond_dtype,
                         use="intermediate",
@@ -1811,7 +1812,7 @@ def symbol_table(
                     )
                 post_code = symbol_table(
                     tree.clause.post,
-                    table,
+                    new_table,
                     name,
                     block_type,
                     scope_label=scope_label,
@@ -1829,13 +1830,15 @@ def symbol_table(
 
             ir_code += symbol_table(
                 tree.infor,
-                table,
+                new_table,
                 name,
                 block_type,
                 scope_label="{}|{}".format(endfor_label, postfor_label),
             )[1]
             ir_code += "{}: ".format(postfor_label) + post_code
             ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
+
+            table.scopes.append(new_table)
 
         elif isinstance(tree, GoSwitch):
             new_table = SymbTable(table)

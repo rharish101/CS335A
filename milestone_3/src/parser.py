@@ -1263,6 +1263,8 @@ def p_Assignment(p):
         rhs = [p[3]]
 
     # 1st arg. is LHS, 2nd arg. is RHS, and 3rd arg. is the assign op
+    if p[2] is not None:
+        rhs = [GoExpression(p[1],p[3],p[2])]
     p[0] = GoAssign(lhs, rhs, p[2])
     p[0].lineno = adjust_lineno(lexer.lineno - 1)
 

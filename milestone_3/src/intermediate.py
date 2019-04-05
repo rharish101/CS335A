@@ -939,6 +939,8 @@ def symbol_table(
             name = tree.name
             params = tree.params
             result = tree.result
+            if result is None:
+                result = []
             body = tree.body  # instance of GoBlock
             table.insert_func(name, params, result)
             ir_code += "func begin {}\n".format(name)
@@ -2551,7 +2553,11 @@ def symbol_table(
                 return_index += table.get_size(expr_dtype)
                 table.type_check(res.dtype, expr_dtype, use="return")
 
-            ir_code += "return {}\n".format(return_name)
+            if len(results) is 0:
+                ir_code += "return \n"
+            else:    
+                ir_code += "return {}\n".format(return_name)
+    
     except GoException as go_exp:
         if not hasattr(tree, "lineno"):
             raise GoException(go_exp)  # Will be handled by the caller

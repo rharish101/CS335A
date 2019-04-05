@@ -202,7 +202,7 @@ class SymbTable:
         elif isinstance(dtype, GoPointType):
             return 4
         elif isinstance(dtype, GoArray):
-            return dtype.length.item * self.get_size(dtype.final_type)
+            return dtype.length.item * self.get_size(dtype.dtype)
         elif isinstance(dtype, GoKeyedElement):
             element = dtype.element
             try:

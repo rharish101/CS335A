@@ -352,7 +352,11 @@ class SymbTable:
                 )
                 self.activation_offset = dtype.activation_offset
 
-            self.used.add(name)           
+            self.used.add(name)
+        elif use == "intermediate":
+            print(
+                'Warning: Already declared "{}" name "{}"'.format(use, name)
+            )          
         else:
             raise GoException(
                 'Error: Already declared "{}" name "{}"'.format(use, name)
@@ -638,8 +642,8 @@ class SymbTable:
         index = 0
         # print(struct,field)
         # print(struct,struct.name,field)
-        if isinstance(struct, GoType):
-            struct = self.get_struct_obj(struct.name)
+        # if isinstance(struct, GoType):
+        #     struct = self.get_struct_obj(struct.name)
         for struct_field in struct.vars:
             if struct_field[0] == field:
                 break
@@ -979,28 +983,31 @@ def symbol_table(
                 else:
                     # iterating over all expressions to evaluate their types
                     evaluated_types = []
+                    inter_names = []
                     for i, expr in enumerate(rhs):
+                        decl_name = "__decl{}_{}".format(i, inter_count)
                         expr_dtype, expr_code = symbol_table(
                             expr,
                             table,
                             name,
                             block_type,
-                            store_var="__decl{}_{}".format(i, inter_count),
+                            store_var=decl_name,
                             scope_label=scope_label,
                         )
                         table.insert_var(
-                            "__decl{}_{}".format(i, inter_count),
+                            decl_name,
                             expr_dtype,
                             use="intermediate",
                         )
+                        inter_names.append(decl_name)
                         ir_code += expr_code
                         evaluated_types.append(expr_dtype)
                     if len(rhs) != 0:
                         for i, (var, eval_type) in enumerate(
                             zip(lhs, evaluated_types)
                         ):
-                            ir_code += "{} = __decl{}_{}\n".format(
-                                var, i, inter_count
+                            ir_code += "{} = {}\n".format(
+                                var, inter_names[i]
                             )
                             if dtype is not None:
                                 # If defined type is not None then check if the
@@ -1100,17 +1107,20 @@ def symbol_table(
 
                 else:
                     evaluated_types = []
+                    inter_names = []
                     for i, expr in enumerate(expr_list):
+                        const_name = "__const{}_{}".format(i, inter_count)
                         expr_dtype, expr_code = symbol_table(
                             expr,
                             table,
                             name,
                             block_type,
-                            store_var="__const{}_{}".format(i, inter_count),
+                            store_var=const_name,
                             scope_label=scope_label,
                         )
+                        inter_names.append(const_name)
                         table.insert_var(
-                            "__const{}_{}".format(i, inter_count),
+                            const_name,
                             expr_dtype,
                             use="intermediate",
                         )
@@ -1127,8 +1137,8 @@ def symbol_table(
                                 dtype, eval_type, "const declaration"
                             )
                             # Treating constant declarations as variable assignment
-                            ir_code += "{} = __const{}_{}\n".format(
-                                const, i, inter_count
+                            ir_code += "{} = {}\n".format(
+                                const, inter_names[i]
                             )
                             if isinstance(eval_type, GoType):
                                 dtype.value = eval_type.value
@@ -1529,32 +1539,33 @@ def symbol_table(
 
             # INCOMPLETE : need to handle cases for array types, struct types,
             # interfaces, function, pointer
-
+            lhs_name = "__lhs_{}".format(inter_count)
             dtype1, lhs_code = symbol_table(
                 lhs,
                 table,
                 name,
                 block_type,
-                store_var="__lhs_{}".format(inter_count),
+                store_var=lhs_name,
                 scope_label=scope_label,
             )
             table.insert_var(
-                "__lhs_{}".format(inter_count), dtype1, use="intermediate"
+                lhs_name, dtype1, use="intermediate"
             )
+            rhs_name = "__rhs_{}".format(inter_count)
             dtype2, rhs_code = symbol_table(
                 rhs,
                 table,
                 name,
                 block_type,
-                store_var="__rhs_{}".format(inter_count),
+                store_var=rhs_name,
                 scope_label=scope_label,
             )
             table.insert_var(
-                "__rhs_{}".format(inter_count), dtype1, use="intermediate"
+                rhs_name, dtype1, use="intermediate"
             )
             ir_code += lhs_code + rhs_code
-            ir_code += "{} = __lhs_{} {} __rhs_{}\n".format(
-                store_var, inter_count, op, inter_count
+            ir_code += "{} = {} {} {}\n".format(
+                store_var, lhs_name, op, rhs_name
             )
 
             logging.info('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
@@ -1629,24 +1640,25 @@ def symbol_table(
             ir_code += symbol_table(
                 tree.stmt, newtable, name, block_type, scope_label=scope_label
             )[1]
+            cond_name = "__cond_{}".format(inter_count)
             cond_dtype, cond_code = symbol_table(
                 tree.cond,
                 newtable,
                 name,
                 block_type,
-                store_var="__cond_{}".format(inter_count),
+                store_var=cond_name,
                 scope_label=scope_label,
             )
             ir_code += cond_code
             table.insert_var(
-                "__cond_{}".format(inter_count), cond_dtype, use="intermediate"
+                cond_name, cond_dtype, use="intermediate"
             )
 
             # Choosing the labels
             if_label = "If{}".format(inter_count)
             endif_label = "EndIf{}".format(inter_count)
 
-            ir_code += "if __cond_{} goto {}\n".format(inter_count, if_label)
+            ir_code += "if {} goto {}\n".format(cond_name, if_label)
             if (
                 not (
                     isinstance(tree.cond, GoExpression)
@@ -1718,22 +1730,23 @@ def symbol_table(
                     scope_label=scope_label,
                 )[1]
                 ir_code += "{}: ".format(cond_label)
+                fcond_name = "__fcond_{}".format(inter_count)
                 fcond_dtype, fcond_code = symbol_table(
                     tree.clause.expr,
                     table,
                     name,
                     block_type,
-                    store_var="__fcond_{}".format(inter_count),
+                    store_var=fcond_name,
                     scope_label=scope_label,
                 )
                 ir_code += fcond_code
                 table.insert_var(
-                    "__fcond_{}".format(inter_count),
+                    fcond_name,
                     fcond_dtype,
                     use="intermediate",
                 )
-                ir_code += "if __fcond_{} goto {}\ngoto {}\n{}: ".format(
-                    inter_count, for_label, endfor_label, for_label
+                ir_code += "if {} goto {}\ngoto {}\n{}: ".format(
+                    fcond_name, for_label, endfor_label, for_label
                 )
                 post_code = symbol_table(
                     tree.clause.post,
@@ -2035,23 +2048,27 @@ def symbol_table(
                             len(argument_list), func_name, len(params_list)
                         )
                     )
+
+                inter_names = []
                 for i, (argument, param) in enumerate(
                     zip(argument_list, params_list)
                 ):
+                    arg_name = "__fcond_{}".format(inter_count)
                     arg_dtype, arg_code = symbol_table(
                         argument,
                         table,
                         name,
                         block_type,
-                        store_var="__arg{}_{}".format(i, inter_count),
+                        store_var=arg_name,
                         scope_label=scope_label,
                     )
                     ir_code += arg_code
                     table.insert_var(
-                        "__arg{}_{}".format(i, inter_count),
+                        arg_name,
                         arg_dtype,
                         use="intermediate",
                     )
+                    inter_names.append(arg_name)
                     table.type_check(
                         param.dtype,
                         arg_dtype,
@@ -2077,7 +2094,7 @@ def symbol_table(
                 else:
                     ir_code += "".join(
                         [
-                            "param __arg{}_{}\n".format(i, inter_count)
+                            "param {}\n".format(inter_names[i])
                             for i in range(len(argument_list))
                         ]
                     )
@@ -2090,7 +2107,6 @@ def symbol_table(
                             store_var, func_loc, len(argument_list)
                         )
 
-            # TODO (@Harish): Handle the 3AC for GoSelector
             elif isinstance(rhs, GoSelector):
                 child = rhs.child
                 lhs_name = "__sellhs_{}".format(inter_count)
@@ -2420,20 +2436,21 @@ def symbol_table(
                 DTYPE = struct_obj
 
         elif isinstance(tree, GoUnaryExpr):
+            opd_name = "__opd_{}".format(inter_count)
             opd_dtype, opd_code = symbol_table(
                 tree.expr,
                 table,
                 name,
                 block_type,
-                store_var="__opd_{}".format(inter_count),
+                store_var=opd_name,
                 scope_label=scope_label,
             )
             ir_code += opd_code
             table.insert_var(
-                "__opd_{}".format(inter_count), opd_dtype, use="intermediate"
+                opd_name, opd_dtype, use="intermediate"
             )
-            ir_code += "{} = {}__opd_{}\n".format(
-                store_var, tree.op, inter_count
+            ir_code += "{} = {}{}\n".format(
+                store_var, tree.op, opd_name
             )
 
             if tree.op == "&" or tree.op == "*":

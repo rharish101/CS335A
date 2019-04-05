@@ -301,7 +301,7 @@ class SymbTable:
                 )
             )
 
-    def insert_var(self, name, dtype, use="variable", count=1):
+    def insert_var(self, name, dtype, use="variable"):
         if type(name) is not str:
             raise GoException(
                 "Error: Variable name {} is not string".format(name)
@@ -352,7 +352,7 @@ class SymbTable:
                 )
                 self.activation_offset = dtype.activation_offset
 
-            self.used.add(name)
+            self.used.add(name)           
         else:
             raise GoException(
                 'Error: Already declared "{}" name "{}"'.format(use, name)
@@ -792,6 +792,8 @@ def symbol_table(
 
     def string_handler(item, dtype, store_loc):
         """Handle storing of an "str" item of given dtype into store_loc."""
+        global inter_count
+        inter_count += 1
         local_ir = ""
         if store_loc == "":
             pass

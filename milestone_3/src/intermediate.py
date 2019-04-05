@@ -374,7 +374,7 @@ class SymbTable:
                 except GoException:
                     pass
                 else:
-                    self.insert_struct(alias, obj)
+                    self.insert_struct(alias, obj,embed = False)
                     return
 
                 # Check interfaces
@@ -389,7 +389,7 @@ class SymbTable:
                 obj = self.get_actual(actual.name)
                 if obj is not None:
                     if isinstance(obj, GoStruct):
-                        self.insert_struct(alias, obj)
+                        self.insert_struct(alias, obj,embed = False)
                         return
                     elif isinstance(obj, GoInterfaceType):
                         self.insert_interface(alias, obj)
@@ -582,8 +582,17 @@ class SymbTable:
                 "Error: Already used constant name '{}'".format(name)
             )
 
-    def insert_struct(self, name, struct):
+    def insert_struct(self, name, struct,embed = True):
+        # print(struct.embeds)
         if name not in self.used:
+            embeds = struct.embeds
+            #handles struct embeddings
+            if embed :
+                for item in struct.embeds:
+                    embed_obj = deepcopy(self.get_struct_obj(embeds[item]))
+                    struct.vars.insert(0,(item,GoVar(GoType(embeds[item]))))
+                    # struct.vars.insert(0,(item,GoVar(embed_obj)))
+            # print(name,list([(var[0],var[1].dtype) for var in struct.vars]))       
             self.structures[name] = struct
             self.used.add(name)
         else:
@@ -2608,7 +2617,7 @@ def csv_writer(table, name, dir_name, activation=False):
             elif isinstance(dtype, GoArray):
                 row = [
                     var,
-                    resolve_dtype(dtype.dtype),
+                    resolve_dtype(dtype),
                     dtype.size,
                     dtype.offset,
                 ]

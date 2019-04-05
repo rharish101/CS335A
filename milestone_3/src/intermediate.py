@@ -1503,16 +1503,45 @@ def symbol_table(
         elif isinstance(tree, GoShortDecl):
             id_list = tree.id_list
             expr_list = tree.expr_list
-            if len(id_list) != len(expr_list):
-                raise GoException(
-                    "Error: Different number of variables and values in short declaration"
-                )
+            check = True
+            for expr in expr_list:
+                if isinstance(expr, GoPrimaryExpr) and isinstance(expr.rhs, GoArguments):
+                    length = len(table.get_func(expr.lhs,"result")[0])
+                    if length > 1:
+                        check = False
+                    elif length == 0:
+                        raise GoException("SyntaxError: Void function {} used as value".format(expr.lhs))
+        
+            if check == True:
+                if len(id_list) != len(expr_list):
+                    raise GoException(
+                        "Error: Different number of variables and values in short declaration"
+                    )
+
+            else:
+                if len(expr_list) > 1:
+                    raise GoException(
+                        "Error: multiple-value function {} used in single-value context".format(expr.lhs)
+                    )
+                elif len(id_list) != len(table.get_func(expr.lhs,"result")[0]):
+                    raise GoException(
+                        "Error: Different number of variables and values in short declaration"
+                    )
+
+                id_list = [id_list]
+
             for var in id_list:
-                if type(var) is not str:
+                if type(var) is not str and type(var) is not list:
                     raise GoException(
                         "SyntaxError: LHS '{}' is not a variable".format(var)
                     )
-
+                if type(var) is list:
+                    for child in var:
+                        if type(child) is not str:
+                            raise GoException(
+                                "SyntaxError: LHS '{}' is not a variable".format(var)
+                            )
+            
             for var, expr in zip(id_list, expr_list):
                 logging.info('short decl: "{}" : "{}"'.format(var, expr))
                 dtype, rhs_code = symbol_table(
@@ -1527,7 +1556,11 @@ def symbol_table(
                 ir_code += rhs_code
                 # if isinstance(dtype,GoArray) and isinstance(dtype.dtype,GoArray):
                 #     print(var,dtype.dtype.dtype)
-                table.insert_var(var, dtype)
+                if type(var) is str:
+                    table.insert_var(var, dtype)
+                else:
+                    for child1,child2 in zip(var,dtype):
+                        table.insert_var(child1, child2)
 
             DTYPE = None
 
@@ -2122,10 +2155,21 @@ def symbol_table(
                         ir_code += "call {}, {}\n".format(
                             func_loc, len(argument_list)
                         )
-                    else:
+                    elif type(store_var) is not list:
                         ir_code += "{} = call {}, {}\n".format(
                             store_var, func_loc, len(argument_list)
                         )
+                    else:
+                        ir_code += "temp_var = call {},{}\n".format(
+                            func_loc, len(argument_list)
+                        )
+                        count = 0
+                        for i, child in enumerate(store_var):
+                            ir_code += "{} = temp_var[{}]\n".format(
+                                child, count
+                            )
+                            count += table.get_size(table.get_func(tree.lhs,"result")[0][i].dtype)
+
 
             # TODO (@Harish): Handle the 3AC for GoSelector
             elif isinstance(rhs, GoSelector):

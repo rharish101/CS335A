@@ -10,7 +10,12 @@ type help struct {
 	b string
 }
 
+type info struct {
+	info string
+}
+
 type person struct {
+	info
 	name help
 	age  int
 }
@@ -24,6 +29,7 @@ type check1 struct {
 	age int
 }
 type person1 struct {
+	check1
 	age  check1
 	age1 int
 }
@@ -54,7 +60,7 @@ func temp(x int, y int) {
 	threeD[2][0][1] = 7
 	add := oneD[1] + threeD[2][1][2]
 	gu := help{"vishwas"}
-	r := person{gu, 2}
+	r := person{info{"info"},gu, 2}
 	struct_array := [1][2]person{{r, r}}
 	harish := struct_array[1][2]
 	item := harish.name
@@ -78,9 +84,9 @@ func temp(x int, y int) {
 
 	m := 2
 	n := &m
-	t := person{age: 2, name: help{"vishwas"}}
+	t := person{info : info{"info"},age: 2, name: help{"vishwas"}}
 	t1 := check{"string", 2}
-	t2 := person1{check1{2}, 3}
+	t2 := person1{ check1{4},check1{2},3}
 	t2.age1 = 4
 	t.age = 2
 	t.age++

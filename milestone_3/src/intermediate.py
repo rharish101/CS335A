@@ -1773,14 +1773,19 @@ def symbol_table(
                     scope_label=scope_label,
                 )
                 ir_code += fcond_code
-                table.insert_var(
-                    fcond_name,
-                    fcond_dtype,
-                    use="intermediate",
-                )
-                ir_code += "if {} goto {}\ngoto {}\n{}: ".format(
-                    fcond_name, for_label, endfor_label, for_label
-                )
+                if tree.clause.expr is not None:
+                    table.insert_var(
+                        fcond_name,
+                        fcond_dtype,
+                        use="intermediate",
+                    )
+                    ir_code += "if {} goto {}\ngoto {}\n{}: ".format(
+                        fcond_name, for_label, endfor_label, for_label
+                    )
+                else:
+                    ir_code += "goto {}\ngoto {}\n{}: ".format(
+                        for_label, endfor_label, for_label
+                    )
                 post_code = symbol_table(
                     tree.clause.post,
                     table,

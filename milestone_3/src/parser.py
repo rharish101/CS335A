@@ -967,7 +967,7 @@ def p_Expression(p):
     if len(p) == 2:  # UnaryExpr given
         p[0] = p[1]
     else:
-        if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBasicLit):
+        if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBasicLit) and p[1].dtype.name != "string":
             # Direct calculation
             error = False
             try:

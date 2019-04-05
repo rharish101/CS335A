@@ -772,6 +772,7 @@ def symbol_table(
     store_var="",
     scope_label="",
     insert=False,
+    start=0,
 ):
     """Do DFS to traverse the parse tree, construct symbol tables, 3AC.
 
@@ -794,7 +795,7 @@ def symbol_table(
 
     logging.info(tree)
 
-    def string_handler(item, dtype, store_loc):
+    def string_handler(item, dtype, store_loc, start=0):
         """Handle storing of an "str" item of given dtype into store_loc."""
         global inter_count
         inter_count += 1
@@ -828,6 +829,7 @@ def symbol_table(
                 field_index += table.get_size(govar.dtype)
         elif hasattr(dtype, "name") and dtype.name == "string":
             index_name = "__str_ind_{}".format(inter_count)
+            index_left_name = "__str_ind_left_{}".format(inter_count)
             cond_name = "__str_cond_{}".format(inter_count)
             table.insert_var(index_name, GoType("uint"), "intermediate")
             table.insert_var(cond_name, GoType("bool"), "intermediate")
@@ -836,17 +838,19 @@ def symbol_table(
             endwhile_label = "StrEnd{}".format(inter_count)
 
             local_ir += "{} = 0\n".format(index_name)
+            local_ir += "{} = {} + {}\n".format(index_left_name, index_name, start)
             local_ir += '{}: {} = {}[{}] == "\\0"\n'.format(
                 while_label, cond_name, item, index_name
             )
             local_ir += "if {} goto {}\n".format(cond_name, endwhile_label)
             local_ir += "{}[{}] = {}[{}]\n".format(
-                store_loc, index_name, item, index_name
+                store_loc, index_left_name, item, index_name
             )
-            local_ir += "{} = {} + 1\n".format(cond_name, cond_name)
+            local_ir += "{} = {} + 1\n".format(index_name, index_name)
+            local_ir += "{} = {} + 1\n".format(index_left_name, index_left_name)
             local_ir += "goto {}\n".format(while_label)
             local_ir += '{}: {}[{}] = "\\0"\n'.format(
-                endwhile_label, store_loc, index_name
+                endwhile_label, store_loc, index_left_name
             )
         else:
             local_ir += "{} = {}\n".format(store_loc, item)
@@ -858,7 +862,7 @@ def symbol_table(
     if type(tree) is str:  # variable
         logging.info("STR: '{}'".format(tree))
         DTYPE = table.get_type(tree)
-        ir_code += string_handler(tree, DTYPE, store_var)
+        ir_code += string_handler(tree, DTYPE, store_var, start=start)
 
     # Trying to catch GoException raised by SymbTable's methods
     try:
@@ -868,9 +872,9 @@ def symbol_table(
                 ir_code = str(tree.item)
             elif hasattr(tree.dtype, "name") and tree.dtype.name == "string":
                 for i, char in enumerate(tree.item[1:-1]):
-                    ir_code += '{}[{}] = "{}"\n'.format(store_var, i, char)
+                    ir_code += '{}[{}] = "{}"\n'.format(store_var, i+start, char)
                 ir_code += '{}[{}] = "\\0"\n'.format(
-                    store_var, len(tree.item) - 2
+                    store_var, len(tree.item) - 2 + start
                 )
             else:
                 ir_code = "{} = {}\n".format(store_var, tree.item)
@@ -1593,13 +1597,32 @@ def symbol_table(
                 store_var=rhs_name,
                 scope_label=scope_label,
             )
+            if dtype1.name == "string" and dtype2.name == "string":
+                length = len(dtype1.value)-2
+                #print(length)
+                dtype2, rhs_code = symbol_table(
+                    rhs,
+                    table,
+                    name,
+                    block_type,
+                    store_var=lhs_name,
+                    scope_label=scope_label,
+                    start=length,
+                )
+
             table.insert_var(
                 rhs_name, dtype1, use="intermediate"
             )
             ir_code += lhs_code + rhs_code
-            ir_code += "{} = {} {} {}\n".format(
-                store_var, lhs_name, op, rhs_name
-            )
+
+            if dtype1.name == "string" and dtype2.name == "string":
+                ir_code += "{} = {}\n".format(
+                    store_var, lhs_name
+                )
+            else:
+                ir_code += "{} = {} {} {}\n".format(
+                    store_var, lhs_name, op, rhs_name
+                )
 
             logging.info('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
 

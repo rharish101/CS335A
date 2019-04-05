@@ -51,6 +51,7 @@ func add(x uint, y uint) uint {
 func temp(x int, y int) {
 	oneD := [2]int{1, 2}
 	threeD := [5][2][3]int{{{0, 0, 0}, {0, 0, 0}}, {{1, 1, 1}, {2, 2, 2}}, {{2, 2, 2}, {4, 4, 4}}, {{3, 3, 3}, {6, 6, 6}}, {{4, 4, 4}, {8, 8, 8}}}
+	threeD[2][0][1] = 7
 	add := oneD[1] + threeD[2][1][2]
 	gu := help{"vishwas"}
 	r := person{gu, 2}

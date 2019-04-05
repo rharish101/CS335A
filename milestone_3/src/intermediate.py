@@ -138,9 +138,9 @@ class SymbTable:
                 self.activation_offset = parent.activation_offset
             else:
                 self.offset = 0
-                self.activation_record =  []
-                self.use = None   
-                self.activation_offset =0
+                self.activation_record = []
+                self.use = None
+                self.activation_offset = 0
         elif use == "function" or use == "method":
             self.offset = 0
             self.activation_record = []
@@ -344,17 +344,19 @@ class SymbTable:
                 dtype.offset = self.offset + 4
                 self.offset = dtype.offset
 
-            if  name not in ["dynamic_link","return_address","static_link"]:    
+            if name not in ["dynamic_link", "return_address", "static_link"]:
                 if use == "intermediate":
                     self.intermediates[name] = dtype
                 else:
                     self.variables[name] = dtype
 
             if self.use == "function" or self.use == "method":
-                self.activation_record.append((name,dtype))
-                dtype.activation_offset = self.activation_offset - ceil(dtype.size/4)*4
+                self.activation_record.append((name, dtype))
+                dtype.activation_offset = (
+                    self.activation_offset - ceil(dtype.size / 4) * 4
+                )
                 self.activation_offset = dtype.activation_offset
-                
+
             self.used.add(name)
         elif use != "intermediate":
             raise GoException(
@@ -1144,12 +1146,16 @@ def symbol_table(
                         child_table.insert_var(param.name, param.dtype)
                     # TODO: need to handle parameters with None name
                 if len(child_table.activation_record) > 0:
-                    last_offset = child_table.activation_record[-1][1].activation_offset
+                    last_offset = child_table.activation_record[-1][
+                        1
+                    ].activation_offset
                 for i in range(len(child_table.activation_record)):
-                    child_table.activation_record[i][1].activation_offset -= last_offset
+                    child_table.activation_record[i][
+                        1
+                    ].activation_offset -= last_offset
                 child_table.activation_offset = 0
-                for item in ["dynamic_link","return_address","static_link"]:
-                    child_table.insert_var(item,GoPointType(None))    
+                for item in ["dynamic_link", "return_address", "static_link"]:
+                    child_table.insert_var(item, GoPointType(None))
                 table.functions[name]["body"] = child_table
 
             elif block_type == "method" and insert:
@@ -1165,12 +1171,16 @@ def symbol_table(
                 logging.info("STRUCT METHOD SIZE {}".format(struct_obj.size))
                 child_table.insert_var(name[1].name, struct_obj)
                 if len(child_table.activation_record) > 0:
-                    last_offset = child_table.activation_record[-1][1].activation_offset
+                    last_offset = child_table.activation_record[-1][
+                        1
+                    ].activation_offset
                 for i in range(len(child_table.activation_record)):
-                    child_table.activation_record[i][1].activation_offset -= last_offset
+                    child_table.activation_record[i][
+                        1
+                    ].activation_offset -= last_offset
                 child_table.activation_offset = 0
-                for item in ["dynamic_link","return_address","static_link"]:
-                    child_table.insert_var(item,GoPointType(None)) 
+                for item in ["dynamic_link", "return_address", "static_link"]:
+                    child_table.insert_var(item, GoPointType(None))
                 table.methods[key]["body"] = child_table
 
             else:
@@ -1219,114 +1229,115 @@ def symbol_table(
                     )
             lhs_3ac = []
 
-            for var in lhs:
-                loc_lhs = ""
-                loc_rhs = ""
-                curr = var
-                ind_cnt = 0  # For counting indices
-                while True:
-                    should_break = True
-                    error = False
-                    if isinstance(curr, GoPrimaryExpr):
-                        if isinstance(curr.rhs, GoSelector):
-                            # No checking here; it is done ahead
-                            loc_rhs = "." + curr.rhs.child + loc_rhs
-                        elif isinstance(curr.rhs, GoIndex):
-                            index_name = "__index{}_{}".format(
-                                ind_cnt, depth_num
-                            )
-                            dtype, index_code = symbol_table(
-                                curr.rhs.index,
-                                table,
-                                name,
-                                block_type,
-                                store_var=index_name,
-                                scope_label=scope_label,
-                                depth_num=depth_num + 1,
-                            )
-                            table.insert_var(
-                                index_name, dtype, use="intermediate"
-                            )
-                            table.type_check(dtype, GoType("int", True))
-                            ir_code += index_code
-                            index_size = table.get_size(dtype)
-                            if index_size != 1:
-                                ir_code += "{} = {} * {}\n".format(
-                                    index_name, index_name, index_size
-                                )
-                            loc_rhs = (
-                                "[__index{}_{}]".format(ind_cnt, depth_num)
-                                + loc_rhs
-                            )
-                            ind_cnt += 1
-                        else:
-                            error = True
-                        curr = curr.lhs
-                        should_break = False
-                    elif isinstance(curr, GoExpression):
-                        error = True
-                    elif isinstance(curr, GoUnaryExpr):
-                        if curr.op == "*":
-                            if type(curr.expr) is str:
-                                if not isinstance(
-                                    table.get_type(curr.expr), GoPointType
-                                ):
-                                    raise GoException(
-                                        "Error: {} not pointer type".format(
-                                            curr.expr
-                                        )
-                                    )
-                                else:
-                                    loc_lhs += "*"
-                                curr = curr.expr
-                                should_break = False
-                            elif isinstance(curr.expr, GoUnaryExpr):
-                                loc_lhs += "*"
-                                curr = curr.expr
-                                should_break = False
+            def _get_loc(curr, ind_cnt=0):
+                nonlocal ir_code  # Use ir_code of `symbol_table`
+                error = False
 
-                        else:
-                            error = True
-                    elif isinstance(curr, GoFromModule):
+                if isinstance(curr, GoPrimaryExpr):
+                    if isinstance(curr.rhs, GoSelector):
                         # No checking here; it is done ahead
-                        parent_dtype = symbol_table(
-                            curr.parent,
+                        return (
+                            _get_loc(curr.lhs, ind_cnt) + "." + curr.rhs.child
+                        )
+                    elif isinstance(curr.rhs, GoIndex):
+                        index_name = "__index{}_{}".format(ind_cnt, depth_num)
+                        dtype, index_code = symbol_table(
+                            curr.rhs.index,
                             table,
                             name,
                             block_type,
+                            store_var=index_name,
                             scope_label=scope_label,
                             depth_num=depth_num + 1,
-                        )[0]
-                        if not isinstance(parent_dtype, GoStruct):
-                            if hasattr(curr.parent, "name"):
-                                parent_name = curr.parent.name
-                            else:
-                                parent_name = str(curr.parent)
-                            raise GoException(
-                                'Cannot access attribute "{}" as "{}" is not a struct'.format(
-                                    curr.child, parent_name
-                                )
+                        )
+                        table.insert_var(index_name, dtype, use="intermediate")
+                        table.type_check(dtype, GoType("int", True))
+                        ir_code += index_code
+                        lhs_dtype = symbol_table(curr.lhs, table)[0]
+                        index_size = table.get_size(lhs_dtype.dtype)
+                        if index_size != 1:
+                            ir_code += "{} = {} * {}\n".format(
+                                index_name, index_name, index_size
                             )
-                        child_index = table.field2index(
-                            parent_dtype, curr.child
-                        )
-                        loc_rhs = "[{}]".format(child_index) + loc_rhs
-                        curr = curr.parent
-                        should_break = False
-                    elif not table.lookup(curr):
+
+                        if isinstance(lhs_dtype.dtype, GoArray):
+                            # Multi-dimensional array
+                            lhs_name = "__index_lhs{}_{}".format(
+                                ind_cnt, depth_num
+                            )
+                            table.insert_var(
+                                lhs_name, lhs_dtype, "intermediate"
+                            )
+                            lhs_loc = _get_loc(curr.lhs, ind_cnt + 1)
+                            ir_code += "{} = {} + {}\n".format(
+                                lhs_name, lhs_loc, index_name
+                            )
+                            return lhs_name
+                        else:
+                            return _get_loc(
+                                curr.lhs, ind_cnt + 1
+                            ) + "[{}]".format(index_name)
+                    else:
+                        error = True
+                elif isinstance(curr, GoExpression):
+                    error = True
+                elif isinstance(curr, GoUnaryExpr):
+                    if curr.op == "*":
+                        if type(curr.expr) is str:
+                            if not isinstance(
+                                table.get_type(curr.expr), GoPointType
+                            ):
+                                raise GoException(
+                                    "Error: {} not pointer type".format(
+                                        curr.expr
+                                    )
+                                )
+                            else:
+                                return "*" + _get_loc(curr.expr, ind_cnt)
+                        elif isinstance(curr.expr, GoUnaryExpr):
+                            return "*" + _get_loc(curr.expr, ind_cnt)
+                            loc_lhs += "*"
+
+                    else:
+                        error = True
+                elif isinstance(curr, GoFromModule):
+                    # No checking here; it is done ahead
+                    parent_dtype = symbol_table(
+                        curr.parent,
+                        table,
+                        name,
+                        block_type,
+                        scope_label=scope_label,
+                        depth_num=depth_num + 1,
+                    )[0]
+                    if not isinstance(parent_dtype, GoStruct):
+                        if hasattr(curr.parent, "name"):
+                            parent_name = curr.parent.name
+                        else:
+                            parent_name = str(curr.parent)
                         raise GoException(
-                            'Error: "{}" not declared before use'.format(curr)
+                            'Cannot access attribute "{}" as "{}" is not a struct'.format(
+                                curr.child, parent_name
+                            )
                         )
-                    elif type(curr) is str:
-                        loc_lhs += curr
-                    if error:
-                        raise GoException(
-                            'Error: Expression "{}" cannot be assigned '
-                            "value".format(var)
-                        )
-                    if should_break:
-                        break
-                lhs_3ac.append(loc_lhs + loc_rhs)
+                    child_index = table.field2index(parent_dtype, curr.child)
+                    return _get_loc(curr.parent, ind_cnt) + "[{}]".format(
+                        child_index
+                    )
+                elif not table.lookup(curr):
+                    raise GoException(
+                        'Error: "{}" not declared before use'.format(curr)
+                    )
+                elif type(curr) is str:
+                    return curr
+                if error:
+                    raise GoException(
+                        'Error: Expression "{}" cannot be assigned '
+                        "value".format(var)
+                    )
+
+            for var in lhs:
+                lhs_3ac.append(_get_loc(var))
 
             if len(lhs) != len(rhs):
                 # Check if function return RHS is valid
@@ -1921,9 +1932,9 @@ def symbol_table(
                         )
                     elif not isinstance(table.get_type(lhs), GoArray):
                         raise GoException("Error: '{}' not array".format(lhs))
-                    elif tree.depth != table.get_type(lhs).depth:
+                    elif tree.depth > table.get_type(lhs).depth:
                         raise GoException(
-                            "Error: Incorect number of indexes in array '{}'".format(
+                            "Error: Incorrect number of indexes in array '{}'".format(
                                 lhs
                             )
                         )
@@ -1935,19 +1946,20 @@ def symbol_table(
                     # print(lhs,tree.dtype)
                     DTYPE = tree.dtype
 
+                lhs_name = "__indlhs_{}".format(depth_num)
                 if type(lhs) is not str:
                     lhs_dtype, lhs_code = symbol_table(
                         lhs,
                         table,
                         name,
                         block_type,
-                        store_var="__indlhs_{}".format(depth_num),
+                        store_var=lhs_name,
                         scope_label=scope_label,
                         depth_num=depth_num + 1,
                     )
                 else:
                     lhs_dtype = table.get_type(lhs)
-                    lhs_code = "__indlhs_{} = {}\n".format(depth_num, lhs)
+                    lhs_code = "{} = {}\n".format(lhs_name, lhs)
 
                 if isinstance(lhs, GoPrimaryExpr):
                     #     if isinstance(lhs.dtype,GoArray) and isinstance(lhs.dtype.dtype,GoArray)
@@ -1958,29 +1970,33 @@ def symbol_table(
                     # print("HERE")
 
                 ir_code += lhs_code
-                table.insert_var(
-                    "__indlhs_{}".format(depth_num),
-                    lhs_dtype,
-                    use="intermediate",
-                )
+                table.insert_var(lhs_name, lhs_dtype, use="intermediate")
+
+                rhs_name = "__indrhs_{}".format(depth_num)
                 rhs_dtype, rhs_code = symbol_table(
                     rhs,
                     table,
                     name,
                     block_type,
-                    store_var="__indrhs_{}".format(depth_num),
+                    store_var=rhs_name,
                     scope_label=scope_label,
                     depth_num=depth_num + 1,
                 )
                 ir_code += rhs_code
-                table.insert_var(
-                    "__indrhs_{}".format(depth_num),
-                    rhs_dtype,
-                    use="intermediate",
+                ir_code += "{} = {} * {}\n".format(
+                    rhs_name, rhs_name, table.get_size(lhs_dtype.dtype)
                 )
-                ir_code += "{} = __indlhs_{}[__indrhs_{}]\n".format(
-                    store_var, depth_num, depth_num, scope_label=scope_label
-                )
+                table.insert_var(rhs_name, rhs_dtype, use="intermediate")
+                if isinstance(lhs_dtype, GoArray) and isinstance(
+                    lhs_dtype.dtype, GoArray
+                ):
+                    ir_code += "{} = {} + {}\n".format(
+                        store_var, lhs_name, rhs_name, scope_label=scope_label
+                    )
+                else:
+                    ir_code += "{} = {}[{}]\n".format(
+                        store_var, lhs_name, rhs_name, scope_label=scope_label
+                    )
 
             elif isinstance(rhs, GoArguments):  # fuction call
                 argument_list = rhs.expr_list
@@ -2555,7 +2571,7 @@ def resolve_dtype(dtype):
 
 
 #  Interfaces
-def csv_writer(table, name, dir_name,activation = False):
+def csv_writer(table, name, dir_name, activation=False):
     if dir_name[-1] != "/":
         dir_name += "/"
 
@@ -2611,7 +2627,9 @@ def csv_writer(table, name, dir_name,activation = False):
         writer.writerow([])
         writer.writerow(["#ACTIVATION RECORD"])
         for item in table.activation_record:
-            writer.writerow([item[0],item[1].activation_offset, resolve_dtype(item[1])])       
+            writer.writerow(
+                [item[0], item[1].activation_offset, resolve_dtype(item[1])]
+            )
 
     if name == "global":
         writer.writerow([])
@@ -2652,7 +2670,9 @@ def csv_writer(table, name, dir_name,activation = False):
 
             row.append(param_string)
             row.append("{}.csv".format(func))
-            csv_writer(table.functions[func]["body"], func, dir_name,activation = True)
+            csv_writer(
+                table.functions[func]["body"], func, dir_name, activation=True
+            )
             results = table.functions[func]["result"]
             result_string = ""
             if results is not None:
@@ -2663,7 +2683,7 @@ def csv_writer(table, name, dir_name,activation = False):
                         resolve_dtype(results[len(results) - 1].dtype)
                     )
             row.append(result_string)
-            writer.writerow(row)    
+            writer.writerow(row)
 
         writer.writerow([])
         writer.writerow(["#METHODS"])
@@ -2688,7 +2708,12 @@ def csv_writer(table, name, dir_name,activation = False):
 
             row.append(param_string)
             row.append("{}_{}.csv".format(method[0], method[1]))
-            csv_writer(table.functions[method]["body"],"{}_{}".format(method[0], method[1]) , dir_name,activation = True)
+            csv_writer(
+                table.functions[method]["body"],
+                "{}_{}".format(method[0], method[1]),
+                dir_name,
+                activation=True,
+            )
             results = table.methods[method]["result"]
             result_string = ""
             if results is not None:

@@ -352,8 +352,9 @@ class SymbTable:
 
             if self.use == "function" or self.use == "method":
                 self.activation_record.append((name, dtype))
+                dtype_size = self.get_size(dtype)
                 dtype.activation_offset = (
-                    self.activation_offset - ceil(dtype.size / 4) * 4
+                    self.activation_offset - ceil(dtype_size / 4) * 4
                 )
                 self.activation_offset = dtype.activation_offset
 
@@ -374,7 +375,7 @@ class SymbTable:
                 except GoException:
                     pass
                 else:
-                    self.insert_struct(alias, obj,embed = False)
+                    self.insert_struct(alias, obj, embed=False)
                     return
 
                 # Check interfaces
@@ -389,7 +390,7 @@ class SymbTable:
                 obj = self.get_actual(actual.name)
                 if obj is not None:
                     if isinstance(obj, GoStruct):
-                        self.insert_struct(alias, obj,embed = False)
+                        self.insert_struct(alias, obj, embed=False)
                         return
                     elif isinstance(obj, GoInterfaceType):
                         self.insert_interface(alias, obj)
@@ -582,17 +583,17 @@ class SymbTable:
                 "Error: Already used constant name '{}'".format(name)
             )
 
-    def insert_struct(self, name, struct,embed = True):
+    def insert_struct(self, name, struct, embed=True):
         # print(struct.embeds)
         if name not in self.used:
             embeds = struct.embeds
-            #handles struct embeddings
-            if embed :
+            # handles struct embeddings
+            if embed:
                 for item in struct.embeds:
                     embed_obj = deepcopy(self.get_struct_obj(embeds[item]))
-                    struct.vars.insert(0,(item,GoVar(GoType(embeds[item]))))
+                    struct.vars.insert(0, (item, GoVar(GoType(embeds[item]))))
                     # struct.vars.insert(0,(item,GoVar(embed_obj)))
-            # print(name,list([(var[0],var[1].dtype) for var in struct.vars]))       
+            # print(name,list([(var[0],var[1].dtype) for var in struct.vars]))
             self.structures[name] = struct
             self.used.add(name)
         else:
@@ -2564,9 +2565,9 @@ def symbol_table(
 
             if len(results) is 0:
                 ir_code += "return \n"
-            else:    
+            else:
                 ir_code += "return {}\n".format(return_name)
-    
+
     except GoException as go_exp:
         if not hasattr(tree, "lineno"):
             raise GoException(go_exp)  # Will be handled by the caller
@@ -2621,12 +2622,7 @@ def csv_writer(table, name, dir_name, activation=False):
             elif isinstance(dtype, GoStruct):
                 row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
             elif isinstance(dtype, GoArray):
-                row = [
-                    var,
-                    resolve_dtype(dtype),
-                    dtype.size,
-                    dtype.offset,
-                ]
+                row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
             elif isinstance(dtype, GoPointType):
                 row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
             if row is not None:
@@ -2650,9 +2646,7 @@ def csv_writer(table, name, dir_name, activation=False):
         writer.writerow([])
         writer.writerow(["#ACTIVATION RECORD"])
         for item in table.activation_record:
-            writer.writerow(
-                [item[0], item[1].activation_offset, resolve_dtype(item[1])]
-            )
+            writer.writerow([item[0], item[1].activation_offset])
 
     if name == "global":
         writer.writerow([])

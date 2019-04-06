@@ -1199,7 +1199,7 @@ def symbol_table(
                     ].activation_offset -= last_offset
                 child_table.activation_offset = 0
                 for item in ["dynamic_link", "return_address", "static_link"]:
-                    child_table.insert_var(item, GoPointType(None))
+                    child_table.insert_var(item, GoPointType(None))  
                 table.methods[key]["body"] = child_table
 
             else:
@@ -1510,7 +1510,10 @@ def symbol_table(
             check = True
             for expr in expr_list:
                 if isinstance(expr, GoPrimaryExpr) and isinstance(expr.rhs, GoArguments):
-                    length = len(table.get_func(expr.lhs,"result")[0])
+                    if type(expr.lhs) is str:    
+                        length = len(table.get_func(expr.lhs,"result")[0])
+                    else:
+                        break    
                     if length > 1:
                         check = False
                     elif length == 0:
@@ -2800,7 +2803,7 @@ def csv_writer(table, name, dir_name, activation=False):
             row.append(param_string)
             row.append("{}_{}.csv".format(method[0], method[1]))
             csv_writer(
-                table.functions[method]["body"],
+                table.methods[method]["body"],
                 "{}_{}".format(method[0], method[1]),
                 dir_name,
                 activation=True,

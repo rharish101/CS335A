@@ -1401,24 +1401,24 @@ def symbol_table(
                         depth = 0
                         indexes = []
                         while isinstance(left.lhs, GoPrimaryExpr):
-                            if isinstance(left.rhs, GoBasicLit):
+                            if isinstance(left.rhs.index, GoBasicLit):
                                 indexes.append(left.rhs.index.item)
                             else:
                                 indexes.append(0)
                             left = left.lhs
                             depth = depth + 1
-                        if isinstance(left.rhs, GoBasicLit):
+                        if isinstance(left.rhs.index, GoBasicLit):
                             indexes.append(left.rhs.index.item)
                         else:
                             indexes.append(0)
 
                         dtype1 = table.get_type(left.lhs)
-                        if dtype1.length.item <= indexes[len(indexes) - 1]:
+                        if dtype1.length.item <= indexes[len(indexes) - 1] or indexes[len(indexes) - 1] < 0:
                             raise GoException("Error : Index Out of bound")
                         indexes.pop()
                         dtype1 = dtype1.dtype
                         while depth > 0:
-                            if dtype1.length.item <= indexes[len(indexes) - 1]:
+                            if dtype1.length.item <= indexes[len(indexes) - 1] or indexes[len(indexes) - 1] < 0:
                                 raise GoException("Error : Index Out of bound")
                             indexes.pop()
                             dtype1 = dtype1.dtype
@@ -1485,7 +1485,6 @@ def symbol_table(
                     if dtype1 is None:
                         print("Warning: Getting None dtype in Assignment")
                     # NEW END
-
                     dtype2, rhs_code = symbol_table(
                         expr,
                         table,
@@ -2001,6 +2000,33 @@ def symbol_table(
                     #     tree.dtype = (table.get_type(lhs)).final_type
                     # print(lhs,tree.dtype)
                     DTYPE = tree.dtype
+
+                left = tree
+                depth = 0
+                indexes = []
+                while isinstance(left.lhs, GoPrimaryExpr):
+                    if isinstance(left.rhs.index, GoBasicLit):
+                        indexes.append(left.rhs.index.item)
+                    else:
+                        indexes.append(0)
+                    left = left.lhs
+                    depth = depth + 1
+                if isinstance(left.rhs.index, GoBasicLit):
+                    indexes.append(left.rhs.index.item)
+                else:
+                    indexes.append(0)
+
+                dtype1 = table.get_type(left.lhs)
+                if dtype1.length.item <= indexes[len(indexes) - 1] or indexes[len(indexes) - 1] < 0:
+                    raise GoException("Error : Index Out of bound")
+                indexes.pop()
+                dtype1 = dtype1.dtype
+                while depth > 0:
+                    if dtype1.length.item <= indexes[len(indexes) - 1] or indexes[len(indexes) - 1] < 0:
+                        raise GoException("Error : Index Out of bound")
+                    indexes.pop()
+                    dtype1 = dtype1.dtype
+                    depth = depth - 1
 
                 lhs_name = "__indlhs_{}".format(inter_count)
                 if type(lhs) is not str:

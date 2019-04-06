@@ -1494,12 +1494,16 @@ def symbol_table(
                         scope_label=scope_label,
                     )
                     ir_code += rhs_code
-
                     if type(dtype2) is list:
-                        raise GoException(
-                            "Function with multiple returns not applicable in "
-                            "single return context"
-                        )
+                        if len(dtype2) ==0:
+                            raise GoException(
+                                "Function with no return value cannot be used in assignement"
+                            )
+                        else:
+                            raise GoException(
+                                "Function with multiple returns not applicable in "
+                                "single return context"
+                            )
                     table.type_check(dtype1, dtype2, "assignment")
 
                     DTYPE = None
@@ -1513,7 +1517,7 @@ def symbol_table(
                     if type(expr.lhs) is str:    
                         length = len(table.get_func(expr.lhs,"result")[0])
                     else:
-                        break    
+                        continue    
                     if length > 1:
                         check = False
                     elif length == 0:

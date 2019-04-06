@@ -40,11 +40,11 @@ func temp(x int, y int){
 	gu := help{"vishwas"}
 	r := person{info1{"info"},gu, 2}
 	struct_array := [1][2]person{{r, r}}
-	harish := &struct_array[1][2]
+	harish := &struct_array[0][1]
 	deref := *harish
 	item := deref.name
 	item1 := deref.info1.info
-	name1 := struct_array[1][2].name
+	name1 := struct_array[0][1].name
 
 	//inline structs
 		emp3 := struct {

@@ -650,6 +650,13 @@ class SymbTable:
             index += self.get_size(struct_field[1].dtype)
         return index
 
+    def position2index(self, struct, index):
+        count = 0
+        for i,struct_field in enumerate(struct.vars):
+            if index == i:
+                return count 
+            count += self.get_size(struct_field[1].dtype)        
+
     def type_check(
         self, dtype1, dtype2, use="", use_name=None, param_name=None
     ):
@@ -2497,7 +2504,6 @@ def symbol_table(
                 type_list = []
                 type_dict = {}
                 unnamed_keys = True
-                field_index = 0
                 for i, field in enumerate(field_list):
                     field.use = "struct"
                     if field.key is not None:
@@ -2510,7 +2516,9 @@ def symbol_table(
                             "Error: Cannot mix named and unnamed keys"
                         )
                     else:
-                        field_name = store_var + "[{}]".format(field_index)
+                        field_name = store_var + "[{}]".format(
+                        	table.position2index(struct_obj, i)
+                        )
 
                     field_type, elem_code = symbol_table(
                         field,
@@ -2520,7 +2528,6 @@ def symbol_table(
                         store_var=field_name,
                         scope_label=scope_label,
                     )
-                    field_index += table.get_size(field)
                     type_list.append(field_type)
                     if field.key is not None:
                         type_dict[field.key] = field_type

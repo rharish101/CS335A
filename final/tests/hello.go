@@ -77,7 +77,7 @@ func loop(){
 
 		// infinte loop
 		for(;;){
-			
+
 		}
 }
 
@@ -89,7 +89,7 @@ func temp(x int, y int) {
 	gu := help{"vishwas"}
 	r := person{info{"info"},gu, 2}
 	struct_array := [1][2]person{{r, r}}
-	harish := struct_array[1][2]
+	harish := struct_array[0][1]
 	item := harish.name
 
 	f := [3]int{1, 2, 3}

@@ -27,3 +27,8 @@ milestone_3/src/parser.out
 milestone_3/src/parsetab.py
 milestone_3/src/*/*.csv
 milestone_3/src/*/*.txt
+
+milestone_final/src/parser.out
+milestone_final/src/parsetab.py
+milestone_final/src/*/*.csv
+milestone_final/src/*/*.txt

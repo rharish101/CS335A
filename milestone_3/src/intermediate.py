@@ -31,7 +31,6 @@ class SymbTable:
 
     def __init__(self, parent=None, use=None):
         """Initialize data dictionaries containing information.
-
         The kinds of information stored are:
             * Variables (dict of `GoVar`): Their types
             * Intermediates (dict of `GoVar`): Intermediate 3AC variables
@@ -354,7 +353,9 @@ class SymbTable:
 
             self.used.add(name)
         elif use == "intermediate":
-            print('Warning: Already declared "{}" name "{}"'.format(use, name))
+            print(
+                'Warning: Already declared "{}" name "{}"'.format(use, name)
+            )          
         else:
             raise GoException(
                 'Error: Already declared "{}" name "{}"'.format(use, name)
@@ -648,13 +649,6 @@ class SymbTable:
             index += self.get_size(struct_field[1].dtype)
         return index
 
-    def position2index(self, struct, index):
-        count = 0
-        for i, struct_field in enumerate(struct.vars):
-            if index == i:
-                return count
-            count += self.get_size(struct_field[1].dtype)
-
     def type_check(
         self, dtype1, dtype2, use="", use_name=None, param_name=None
     ):
@@ -777,10 +771,8 @@ def symbol_table(
     store_var="",
     scope_label="",
     insert=False,
-    start=0,
 ):
     """Do DFS to traverse the parse tree, construct symbol tables, 3AC.
-
     Args:
         tree: The object representing the current node
         table (`SymbTable`): The symbol table to be written to
@@ -800,7 +792,7 @@ def symbol_table(
 
     logging.info(tree)
 
-    def string_handler(item, dtype, store_loc, start=0):
+    def string_handler(item, dtype, store_loc):
         """Handle storing of an "str" item of given dtype into store_loc."""
         global inter_count
         inter_count += 1
@@ -834,7 +826,6 @@ def symbol_table(
                 field_index += table.get_size(govar.dtype)
         elif hasattr(dtype, "name") and dtype.name == "string":
             index_name = "__str_ind_{}".format(inter_count)
-            index_left_name = "__str_ind_left_{}".format(inter_count)
             cond_name = "__str_cond_{}".format(inter_count)
             table.insert_var(index_name, GoType("uint"), "intermediate")
             table.insert_var(cond_name, GoType("bool"), "intermediate")
@@ -843,23 +834,17 @@ def symbol_table(
             endwhile_label = "StrEnd{}".format(inter_count)
 
             local_ir += "{} = 0\n".format(index_name)
-            local_ir += "{} = {} + {}\n".format(
-                index_left_name, index_name, start
-            )
             local_ir += '{}: {} = {}[{}] == "\\0"\n'.format(
                 while_label, cond_name, item, index_name
             )
             local_ir += "if {} goto {}\n".format(cond_name, endwhile_label)
             local_ir += "{}[{}] = {}[{}]\n".format(
-                store_loc, index_left_name, item, index_name
+                store_loc, index_name, item, index_name
             )
-            local_ir += "{} = {} + 1\n".format(index_name, index_name)
-            local_ir += "{} = {} + 1\n".format(
-                index_left_name, index_left_name
-            )
+            local_ir += "{} = {} + 1\n".format(cond_name, cond_name)
             local_ir += "goto {}\n".format(while_label)
             local_ir += '{}: {}[{}] = "\\0"\n'.format(
-                endwhile_label, store_loc, index_left_name
+                endwhile_label, store_loc, index_name
             )
         else:
             local_ir += "{} = {}\n".format(store_loc, item)
@@ -871,7 +856,7 @@ def symbol_table(
     if type(tree) is str:  # variable
         logging.info("STR: '{}'".format(tree))
         DTYPE = table.get_type(tree)
-        ir_code += string_handler(tree, DTYPE, store_var, start=start)
+        ir_code += string_handler(tree, DTYPE, store_var)
 
     # Trying to catch GoException raised by SymbTable's methods
     try:
@@ -881,11 +866,9 @@ def symbol_table(
                 ir_code = str(tree.item)
             elif hasattr(tree.dtype, "name") and tree.dtype.name == "string":
                 for i, char in enumerate(tree.item[1:-1]):
-                    ir_code += '{}[{}] = "{}"\n'.format(
-                        store_var, i + start, char
-                    )
+                    ir_code += '{}[{}] = "{}"\n'.format(store_var, i, char)
                 ir_code += '{}[{}] = "\\0"\n'.format(
-                    store_var, len(tree.item) - 2 + start
+                    store_var, len(tree.item) - 2
                 )
             else:
                 ir_code = "{} = {}\n".format(store_var, tree.item)
@@ -1010,7 +993,9 @@ def symbol_table(
                             scope_label=scope_label,
                         )
                         table.insert_var(
-                            decl_name, expr_dtype, use="intermediate"
+                            decl_name,
+                            expr_dtype,
+                            use="intermediate",
                         )
                         inter_names.append(decl_name)
                         ir_code += expr_code
@@ -1019,7 +1004,9 @@ def symbol_table(
                         for i, (var, eval_type) in enumerate(
                             zip(lhs, evaluated_types)
                         ):
-                            ir_code += "{} = {}\n".format(var, inter_names[i])
+                            ir_code += "{} = {}\n".format(
+                                var, inter_names[i]
+                            )
                             if dtype is not None:
                                 # If defined type is not None then check if the
                                 # evaluated type is same as the defined type
@@ -1131,7 +1118,9 @@ def symbol_table(
                         )
                         inter_names.append(const_name)
                         table.insert_var(
-                            const_name, expr_dtype, use="intermediate"
+                            const_name,
+                            expr_dtype,
+                            use="intermediate",
                         )
                         ir_code += expr_code
                         evaluated_types.append(expr_dtype)
@@ -1187,9 +1176,9 @@ def symbol_table(
                 key = (name[0], name[1].dtype.name)
                 for param in table.methods[key]["params"]:
                     if param.name:
-                        child_table.insert_var(param.name, param.dtype)
+                        child_table.insert_var(param.name, dtype)
 
-                struct_obj = table.get_struct_obj(name[1].dtype.name)
+                struct_obj = GoStruct([])
                 struct_obj.name = name[1].dtype.name
                 struct_obj.size = table.struct_size(name[1].dtype.name)
                 logging.info("STRUCT METHOD SIZE {}".format(struct_obj.size))
@@ -1406,30 +1395,24 @@ def symbol_table(
                         depth = 0
                         indexes = []
                         while isinstance(left.lhs, GoPrimaryExpr):
-                            if isinstance(left.rhs.index, GoBasicLit):
+                            if isinstance(left.rhs, GoBasicLit):
                                 indexes.append(left.rhs.index.item)
                             else:
                                 indexes.append(0)
                             left = left.lhs
                             depth = depth + 1
-                        if isinstance(left.rhs.index, GoBasicLit):
+                        if isinstance(left.rhs, GoBasicLit):
                             indexes.append(left.rhs.index.item)
                         else:
                             indexes.append(0)
 
                         dtype1 = table.get_type(left.lhs)
-                        if (
-                            dtype1.length.item <= indexes[len(indexes) - 1]
-                            or indexes[len(indexes) - 1] < 0
-                        ):
+                        if dtype1.length.item <= indexes[len(indexes) - 1]:
                             raise GoException("Error : Index Out of bound")
                         indexes.pop()
                         dtype1 = dtype1.dtype
                         while depth > 0:
-                            if (
-                                dtype1.length.item <= indexes[len(indexes) - 1]
-                                or indexes[len(indexes) - 1] < 0
-                            ):
+                            if dtype1.length.item <= indexes[len(indexes) - 1]:
                                 raise GoException("Error : Index Out of bound")
                             indexes.pop()
                             dtype1 = dtype1.dtype
@@ -1496,6 +1479,7 @@ def symbol_table(
                     if dtype1 is None:
                         print("Warning: Getting None dtype in Assignment")
                     # NEW END
+
                     dtype2, rhs_code = symbol_table(
                         expr,
                         table,
@@ -1505,16 +1489,12 @@ def symbol_table(
                         scope_label=scope_label,
                     )
                     ir_code += rhs_code
+
                     if type(dtype2) is list:
-                        if len(dtype2) == 0:
-                            raise GoException(
-                                "Function with no return value cannot be used in assignement"
-                            )
-                        else:
-                            raise GoException(
-                                "Function with multiple returns not applicable in "
-                                "single return context"
-                            )
+                        raise GoException(
+                            "Function with multiple returns not applicable in "
+                            "single return context"
+                        )
                     table.type_check(dtype1, dtype2, "assignment")
 
                     DTYPE = None
@@ -1524,22 +1504,13 @@ def symbol_table(
             expr_list = tree.expr_list
             check = True
             for expr in expr_list:
-                if isinstance(expr, GoPrimaryExpr) and isinstance(
-                    expr.rhs, GoArguments
-                ):
-                    if type(expr.lhs) is str:
-                        length = len(table.get_func(expr.lhs, "result")[0])
-                    else:
-                        continue
+                if isinstance(expr, GoPrimaryExpr) and isinstance(expr.rhs, GoArguments):
+                    length = len(table.get_func(expr.lhs,"result")[0])
                     if length > 1:
                         check = False
                     elif length == 0:
-                        raise GoException(
-                            "SyntaxError: Void function {} used as value".format(
-                                expr.lhs
-                            )
-                        )
-
+                        raise GoException("SyntaxError: Void function {} used as value".format(expr.lhs))
+        
             if check == True:
                 if len(id_list) != len(expr_list):
                     raise GoException(
@@ -1549,13 +1520,9 @@ def symbol_table(
             else:
                 if len(expr_list) > 1:
                     raise GoException(
-                        "Error: multiple-value function {} used in single-value context".format(
-                            expr.lhs
-                        )
+                        "Error: multiple-value function {} used in single-value context".format(expr.lhs)
                     )
-                elif len(id_list) != len(
-                    table.get_func(expr.lhs, "result")[0]
-                ):
+                elif len(id_list) != len(table.get_func(expr.lhs,"result")[0]):
                     raise GoException(
                         "Error: Different number of variables and values in short declaration"
                     )
@@ -1571,11 +1538,9 @@ def symbol_table(
                     for child in var:
                         if type(child) is not str:
                             raise GoException(
-                                "SyntaxError: LHS '{}' is not a variable".format(
-                                    var
-                                )
+                                "SyntaxError: LHS '{}' is not a variable".format(var)
                             )
-
+            
             for var, expr in zip(id_list, expr_list):
                 logging.info('short decl: "{}" : "{}"'.format(var, expr))
                 dtype, rhs_code = symbol_table(
@@ -1592,7 +1557,7 @@ def symbol_table(
                 if type(var) is str:
                     table.insert_var(var, dtype)
                 else:
-                    for child1, child2 in zip(var, dtype):
+                    for child1,child2 in zip(var,dtype):
                         table.insert_var(child1, child2)
 
             DTYPE = None
@@ -1614,7 +1579,9 @@ def symbol_table(
                 store_var=lhs_name,
                 scope_label=scope_label,
             )
-            table.insert_var(lhs_name, dtype1, use="intermediate")
+            table.insert_var(
+                lhs_name, dtype1, use="intermediate"
+            )
             rhs_name = "__rhs_{}".format(inter_count)
             dtype2, rhs_code = symbol_table(
                 rhs,
@@ -1624,28 +1591,13 @@ def symbol_table(
                 store_var=rhs_name,
                 scope_label=scope_label,
             )
-            if dtype1.name == "string" and dtype2.name == "string":
-                length = len(dtype1.value) - 2
-                # print(length)
-                dtype2, rhs_code = symbol_table(
-                    rhs,
-                    table,
-                    name,
-                    block_type,
-                    store_var=lhs_name,
-                    scope_label=scope_label,
-                    start=length,
-                )
-
-            table.insert_var(rhs_name, dtype1, use="intermediate")
+            table.insert_var(
+                rhs_name, dtype1, use="intermediate"
+            )
             ir_code += lhs_code + rhs_code
-
-            if dtype1.name == "string" and dtype2.name == "string":
-                ir_code += "{} = {}\n".format(store_var, lhs_name)
-            else:
-                ir_code += "{} = {} {} {}\n".format(
-                    store_var, lhs_name, op, rhs_name
-                )
+            ir_code += "{} = {} {} {}\n".format(
+                store_var, lhs_name, op, rhs_name
+            )
 
             logging.info('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
 
@@ -1729,7 +1681,9 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += cond_code
-            table.insert_var(cond_name, cond_dtype, use="intermediate")
+            table.insert_var(
+                cond_name, cond_dtype, use="intermediate"
+            )
 
             # Choosing the labels
             if_label = "If{}".format(inter_count)
@@ -1763,7 +1717,6 @@ def symbol_table(
             DTYPE = None
 
         elif isinstance(tree, GoFor):
-            new_table = SymbTable(table)
             logging.info("Entered GoFor")
             cond_label = "ForCond{}".format(inter_count)
             for_label = "For{}".format(inter_count)
@@ -1802,7 +1755,7 @@ def symbol_table(
 
                 ir_code += symbol_table(
                     tree.clause.init,
-                    new_table,
+                    table,
                     name,
                     block_type,
                     scope_label=scope_label,
@@ -1811,7 +1764,7 @@ def symbol_table(
                 fcond_name = "__fcond_{}".format(inter_count)
                 fcond_dtype, fcond_code = symbol_table(
                     tree.clause.expr,
-                    new_table,
+                    table,
                     name,
                     block_type,
                     store_var=fcond_name,
@@ -1819,8 +1772,10 @@ def symbol_table(
                 )
                 ir_code += fcond_code
                 if tree.clause.expr is not None:
-                    new_table.insert_var(
-                        fcond_name, fcond_dtype, use="intermediate"
+                    table.insert_var(
+                        fcond_name,
+                        fcond_dtype,
+                        use="intermediate",
                     )
                     ir_code += "if {} goto {}\ngoto {}\n{}: ".format(
                         fcond_name, for_label, endfor_label, for_label
@@ -1831,7 +1786,7 @@ def symbol_table(
                     )
                 post_code = symbol_table(
                     tree.clause.post,
-                    new_table,
+                    table,
                     name,
                     block_type,
                     scope_label=scope_label,
@@ -1849,15 +1804,13 @@ def symbol_table(
 
             ir_code += symbol_table(
                 tree.infor,
-                new_table,
+                table,
                 name,
                 block_type,
                 scope_label="{}|{}".format(endfor_label, postfor_label),
             )[1]
             ir_code += "{}: ".format(postfor_label) + post_code
             ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
-
-            table.scopes.append(new_table)
 
         elif isinstance(tree, GoSwitch):
             new_table = SymbTable(table)
@@ -2021,39 +1974,6 @@ def symbol_table(
                     # print(lhs,tree.dtype)
                     DTYPE = tree.dtype
 
-                left = tree
-                depth = 0
-                indexes = []
-                while isinstance(left.lhs, GoPrimaryExpr):
-                    if isinstance(left.rhs.index, GoBasicLit):
-                        indexes.append(left.rhs.index.item)
-                    else:
-                        indexes.append(0)
-                    left = left.lhs
-                    depth = depth + 1
-                if isinstance(left.rhs.index, GoBasicLit):
-                    indexes.append(left.rhs.index.item)
-                else:
-                    indexes.append(0)
-
-                dtype1 = table.get_type(left.lhs)
-                if (
-                    dtype1.length.item <= indexes[len(indexes) - 1]
-                    or indexes[len(indexes) - 1] < 0
-                ):
-                    raise GoException("Error : Index Out of bound")
-                indexes.pop()
-                dtype1 = dtype1.dtype
-                while depth > 0:
-                    if (
-                        dtype1.length.item <= indexes[len(indexes) - 1]
-                        or indexes[len(indexes) - 1] < 0
-                    ):
-                        raise GoException("Error : Index Out of bound")
-                    indexes.pop()
-                    dtype1 = dtype1.dtype
-                    depth = depth - 1
-
                 lhs_name = "__indlhs_{}".format(inter_count)
                 if type(lhs) is not str:
                     lhs_dtype, lhs_code = symbol_table(
@@ -2179,7 +2099,11 @@ def symbol_table(
                         scope_label=scope_label,
                     )
                     ir_code += arg_code
-                    table.insert_var(arg_name, arg_dtype, use="intermediate")
+                    table.insert_var(
+                        arg_name,
+                        arg_dtype,
+                        use="intermediate",
+                    )
                     inter_names.append(arg_name)
                     table.type_check(
                         param.dtype,
@@ -2227,9 +2151,8 @@ def symbol_table(
                             ir_code += "{} = temp_var[{}]\n".format(
                                 child, count
                             )
-                            count += table.get_size(
-                                table.get_func(tree.lhs, "result")[0][i].dtype
-                            )
+                            count += table.get_size(table.get_func(tree.lhs,"result")[0][i].dtype)
+
 
             elif isinstance(rhs, GoSelector):
                 child = rhs.child
@@ -2513,6 +2436,7 @@ def symbol_table(
                 type_list = []
                 type_dict = {}
                 unnamed_keys = True
+                field_index = 0
                 for i, field in enumerate(field_list):
                     field.use = "struct"
                     if field.key is not None:
@@ -2525,9 +2449,7 @@ def symbol_table(
                             "Error: Cannot mix named and unnamed keys"
                         )
                     else:
-                        field_name = store_var + "[{}]".format(
-                            table.position2index(struct_obj, i)
-                        )
+                        field_name = store_var + "[{}]".format(field_index)
 
                     field_type, elem_code = symbol_table(
                         field,
@@ -2537,6 +2459,7 @@ def symbol_table(
                         store_var=field_name,
                         scope_label=scope_label,
                     )
+                    field_index += table.get_size(field)
                     type_list.append(field_type)
                     if field.key is not None:
                         type_dict[field.key] = field_type
@@ -2570,8 +2493,12 @@ def symbol_table(
                 scope_label=scope_label,
             )
             ir_code += opd_code
-            table.insert_var(opd_name, opd_dtype, use="intermediate")
-            ir_code += "{} = {}{}\n".format(store_var, tree.op, opd_name)
+            table.insert_var(
+                opd_name, opd_dtype, use="intermediate"
+            )
+            ir_code += "{} = {}{}\n".format(
+                store_var, tree.op, opd_name
+            )
 
             if tree.op == "&" or tree.op == "*":
                 if tree.op == "&":
@@ -2819,7 +2746,7 @@ def csv_writer(table, name, dir_name, activation=False):
             row.append(param_string)
             row.append("{}_{}.csv".format(method[0], method[1]))
             csv_writer(
-                table.methods[method]["body"],
+                table.functions[method]["body"],
                 "{}_{}".format(method[0], method[1]),
                 dir_name,
                 activation=True,

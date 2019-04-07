@@ -1,1506 +1,2847 @@
-"""Parser for Go."""
-from ply import yacc
-from lexer import tokens, lexer, t_error, go_traceback
+#!/usr/bin/env python3
+"""IR generation for Go."""
+from lexer import lexer
+from parser import parser
 from go_classes import *
-
-precedence = (
-    ("left", "LSQBRACK"),
-    ("left", "RSQBRACK"),
-    ("left", "LCURLBR"),
-    ("left", "RCURLBR"),
-    ("left", "LBRACK"),
-    ("left", "RBRACK"),
-    ("left", "ID"),
-    ("left", "SHDECL"),
-    ("left", "COMMA"),
-    ("left", "TRIDOT"),
-    ("left", "DOT"),
-    ("left", "SEMICOLON"),
-    ("left", "COLON"),
-    ("left", "NEWLINES"),
-    ("left", "BREAK"),
-    ("left", "CONTINUE"),
-    ("left", "RETURN"),
-    ("left", "INT"),
-    ("left", "FLOAT"),
-    ("left", "STRING"),
-    ("left", "LOGAND"),
-    ("left", "LOGOR"),
-    ("left", "EQUALS", "NOTEQ"),
-    ("left", "BITOR"),
-    ("left", "BITXOR"),
-    ("left", "BITAND", "BITCLR"),
-    ("left", "LESS", "LESSEQ", "GREAT", "GREATEQ"),
-    ("left", "LSHIFT", "RSHIFT"),
-    ("left", "PLUS", "MINUS"),
-    ("left", "MULT", "DIV", "MODULO"),
-)
-
-# =============================================================================
-# BASIC
-# =============================================================================
+from argparse import ArgumentParser
+from copy import deepcopy
+import csv
+import subprocess
+import os
+import logging
+import re
+from math import ceil
 
 
-def p_start(p):
-    "start : SourceFile"
-    p[0] = p[1]
+class GoException(Exception):
+    """Simply for catching errors in the source code."""
+
+    pass
 
 
-def p_empty(p):
-    "empty :"
+def go_traceback(tree):
+    """Print traceback for the custom error message."""
+    print("Traceback (for Go source code):")
+    print(" " * 2 + 'File "{}", line {}'.format(lexer.filename, tree.lineno))
+    print(" " * 4 + lexer.lines[tree.lineno - 1])
 
 
-def p_error(p):
-    t_error(p)
+class SymbTable:
+    """The class for all symbol tables."""
 
+    def __init__(self, parent=None, use=None):
+        """Initialize data dictionaries containing information.
+        The kinds of information stored are:
+            * Variables (dict of `GoVar`): Their types
+            * Intermediates (dict of `GoVar`): Intermediate 3AC variables
+            * Structures (dict of `GoStruct`): The variables, their types and
+                their tags
+            * Interfaces (dict of `GoInterfaceType`): The methods in the
+                interfaces and their info
+            * Functions (dict): Their params, return types, and their own
+                symbol table as a dict
+            * Methods (dict): Their params, return types, and their own symbol
+                table as a dict for each struct on which they're used. Indexing
+                is done by a tuple of (name, receiver).
+            * Scopes (list of `SymbTable`): A list of the scope, using children
+                symbol tables
+            * Aliases (dict of `GoBaseType`): A dictionary of aliases (NOTE:
+                Aliases have a reference to another type, while typedefs have a
+                copy)
+            * Basic Types (dict of dict): A dictionary of basic types
+                (including typedefs) with their sizes and kind
+                (integer/float/complex/other)
+            * Used (set of str): Set of used variable/alias/const names
+            * Constants (dict of GoConstants) : Their types
+            * Imports (dict of `GoImportSpec`): The imports and their aliases
+            * Parent (`SymbTable`): The reference to the parent scope (if it
+                exists)
+        """
+        self.variables = {}
+        self.intermediates = {}
+        self.structures = {}
+        self.interfaces = {}
+        self.functions = {}
+        self.methods = {}
+        self.scopes = []
+        self.aliases = {}
+        self.used = set()
+        self.constants = {}
+        self.imports = {}
+        self.parent = parent
+        self.use = None
 
-def adjust_lineno(line_num):
-    while lexer.lines[line_num - 1].strip() == "" or lexer.lines[
-        line_num - 1
-    ].strip().startswith("//"):
-        line_num -= 1
-    return line_num
-
-
-# =============================================================================
-# TYPES
-# =============================================================================
-
-
-def p_Type(p):
-    """Type : TypeLit
-            | LBRACK ID RBRACK
-            | LBRACK Type RBRACK
-            | LBRACK ID DOT ID RBRACK
-    """
-    if len(p) == 2:  # TypeLit
-        p[0] = p[1]
-    elif len(p) == 4:  # Type or ID
-        if isinstance(p[2], GoBaseType):  # Type
-            p[0] = p[2]
-        else:  # ID
-            p[0] = GoType(p[2])
-    else:  # ID DOT ID
-        p[0] = GoFromModule(p[2], p[4])
-        p[0].lineno = adjust_lineno(p.slice[2].lineno)
-
-
-def p_TypeLit(p):
-    """TypeLit : LiteralType
-               | InterfaceType
-               | PointerType
-               | FunctionType
-    """
-    p[0] = p[1]
-
-
-def p_ArrayType(p):
-    """ArrayType : LSQBRACK ArrayLength RSQBRACK Type
-                 | LSQBRACK ArrayLength RSQBRACK ID DOT ID
-                 | LSQBRACK ArrayLength RSQBRACK ID
-                 | LSQBRACK RSQBRACK Type
-                 | LSQBRACK RSQBRACK ID DOT ID
-                 | LSQBRACK RSQBRACK ID
-    """
-    if len(p) == 5:  # Type or ID
-        if isinstance(p[4], GoBaseType):  # Type
-            arr_type = p[4]
-        else:  # ID
-            arr_type = GoType(p[4])
-        length = p[2]
-    elif len(p) == 7:  # ID DOT ID
-        arr_type = GoFromModule(p[4], p[6])
-        arr_type.lineno = adjust_lineno(p.slice[4].lineno)
-        length = p[2]
-    elif len(p) == 4:
-        if isinstance(p[3], GoBaseType):  # Type
-            arr_type = p[3]
-        else:  # ID
-            arr_type = GoType(p[3])
-        length = "variable"
-    else:
-        arr_type = GoFromModule(p[3], p[5])
-        arr_type.lineno = adjust_lineno(p.slice[3].lineno)
-        length = "variable"
-
-    p[0] = GoArray(length, arr_type)
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_ArrayLength(p):
-    """ArrayLength : Expression
-    """
-    p[0] = p[1]
-
-
-def p_StructType(p):
-    """StructType : STRUCT LCURLBR FieldDeclList RCURLBR
-    """
-    try:
-        p[0] = GoStruct(p[3])
-        p[0].lineno = adjust_lineno(p.slice[1].lineno)
-    except ValueError as msg:
-        position = go_traceback(p.slice[1])
-        print("{} at position {}".format(msg, position))
-        exit(1)
-
-
-def p_FieldDecl(p):
-    """FieldDecl : IdentifierList Type TagTop
-                 | IdentifierList ID DOT ID TagTop
-                 | IdentifierList ID TagTop
-                 | ID Type TagTop
-                 | ID ID DOT ID TagTop
-                 | ID ID TagTop
-                 | MULT ID DOT ID TagTop
-                 | ID DOT ID TagTop
-                 | MULT ID TagTop
-                 | ID TagTop
-    """
-    tag = p[len(p) - 1]
-
-    # Explicit field
-    if len(p) in (4, 6):
-        if len(p) == 4:
-            if isinstance(p[2], GoBaseType):  # Type
-                field_type = p[2]
-            else:  # ID
-                field_type = GoType(p[2])
-        else:  # ID DOT ID
-            field_type = GoFromModule(p[2], p[4])
-            field_type.lineno = adjust_lineno(p.slice[2].lineno)
-        if type(p[1]) is list:
-            var_list = p[1]
+        if parent is not None:
+            self.inline_count = parent.inline_count
         else:
-            var_list = [p[1]]
-
-    # Embedded field
-    else:
-        field_type = GoBaseType("embedded")
-        if len(p) == 6:
-            var_list = [GoDeref(GoFromModule(p[2], p[4]))]
-            var_list[0].var.lineno = adjust_lineno(p.slice[2].lineno)
-        elif len(p) == 5:
-            var_list = [GoFromModule(p[1], p[3])]
-            var_list[0].lineno = adjust_lineno(p.slice[1].lineno)
-        elif len(p) == 4:
-            var_list = [GoDeref(p[2])]
-        else:
-            var_list = [p[1]]
-
-    p[0] = GoStructField(var_list, field_type, tag)
-
-
-def p_FieldDeclList(p):
-    """FieldDeclList : empty
-                     | FieldDeclList FieldDecl SEMICOLON
-    """
-    if p[1] is None:  # empty
-        p[0] = []
-    else:
-        p[0] = p[1] + [p[2]]
-
-
-def p_TagTop(p):
-    """TagTop : empty
-              | STRING
-    """
-    if p[1] is None:  # empty
-        p[0] = ""
-    else:
-        p[0] = p[1]
-
-
-def p_PointerType(p):
-    """PointerType : MULT Type
-                   | MULT ID DOT ID
-                   | MULT ID
-    """
-    if isinstance(p[2], GoBaseType):  # Type
-        point_to = p[2]
-    elif len(p) == 5:  # ID DOT ID
-        point_to = GoFromModule(p[2], p[4])
-        point_to.lineno = adjust_lineno(p.slice[2].lineno)
-    else:  # ID
-        point_to = GoType(p[2])
-    p[0] = GoPointType(point_to)
-
-
-def p_FunctionType(p):
-    """FunctionType : FUNC Signature
-    """
-    p[0] = GoFuncType(*p[2])
-
-
-def p_Signature(p):
-    """Signature : Parameters
-                 | Parameters Result
-    """
-    # First element is Parameters, second is Result
-    if len(p) == 2:  # No result given
-        p[0] = (p[1], None)
-    else:
-        p[0] = (p[1], p[2])
-
-
-# XXX Parameters, TypeLit unimplemented during type checking
-def p_Result(p):
-    """Result : Parameters
-              | TypeLit
-              | ID DOT ID
-              | ID
-    """
-    if type(p[1]) is list:  # Parameters
-        p[0] = p[1]
-    else:
-        if isinstance(p[1], GoBaseType) or isinstance(
-            p[1], GoFromModule
-        ):  # Type
-            dtype = p[1]
-        elif len(p) == 4:  # ID DOT ID
-            dtype = GoFromModule(p[1], p[3])
-            dtype.lineno = adjust_lineno(p.slice[1].lineno)
-        else:  # ID
-            dtype = GoType(p[1])
-        # p[0] = GoParam(dtype=dtype)
-        p[0] = [GoParam(dtype=dtype)]
-
-
-def p_Parameters(p):
-    """Parameters : LBRACK RBRACK
-                  | LBRACK ParameterList RBRACK
-                  | LBRACK ParameterList COMMA RBRACK
-    """
-    if len(p) == 3:  # Nothing in there
-        p[0] = []
-    else:  # COMMA doesn't matter
-        p[0] = p[2]
-
-
-def p_ParameterList(p):
-    """ParameterList : ParameterDecl
-                     | ParameterList COMMA ParameterDecl
-    """
-    if len(p) == 2:  # Single ParameterDecl
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[3]]
-
-
-def p_ParameterDecl(p):
-    """ParameterDecl : TRIDOT Type
-                     | TRIDOT ID DOT ID
-                     | TRIDOT ID
-                     | ID TRIDOT Type
-                     | ID TRIDOT ID DOT ID
-                     | ID TRIDOT ID
-                     | Type
-                     | ID DOT ID
-                     | ID
-                     | ID Type
-                     | ID ID DOT ID
-                     | ID ID
-    """
-    # Remove support for variadic params
-    new_p = []
-    for item in p:
-        if type(item) is not str or item != "...":
-            new_p.append(item)
-
-    if len(new_p) == 2 or len(new_p) == 4:  # only types given
-        name = None
-    else:  # ID given as name
-        name = new_p[1]
-
-    if isinstance(new_p[-1], GoBaseType):  # GoBaseType
-        dtype = new_p[-1]
-    elif len(new_p) > 3:  # ID DOT ID
-        dtype = GoFromModule(new_p[-3], new_p[-1])
-        dtype.lineno = adjust_lineno(p.slice[1].lineno)
-    else:  # ID
-        dtype = GoType(new_p[-1])
-
-    p[0] = GoParam(name=name, dtype=dtype)
-
-
-def p_InterfaceType(p):
-    """InterfaceType : INTERFACE LCURLBR MethodSpecList RCURLBR
-    """
-    try:
-        p[0] = GoInterfaceType(p[3])
-    except ValueError as msg:
-        position = go_traceback(p.slice[1])
-        print("{} at position {}".format(msg, position))
-        exit(1)
-
-
-def p_MethodSpecList(p):
-    """MethodSpecList : empty
-                      | MethodSpecList MethodSpec SEMICOLON
-    """
-    if len(p) == 2:  # empty
-        p[0] = []
-    else:
-        p[0] = p[1] + [p[2]]
-
-
-def p_MethodSpec(p):
-    """MethodSpec : ID Signature
-                  | ID DOT ID
-                  | ID
-    """
-    if len(p) == 3:  # Function signature given
-        p[0] = GoMethodFunc(p[1], *p[2])
-    elif len(p) == 4:  # ID DOT ID element
-        p[0] = GoFromModule(p[1], p[3])
-        p[0].lineno = adjust_lineno(p.slice[1].lineno)
-    else:  # ID element
-        p[0] = GoType(p[1])
-
-
-# =============================================================================
-# BLOCKS
-# =============================================================================
-
-
-def p_Block(p):
-    """Block : LCURLBR StatementList RCURLBR
-    """
-    p[0] = GoBlock(p[2])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_StatementList(p):
-    """StatementList : Statement SEMICOLON StatementList
-                     | empty
-    """
-    if len(p) == 2:  # emtpy
-        p[0] = []
-    else:
-        p[0] = [p[1]] + p[3]
-
-
-# =============================================================================
-# DECLARATIONS AND SCOPE
-# =============================================================================
-
-
-def p_Declaration(p):
-    """Declaration : ConstDecl
-                   | TypeDecl
-                   | VarDecl
-    """
-    p[0] = p[1]
-
-
-def p_TopLevelDecl(p):
-    """TopLevelDecl : Declaration
-                    | FunctionDecl
-                    | MethodDecl
-    """
-    p[0] = p[1]
-
-
-def p_TopLevelDeclList(p):
-    """TopLevelDeclList : TopLevelDecl SEMICOLON TopLevelDeclList
-                        | empty
-    """
-    if len(p) == 2:  # empty
-        p[0] = []
-    else:
-        p[0] = [p[1]] + p[3]
-
-
-def p_ConstDecl(p):
-    """ConstDecl  : CONST LBRACK ConstSpecList RBRACK
-                  | CONST ConstSpec
-                  | CONST ID
-    """
-    if len(p) == 3:  # Single constant spec
-        if isinstance(p[2], GoConstSpec):  # ConstSpec
-            declarations = [p[2]]
-        else:  # ID
-            declarations = [GoConstSpec(p[2])]
-    else:  # List of constant specs
-        declarations = p[3]
-    p[0] = GoDecl("constant", declarations)
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_ConstSpec(p):
-    """ConstSpec : IdentifierList
-                 | IdentifierList Type ASSIGN ExpressionList
-                 | IdentifierList ID DOT ID ASSIGN ExpressionList
-                 | IdentifierList ID ASSIGN ExpressionList
-                 | IdentifierList ASSIGN ExpressionList
-                 | IdentifierList Type ASSIGN Expression
-                 | IdentifierList ID DOT ID ASSIGN Expression
-                 | IdentifierList ID ASSIGN Expression
-                 | IdentifierList ASSIGN Expression
-                 | ID Type ASSIGN ExpressionList
-                 | ID ID DOT ID ASSIGN ExpressionList
-                 | ID ID ASSIGN ExpressionList
-                 | ID ASSIGN ExpressionList
-                 | ID Type ASSIGN Expression
-                 | ID ID DOT ID ASSIGN Expression
-                 | ID ID ASSIGN Expression
-                 | ID ASSIGN Expression
-    """
-    if len(p) == 2:  # Simply declaring constants
-        p[0] = GoConstSpec(p[1])
-        return
-
-    if type(p[1]) is list:  # IdentifierList
-        id_list = p[1]
-    else:  # ID
-        id_list = [p[1]]
-
-    if isinstance(p[2], GoBaseType):  # Type
-        dtype = p[2]
-    elif len(p) == 7:  # ID DOT ID
-        dtype = GoFromModule(p[2], p[4])
-        dtype.lineno = adjust_lineno(p.slice[2].lineno)
-    elif len(p) == 5:  # ID
-        dtype = GoType(p[2])
-    else:  # Type-less
-        dtype = None
-
-    if type(p[len(p) - 1]) is list:  # ExpressionList
-        expressions = p[len(p) - 1]
-    else:  # Expression
-        expressions = [p[len(p) - 1]]
-
-    p[0] = GoConstSpec(id_list, dtype, expressions)
-
-
-def p_ConstSpecList(p):
-    """ConstSpecList : empty
-                     | ConstSpecList ConstSpec SEMICOLON
-                     | ConstSpecList ID SEMICOLON
-    """
-    if len(p) == 2:
-        p[0] = []
-    else:
-        if len(p) == 5:
-            p[0] = p[1] + [p[2]]
-        else:
-            p[0] = p[1] + [GoConstSpec(p[2])]
-
-
-def p_IdentifierList(p):
-    """IdentifierList : ID IdentifierBotList
-    """
-    p[0] = [p[1]] + p[2]
-
-
-def p_IdentifierBotList(p):
-    """IdentifierBotList : COMMA ID
-                         | IdentifierBotList COMMA ID
-    """
-    if len(p) == 3:  # Just COMMA ID
-        p[0] = [p[2]]
-    else:
-        p[0] = p[1] + [p[3]]
-
-
-def p_ExpressionList(p):
-    """ExpressionList : Expression ExpressionBotList
-    """
-    p[0] = [p[1]] + p[2]
-
-
-def p_TypeDecl(p):
-    """TypeDecl : TYPE TypeSpecTopList
-    """
-    p[0] = GoDecl("type", p[2])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_TypeSpec(p):
-    """TypeSpec : AliasDecl
-                | TypeDef
-    """
-    p[0] = p[1]
-
-
-def p_TypeSpecList(p):
-    """TypeSpecList : empty
-                    | TypeSpecList TypeSpec SEMICOLON
-    """
-    if len(p) == 2:  # empty
-        p[0] = []
-    else:
-        p[0] = p[1] + [p[2]]
-
-
-def p_TypeSpecTopList(p):
-    """TypeSpecTopList : TypeSpec
-                       | LBRACK TypeSpecList  RBRACK
-    """
-    if len(p) == 2:  # single TypeSpec
-        p[0] = [p[1]]
-    else:
-        p[0] = p[2]
-
-
-def p_AliasDecl(p):
-    """AliasDecl : ID ASSIGN Type
-                 | ID ASSIGN ID DOT ID
-                 | ID ASSIGN ID
-    """
-    if isinstance(p[3], GoBaseType):  # Type
-        dtype = p[3]
-    elif len(p) == 6:  # ID DOT ID
-        dtype = GoFromModule(p[3], p[5])
-        dtype.lineno = adjust_lineno(p.slice[3].lineno)
-    else:  # ID
-        dtype = GoType(p[3])
-    p[0] = GoTypeDefAlias("alias", p[1], dtype)
-
-
-def p_TypeDef(p):
-    """TypeDef : ID Type
-               | ID ID DOT ID
-               | ID ID
-    """
-    if isinstance(p[2], GoBaseType):  # Type
-        dtype = p[2]
-    elif len(p) == 5:  # ID DOT ID
-        dtype = GoFromModule(p[2], p[4])
-        dtype.lineno = adjust_lineno(p.slice[2].lineno)
-    else:  # ID
-        dtype = GoType(p[2])
-    p[0] = GoTypeDefAlias("typedef", p[1], dtype)
-
-
-def p_VarDecl(p):
-    """VarDecl : VAR VarSpecTopList
-    """
-    p[0] = GoDecl("var", p[2])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_VarSpec(p):
-    """VarSpec : IdentifierList Type VarSpecMid
-               | IdentifierList ID DOT ID VarSpecMid
-               | IdentifierList ID VarSpecMid
-               | IdentifierList ASSIGN ExpressionList
-               | IdentifierList ASSIGN Expression
-               | ID Type VarSpecMid
-               | ID ID DOT ID VarSpecMid
-               | ID ID VarSpecMid
-               | ID ASSIGN ExpressionList
-               | ID ASSIGN Expression
-    """
-    if type(p[1]) is list:  # IdentifierList
-        lhs = p[1]
-    else:  # ID
-        lhs = [p[1]]
-
-    if type(p[len(p) - 1]) is list:  # VarSpecMid or ExpressionList
-        rhs = p[len(p) - 1]
-    else:  # Expression
-        rhs = []
-
-    if isinstance(p[2], GoBaseType):  # Type
-        dtype = p[2]
-    elif len(p) == 6:  # ID DOT ID
-        dtype = GoFromModule(p[2], p[4])
-        dtype.lineno = adjust_lineno(p.slice[2].lineno)
-    elif type(p[2]) is str:  # ID
-        dtype = GoType(p[2])
-    else:  # No type given
-        dtype = None
-
-    p[0] = GoVarSpec(lhs, dtype, rhs)
-
-
-def p_VarSpecMid(p):
-    """VarSpecMid : empty
-                  | ASSIGN ExpressionList
-                  | ASSIGN Expression
-    """
-    if len(p) == 2:  # empty
-        p[0] = []
-    elif type(p[2]) is list:  # ExpressionList
-        p[0] = p[2]
-    else:  # Expression
-        p[0] = [p[2]]
-
-
-def p_VarSpecList(p):
-    """VarSpecList : empty
-                   | VarSpecList VarSpec SEMICOLON
-    """
-    if len(p) == 2:  # empty
-        p[0] = []
-    else:
-        p[0] = p[1] + [p[2]]
-
-
-def p_VarSpecTopList(p):
-    """VarSpecTopList : VarSpec
-                      | LBRACK VarSpecList RBRACK
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[2]
-
-
-def p_ShortVarDecl(p):
-    """ShortVarDecl : ExpressionList SHDECL ExpressionList
-                    | ExpressionList SHDECL Expression
-                    | Expression SHDECL ExpressionList
-                    | Expression SHDECL Expression
-    """
-    if type(p[1]) is list:  # IdentifierList
-        id_list = p[1]
-    else:
-        id_list = [p[1]]
-
-    if type(p[3]) is list:
-        expressions = p[3]
-    else:
-        expressions = [p[3]]
-
-    p[0] = GoShortDecl(id_list, expressions)
-    p[0].lineno = adjust_lineno(p.slice[2].lineno)
-
-
-def p_FunctionDecl(p):
-    """FunctionDecl : FUNC FunctionName FunctionDeclTail
-    """
-    p[0] = GoFuncDecl(p[2], *p[3])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_FunctionDeclTail(p):
-    """FunctionDeclTail : Function
-                        | Signature
-    """
-    if len(p[1]) == 3:  # Function is a tuple of (Parameters, Results, Body)
-        p[0] = p[1]
-    else:  # Signature is a tuple of (Parameters, Results)
-        p[0] = (*p[1], GoBlock([]))
-
-
-def p_FunctionName(p):
-    """FunctionName : ID
-    """
-    p[0] = p[1]
-
-
-def p_Function(p):
-    """Function : Signature FunctionBody
-    """
-    # Signature is a tuple of (Parameters, Results)
-    p[0] = (*p[1], p[2])
-
-
-def p_FunctionBody(p):
-    """FunctionBody : Block
-    """
-    p[0] = p[1]
-
-
-def p_MethodDecl(p):
-    """MethodDecl : FUNC Receiver ID FunctionDeclTail
-    """
-    # FunctionDeclTail is a tuple of (Parameters, Results, Body)
-    p[0] = GoMethDecl(p[2], p[3], *p[4])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_Receiver(p):
-    """Receiver : Parameters
-    """
-    p[0] = p[1]
-
-
-# =============================================================================
-# EXPRESSIONS
-# =============================================================================
-
-
-def p_Operand(p):
-    """Operand : Literal
-               | MethodExpr
-               | LBRACK Expression RBRACK
-    """
-    if len(p) == 2:  # Literal or MethodExpr
-        p[0] = p[1]
-    else:  # Expression
-        p[0] = p[2]
-
-
-def p_Literal(p):
-    """Literal : BasicLit
-               | FunctionLit
-               | CompositeLit
-    """
-    p[0] = p[1]
-
-
-def p_BasicLit(p):
-    """BasicLit : INT
-                | FLOAT
-                | IMAG
-                | STRING
-                | RUNE
-    """
-    if p.slice[1].type == "INT":
-        p[1] = int(p[1])
-    elif p.slice[1].type == "FLOAT":
-        p[1] = float(p[1])
-    elif p.slice[1].type == "IMAG":
-        p[1] = complex(p[1][:-1] + "j")
-
-    dtype = p.slice[1].type.lower()
-    if dtype == "imag":
-        dtype = "complex"
-
-    value = p.slice[1].value
-    p[0] = GoBasicLit(p[1], GoType(dtype, True, value))
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_CompositeLit(p):
-    """CompositeLit : LiteralType LiteralValue
-                    | ID DOT ID LiteralValue
-                    | ID LiteralValue
-                    | LSQBRACK TRIDOT RSQBRACK Type LiteralValue
-                    | LSQBRACK TRIDOT RSQBRACK ID DOT ID LiteralValue
-                    | LSQBRACK TRIDOT RSQBRACK ID LiteralValue
-    """
-    if len(p) < 6:  # No square brackets
-        if isinstance(p[1], GoBaseType):  # LiteralType
-            dtype = p[1]
-        elif len(p) == 5:  # ID DOT ID
-            dtype = GoFromModule(p[1], p[3])
-            dtype.lineno = adjust_lineno(p.slice[1].lineno)
-        else:  # ID
-            dtype = GoType(p[1])
-    elif isinstance(p[4], GoBaseType):  # Type
-        dtype = GoArray("variable", p[4])
-        dtype.lineno = adjust_lineno(p.slice[3].lineno)
-    elif len(p) == 8:  # ID DOT ID
-        arr_dtype = GoFromModule(p[4], p[6])
-        arr_dtype.lineno = adjust_lineno(p.slice[4].lineno)
-        dtype = GoArray("variable", arr_dtype)
-        dtype.lineno = adjust_lineno(p.slice[3].lineno)
-    else:
-        dtype = GoArray("variable", GoType(p[4]))
-        dtype.lineno = adjust_lineno(p.slice[3].lineno)
-
-    p[0] = GoCompositeLit(dtype, p[len(p) - 1])
-    if len(p) != 2 and type(p[1]) is str:
-        p[0].lineno = adjust_lineno(p.slice[1].lineno)
-    else:  # LiteralType
-        p[0].lineno = p[1].lineno
-
-
-def p_LiteralType(p):
-    """LiteralType : ArrayType
-                   | StructType
-    """
-    p[0] = p[1]
-
-
-def p_LiteralValue(p):
-    """LiteralValue : LCURLBR RCURLBR
-                    | LCURLBR ElementList RCURLBR
-                    | LCURLBR ElementList COMMA RCURLBR
-    """
-    if len(p) == 3:  # No ElementList given
-        p[0] = []
-    else:  # ElementList
-        p[0] = p[2]
-
-
-def p_ElementList(p):
-    """ElementList : KeyedElement
-                   | ElementList COMMA KeyedElement
-    """
-    if len(p) == 2:
-        p[0] = [p[1]]
-    else:
-        p[0] = p[1] + [p[3]]
-
-
-def p_KeyedElement(p):
-    """KeyedElement : Expression
-                    | LiteralValue
-                    | ID COLON Expression
-                    | Expression COLON Expression
-                    | LiteralValue COLON Expression
-                    | ID COLON LiteralValue
-                    | Expression COLON LiteralValue
-                    | LiteralValue COLON LiteralValue
-    """
-    if len(p) == 2:  # No key
-        key = None
-    else:  # Key given
-        key = p[1]
-
-    p[0] = GoKeyedElement(key, p[len(p) - 1])
-    p[0].lineno = adjust_lineno(lexer.lineno)
-
-
-def p_FunctionLit(p):
-    """FunctionLit : FUNC Function
-    """
-    p[0] = p[2]
-
-
-def p_PrimaryExpr(p):
-    """PrimaryExpr : Operand
-                   | ID
-                   | PrimaryExpr Selector
-                   | PrimaryExpr Index
-                   | PrimaryExpr Arguments
-    """
-    if len(p) == 2:  # Operand or ID
-        p[0] = p[1]
-    else:  # PrimaryExpr given; make a new PrimaryExpr with args as children
-        p[0] = GoPrimaryExpr(p[1], p[2])
-        p[0].lineno = p[2].lineno
-
-
-def p_Selector(p):
-    """Selector : DOT ID
-    """
-    p[0] = GoSelector(p[2])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_Index(p):
-    """Index : LSQBRACK Expression RSQBRACK
-    """
-    p[0] = GoIndex(p[2])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_Arguments(p):
-    """Arguments : LBRACK RBRACK
-                 | LBRACK ExpressionList RBRACK
-                 | LBRACK Expression RBRACK
-                 | LBRACK ExpressionList TRIDOT RBRACK
-                 | LBRACK Expression TRIDOT RBRACK
-                 | LBRACK TRIDOT RBRACK
-    """
-    # Remove support for variadic params and remove trailing comma
-    new_p = []
-    for i, item in enumerate(p):
-        if (type(item) is not str or item != "...") and (
-            i != len(p) - 2 or type(item) is not str or item != ","
-        ):
-            new_p.append(item)
-
-    if len(new_p) == 3:  # no arguments
-        p[0] = GoArguments([])
-        return
-
-    if type(new_p[2]) is list:  # ExpressionList
-        expressions = new_p[2]
-    else:  # Expression
-        expressions = [new_p[2]]
-
-    p[0] = GoArguments(expressions)
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-# XXX
-def p_MethodExpr(p):
-    """MethodExpr : ReceiverType DOT ID   %prec ID
-                  | ID DOT ID        %prec ID
-                  | ID DOT ID DOT ID
-    """
-    if len(p) == 4:  # Single import from ReceiverType/package
-        p[0] = GoFromModule(p[1], p[3])
-        p[0].lineno = adjust_lineno(p.slice[1].lineno)
-    else:  # Double import from package/class
-        first = GoFromModule(p[1], p[3])
-        first.lineno = adjust_lineno(p.slice[1].lineno)
-        p[0] = GoFromModule(first, p[5])
-        p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-# XXX
-def p_ReceiverType(p):
-    """ReceiverType : LBRACK MULT ID DOT ID RBRACK
-                    | LBRACK MULT ID RBRACK
-                    | LBRACK ReceiverType RBRACK
-    """
-    if len(p) == 7:  # Deferencing a package import
-        var = GoFromModule(p[3], p[5])
-        var.lineno = adjust_lineno(p.slice[3].lineno)
-        p[0] = GoDeref(var)
-    elif len(p) == 5:  # Deferencing a variable
-        p[0] = GoDeref(p[3])
-    else:  # ReceiverType
-        p[0] = p[2]
-
-
-def p_Expression(p):
-    """Expression : UnaryExpr
-                  | Expression LOGOR Expression
-                  | Expression LOGAND Expression
-                  | Expression EQUALS Expression
-                  | Expression NOTEQ Expression
-                  | Expression LESS Expression
-                  | Expression LESSEQ Expression
-                  | Expression GREAT Expression
-                  | Expression GREATEQ Expression
-                  | Expression PLUS Expression
-                  | Expression MINUS Expression
-                  | Expression BITOR Expression
-                  | Expression BITXOR Expression
-                  | Expression MULT Expression
-                  | Expression DIV Expression
-                  | Expression MODULO Expression
-                  | Expression LSHIFT Expression
-                  | Expression RSHIFT Expression
-                  | Expression BITAND Expression
-                  | Expression BITCLR Expression
-    """
-    if len(p) == 2:  # UnaryExpr given
-        p[0] = p[1]
-    else:
-        if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBasicLit) and p[1].dtype.name != "string":
-            # Direct calculation
-            error = False
-            try:
-                p[0] = GoBasicLit(p[1].item, None)
-                p[0].lineno = adjust_lineno(p.slice[2].lineno)
-                if p[2] == "||":
-                    if p[1].dtype.name != "bool" or p[3].dtype.name != "bool":
-                        error = True
-                    else:
-                        p[0].item = p[1].item or p[3].item
-                elif p[2] == "&&":
-                    if p[1].dtype.name != "bool" or p[3].dtype.name != "bool":
-                        error = True
-                    else:
-                        p[0].item = p[1].item and p[3].item
-                elif p[2] == "==":
-                    p[0].item = p[1].item == p[3].item
-                elif p[2] == "!=":
-                    p[0].item = p[1].item != p[3].item
-                elif p[2] == "<":
-                    p[0].item = p[1].item < p[3].item
-                elif p[2] == "<=":
-                    p[0].item = p[1].item <= p[3].item
-                elif p[2] == ">":
-                    p[0].item = p[1].item > p[3].item
-                elif p[2] == ">=":
-                    p[0].item = p[1].item >= p[3].item
-                elif p[2] == "+":
-                    p[0].item += p[3].item
-                elif p[2] == "-":
-                    p[0].item -= p[3].item
-                elif p[2] == "|":
-                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
-                        error = True
-                    else:
-                        p[0].item |= p[3].item
-                elif p[2] == "^":
-                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
-                        error = True
-                    else:
-                        p[0].item ^= p[3].item
-                elif p[2] == "*":
-                    p[0].item *= p[3].item
-                elif p[2] == "/":
-                    if p[1].dtype.name == "int" and p[3].dtype.name == "int":
-                        p[0].item //= p[3].item
-                    else:
-                        p[0].item /= p[3].item
-                elif p[2] == "%":
-                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
-                        error = True
-                    else:
-                        p[0].item %= p[3].item
-                elif p[2] == "<<":
-                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
-                        error = True
-                    else:
-                        p[0].item <<= p[3].item
-                elif p[2] == ">>":
-                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
-                        error = True
-                    else:
-                        p[0].item >>= p[3].item
-                elif p[2] == "&":
-                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
-                        error = True
-                    else:
-                        p[0].item &= p[3].item
-                elif p[2] == "&^":
-                    if p[1].dtype.name != "int" or p[3].dtype.name != "int":
-                        error = True
-                    else:
-                        p[0].item &= ~p[3].item
-                else:
-                    error = True
-
-                precedence = ["complex", "float", "int"]
-                if p[2] in [">", "<", "==", "!=", ">=", "<="]:
-                    p[0].dtype = GoType(
-                        "bool", p[1].dtype.basic_lit & p[3].dtype.basic_lit
-                    )
-                elif p[1].dtype == p[3].dtype or precedence.index(
-                    p[1].dtype.name
-                ) < precedence.index(p[3].dtype.name):
-                    p[0].dtype = p[1].dtype
-                else:
-                    p[0].dtype = p[3].dtype
-
-            except Exception:
-                error = True
-
-            if error:
-                go_traceback("")
-                print(
-                    'SyntaxError: Binary operator "{}" not applicable for '
-                    'arguments of types "{}" and "{}"'.format(
-                        p[2], p[1].dtype.name, p[3].dtype.name
-                    )
-                )
-                exit(1)
-        else:
-            # 1st arg. is LHS, 2nd is RHS, 3rd is the operator
-            p[0] = GoExpression(p[1], p[3], p[2])
-            p[0].lineno = adjust_lineno(p.slice[2].lineno)
-
-
-def p_ExpressionBot(p):
-    """ExpressionBot : empty
-                     | Expression
-    """
-    if p[1] is None:  # empty
-        p[0] = GoBaseExpr("empty")
-    else:
-        p[0] = p[1]
-
-
-def p_ExpressionBotList(p):
-    """ExpressionBotList : COMMA Expression
-                         | COMMA Expression ExpressionBotList
-    """
-    if len(p) == 3:
-        p[0] = [p[2]]
-    else:
-        p[0] = [p[2]] + p[3]
-
-
-def p_UnaryExpr(p):
-    """UnaryExpr : PrimaryExpr
-                 | unary_op UnaryExpr
-    """
-    if len(p) == 2:  # PrimaryExpr
-        p[0] = p[1]
-    else:  # unary_op used
-        if isinstance(p[2], GoBasicLit):  # Direct calculation
-            error = False
-            try:
-                if p[2].dtype.name in ("string", "rune"):  # Error
-                    error = True
-                elif p[1][0] == "+":
-                    pass
-                elif p[1][0] == "-":
-                    p[2].item = -1 * p[2].item
-                elif p[1][0] == "!":
-                    p[2].item = not p[2].item
-                elif p[1][0] == "^":
-                    if p[2].dtype.name == "int":
-                        p[2].item = ~p[2].item
-                    else:
-                        error = True
-                elif p[1][0] == "*":
-                    error = True
-                elif p[1][0] == "++":
-                    # p[2].item += 1
-                    error = True
-                elif p[1][0] == "--":
-                    # p[2].item -= 1
-                    error = True
-                else:
-                    error = True
-            except Exception:
-                error = True
-
-            if error:
-                position = go_traceback(p.slice[1].value)
-                print(
-                    'SyntaxError: Unary operator "{}" not applicable for '
-                    'argument of type "{}" at position {}'.format(
-                        p[1][0], p[2].dtype.name.lower(), position
-                    )
-                )
-                exit(1)
+            self.inline_count = 0
+
+        self.basic_types = {}
+
+        for type_str in [
+            "int",
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+            "byte",
+            "rune",
+        ]:
+            self.basic_types[type_str] = {"kind": "int"}
+        for type_str in ["float", "float32", "float64"]:
+            self.basic_types[type_str] = {"kind": "float"}
+        for type_str in ["complex", "complex64", "complex128"]:
+            self.basic_types[type_str] = {"kind": "complex"}
+        for type_str in ["byte", "string", "uintptr", "bool"]:
+            self.basic_types[type_str] = {"kind": "other"}
+
+        for name in self.basic_types:
+            if name in ["uint8", "int8", "byte", "bool"]:
+                self.basic_types[name]["size"] = 1
+            elif name in ["uint16", "int16"]:
+                self.basic_types[name]["size"] = 2
+            elif name in [
+                "uint32",
+                "int32",
+                "float32",
+                "rune",
+                "int",
+                "uint",
+                "uintptr",
+            ]:
+                self.basic_types[name]["size"] = 4
+            elif name in [
+                "uint64",
+                "int64",
+                "complex",
+                "complex64",
+                "float64",
+                "float",
+            ]:
+                self.basic_types[name]["size"] = 8
+            elif name == "complex128":
+                self.basic_types[name]["size"] = 16
+            elif name == "string":  # Only for string
+                self.basic_types[name]["size"] = 4
+
+        if use is None:
+            if self.parent:
+                self.offset = self.parent.offset
+                self.activation_record = parent.activation_record
+                self.use = parent.use
+                self.activation_offset = parent.activation_offset
             else:
-                p[0] = p[2]
+                self.offset = 0
+                self.activation_record = []
+                self.use = None
+                self.activation_offset = 0
+        elif use == "function" or use == "method":
+            self.offset = 0
+            self.activation_record = []
+            self.use = use
+            self.activation_offset = 0
+
+        logging.info("offset assigned: {}".format(self.offset))
+
+    def lookup(self, name):
+        if name in self.variables:
+            return True
+        elif self.parent is not None:
+            return self.parent.lookup(name)
         else:
-            # 1st arg. is expression, 2nd arg. is unary_op
-            if p[1][0] in ["++", "--"]:
-                position = go_traceback(p.slice[1].value)
-                # XXX TODO : lineno. and position in error message
-                print(
-                    'SyntaxError: Unary operator "{}" not applicable '
-                    "at position {}".format(p[1][0], position)
+            return False
+
+    def check_basic_type(self, name):
+        if name in self.basic_types:
+            return True
+        elif self.parent is not None:
+            return self.parent.check_basic_type(name)
+        else:
+            return False
+
+    def get_basic_type(self, name):
+        if name in self.basic_types:
+            return self.basic_types[name]
+        elif self.parent is not None:
+            return self.parent.get_basic_type(name)
+        else:
+            raise GoException('"{}" is unregistered dtype'.format(name))
+
+    def get_actual(self, alias):
+        if alias in self.aliases:
+            actual = self.aliases[alias]
+            while actual.name in self.aliases:
+                actual = self.aliases[actual.name]
+            if self.parent:
+                parent_actual = self.parent.get_actual(actual.name)
+            else:
+                parent_actual = None
+            return actual if parent_actual is None else parent_actual
+        elif self.parent:
+            return self.parent.get_actual(alias)
+        else:
+            return None
+
+    # TODO: Need to handle dynamic entities like linked lists, strings etc
+    def get_size(self, dtype, check=False):
+        if isinstance(dtype, GoBasicLit):
+            return self.get_size(dtype.dtype)
+        elif isinstance(dtype, GoStruct):
+            try:
+                self.get_struct(dtype.name)
+            except GoException:  # Inline struct
+                return self.infer_struct_size(dtype)
+            else:  # Pre-defined struct
+                return self.struct_size(dtype.name)
+        elif isinstance(dtype, GoPointType):
+            return 4
+        elif isinstance(dtype, GoArray):
+            return dtype.length.item * self.get_size(dtype.dtype)
+        elif isinstance(dtype, GoKeyedElement):
+            element = dtype.element
+            try:
+                return self.get_type(element).size
+            except GoException:
+                return self.get_size(element)
+        elif isinstance(dtype, GoCompositeLit):
+            values = dtype.value
+            size = 0
+            for value in values:
+                size += self.get_size(value)
+            return size
+
+        elif isinstance(dtype, GoType):
+            name = dtype.name
+            logging.info("SIZE: getting size of {}".format(name))
+            value = dtype.value
+
+            if self.check_basic_type(name):
+                basic_type = self.get_basic_type(name)
+                if basic_type["size"] is not None:
+                    size = basic_type["size"]
+                # else:  # string or its typedef
+                #     if value is None:
+                #         size = 0
+                #     else:
+                #         # -2 done to strip the quotes
+                #         size = len(value) - 2
+            else:
+                actual_type = self.get_actual(name)
+                if actual_type is None:
+                    size = self.struct_size(name)
+                    return size
+                actual_type.value = value
+                size = self.get_size(actual_type)
+            return size
+        else:
+            print("Warning: Returning zero size")
+            return 0
+
+    def infer_struct_size(self, dtype):
+        size = 0
+        variables = dtype.vars
+        for item in variables:
+            size += self.get_size(item[1].dtype)
+        return size
+
+    def get_type(self, name, use="variable/array/struct"):
+        if name in self.variables:
+            return self.variables[name]
+        elif self.parent:
+            return self.parent.get_type(name)
+        else:
+            raise GoException(
+                "Error: Attempt to use '{}': undeclared '{}' name ".format(
+                    name, use
                 )
-                exit(1)
-            p[0] = GoUnaryExpr(p[2], p[1][0])
-            p[0].lineno = adjust_lineno(p[1][1])
+            )
+
+    def get_func(self, name, info):
+        if name in self.functions:
+            return self.functions[name][info], False
+        elif self.parent:
+            return self.parent.get_func(name, info)
+        else:
+            # Check for possible type-casting
+            actual = self.get_actual(name)
+            if actual is not None:
+                name = actual.name
+            if not self.check_basic_type(name):
+                # Not type-casting
+                raise GoException(
+                    "Error: Attempt to use '{}': undeclared function".format(
+                        name
+                    )
+                )
+            else:
+                # Type-casting
+                result_type = GoType(name)
+                result_type.size = self.get_size(result_type)
+                func = {
+                    "params": [GoParam(dtype=result_type)],
+                    "result": [GoParam(dtype=result_type)],
+                }
+                return func[info], True
+
+    def get_method(self, name, info):
+        if name in self.methods:
+            return self.methods[name][info]
+        elif self.parent:
+            return self.parent.get_method(name, info)
+        else:
+            raise GoException(
+                "Error: Attempt to use undeclared method '{}' on struct '{}'".format(
+                    name[0], name[1]
+                )
+            )
+
+    def insert_var(self, name, dtype, use="variable"):
+        if type(name) is not str:
+            raise GoException(
+                "Error: Variable name {} is not string".format(name)
+            )
+        dtype = deepcopy(dtype)
+        if name not in self.used:
+            if isinstance(dtype, GoType):
+                dtype.size = self.get_size(dtype)
+                logging.info(
+                    "previous offset {}, size {}".format(
+                        self.offset, dtype.size
+                    )
+                )
+                dtype.offset = self.offset + ceil(dtype.size / 4) * 4
+                self.offset = dtype.offset
+
+            # TODO: need to handle array os structures seperately
+            elif isinstance(dtype, GoArray):
+                logging.info("ARRAY DTYPE {}".format(dtype.dtype))
+                dtype.size = self.get_size(dtype)
+
+                dtype.offset = self.offset + ceil(dtype.size / 4) * 4
+                self.offset = dtype.offset
+                logging.info("ARRAY SIZE: {}".format(dtype.size))
+
+            elif isinstance(dtype, GoStruct):
+                dtype.size = self.get_size(dtype)
+                dtype.offset = self.offset + ceil(dtype.size / 4) * 4
+                self.offset = dtype.offset
+                logging.info("STRUCT SIZE {}".format(dtype.size))
+
+            elif isinstance(dtype, GoPointType):
+                dtype.size = 4
+                dtype.offset = self.offset + 4
+                self.offset = dtype.offset
+
+            if name not in ["dynamic_link", "return_address", "static_link"]:
+                if use == "intermediate":
+                    self.intermediates[name] = dtype
+                else:
+                    self.variables[name] = dtype
+
+            if self.use == "function" or self.use == "method":
+                self.activation_record.append((name, dtype))
+                dtype_size = self.get_size(dtype)
+                dtype.activation_offset = (
+                    self.activation_offset - ceil(dtype_size / 4) * 4
+                )
+                self.activation_offset = dtype.activation_offset
+
+            self.used.add(name)
+        elif use == "intermediate":
+            print(
+                'Warning: Already declared "{}" name "{}"'.format(use, name)
+            )          
+        else:
+            raise GoException(
+                'Error: Already declared "{}" name "{}"'.format(use, name)
+            )
+
+    def insert_alias(self, alias, actual, kind):
+        if alias not in self.used:
+            if kind == "alias":
+                self.aliases[alias] = actual
+            elif kind == "typedef":
+                # Check structs
+                try:
+                    obj = self.get_struct_obj(actual.name)
+                except GoException:
+                    pass
+                else:
+                    self.insert_struct(alias, obj, embed=False)
+                    return
+
+                # Check interfaces
+                try:
+                    obj = self.get_interface(actual.name)
+                except GoException:
+                    pass
+                else:
+                    self.insert_interface(alias, obj)
+                    return
+
+                obj = self.get_actual(actual.name)
+                if obj is not None:
+                    if isinstance(obj, GoStruct):
+                        self.insert_struct(alias, obj, embed=False)
+                        return
+                    elif isinstance(obj, GoInterfaceType):
+                        self.insert_interface(alias, obj)
+                        return
+                    else:
+                        actual = obj
+
+                if self.check_basic_type(actual.name):
+                    self.basic_types[alias] = self.get_basic_type(actual.name)
+                else:
+                    raise GoException(
+                        'Typedef "{}" to undefined "{}"'.format(
+                            alias, actual.name
+                        )
+                    )
+            else:
+                raise ValueError(
+                    'Alias/typedef kind "{}" is invalid'.format(kind)
+                )
+            self.used.add(alias)
+        else:
+            raise GoException(
+                "Error: Already used alias/typedef name '{}'".format(alias)
+            )
+
+    def helper_get_struct(self, struct_name, field):
+        if struct_name in self.structures:
+            if field is None:
+                types = []
+                for item in self.structures[struct_name].vars:
+                    logging.info("item {}".format(item))
+                    type_item = deepcopy(item[1])
+                    dtype = type_item.dtype
+                    # print(dtype.name)
+                    if isinstance(dtype, GoType):
+                        name = dtype.name
+                        try:
+                            type_item.dtype = self.get_struct_obj(name)
+                        except GoException:
+                            pass
+                    types.append(type_item)
+                return types
+
+            for item in self.structures[struct_name].vars:
+                # print(item,item[1].dtype)
+                if field == item[0]:
+                    type_item = deepcopy(item[1])
+                    dtype = type_item.dtype
+                    if isinstance(dtype, GoType):
+                        name = dtype.name
+                        try:
+                            type_item.dtype = self.get_struct_obj(name)
+                            # print(item[0],"found",self.get_struct_obj(name))
+                        except GoException:
+                            pass
+                    # print("here",type_item,type_item.dtype)
+                    return type_item
+            else:
+                raise GoException(
+                    "Error: Attempt to access unexisting field '{}' on struct '{}'".format(
+                        field, struct_name
+                    )
+                )
+        elif self.parent:
+            return self.parent.get_struct(struct_name, field)
+        else:
+            raise GoException(
+                "Error: Attempt to access undeclared struct '{}'".format(
+                    struct_name
+                )
+            )
+
+    def get_struct(self, struct_name, field=None):
+        actual_name = self.get_actual(struct_name)
+        if actual_name is not None:
+            if isinstance(actual_name, GoType):
+                struct_name = actual_name.name
+        return self.helper_get_struct(struct_name, field)
+
+    def get_struct_obj(self, struct_name):
+        actual_name = self.get_actual(struct_name)
+        if actual_name is not None:
+            if isinstance(actual_name, GoType):
+                struct_name = actual_name.name
+        if struct_name in self.structures:
+            return self.structures[struct_name]
+        elif self.parent:
+            return self.parent.get_struct_obj(struct_name)
+        else:
+            raise GoException(
+                "Error: Attempt to access undeclared struct '{}'".format(
+                    struct_name
+                )
+            )
+
+    def get_interface(self, interface_name):
+        actual_name = self.get_actual(interface_name)
+        if actual_name is not None:
+            if isinstance(actual_name, GoType):
+                interface_name = actual_name.name
+        if interface_name in self.interfaces:
+            return self.interfaces[interface_name]
+        elif self.parent:
+            return self.parent.get_interface(interface_name)
+        else:
+            raise GoException(
+                "Error: Attempt to access undeclared interface '{}'".format(
+                    interface_name
+                )
+            )
+
+    def check_struct(self, struct_name, type_list):
+        actual_types = self.get_struct(struct_name)
+        if len(actual_types) is not len(type_list):
+            raise GoException(
+                "Error: Invalid number of values given for structure initialization"
+            )
+        size = 0
+        for actual, given in zip(actual_types, type_list):
+            logging.info(
+                "actual type'{}', give types '{}'".format(
+                    actual.dtype.name, given
+                )
+            )
+            if isinstance(given, GoStruct):
+                size += self.struct_size(given.name)
+            else:
+                self.type_check(
+                    actual.dtype, given, "structure initialization"
+                )
+                size += self.get_size(given)
+        return size
+
+    def check_inline_struct(self, struct_obj, type_dict):
+        variables = {}
+        for item in struct_obj.vars:
+            if item[0] not in variables:
+                variables[item[0]] = item[1].dtype
+            else:
+                raise GoException(
+                    "Error : field name {} already exists in inline struct".format(
+                        item[0]
+                    )
+                )
+                exit()
+            if item[0] not in type_dict:
+                raise GoException(
+                    "Error: No value given for initialization of field '{}' in inline struct".format(
+                        item[0]
+                    )
+                )
+                exit()
+        # print(variables)
+        # print(type_dict)
+        for key in type_dict:
+            element = type_dict[key]
+            if key in variables:
+                if isinstance(element, GoType):
+                    self.type_check(
+                        variables[key],
+                        element,
+                        use="inline struct initialization",
+                    )
+                # already covered in the recursive call of symbol_table
+                # elif isinstance(element,GoStruct):
+                # pass
+            else:
+                raise GoException(
+                    "Error : attempt to initialize un-existing field {} on inline struct"
+                ).format(key)
+                exit()
+
+    def struct_size(self, struct_name):
+        actual_types = self.get_struct(struct_name)
+        size = 0
+        for actual in actual_types:
+            a = self.get_size(actual.dtype, True)
+            if a is None:
+                size += self.struct_size(actual.dtype.name)
+            else:
+                size += a
+        return size
+
+    def insert_const(self, const, dtype):
+        if const not in self.used:
+            self.constants[const] = dtype
+            self.used.add(const)
+        else:
+            raise GoException(
+                "Error: Already used constant name '{}'".format(name)
+            )
+
+    def insert_struct(self, name, struct, embed=True):
+        # print(struct.embeds)
+        if name not in self.used:
+            embeds = struct.embeds
+            # handles struct embeddings
+            if embed:
+                for item in struct.embeds:
+                    embed_obj = deepcopy(self.get_struct_obj(embeds[item]))
+                    struct.vars.insert(0, (item, GoVar(GoType(embeds[item]))))
+                    # struct.vars.insert(0,(item,GoVar(embed_obj)))
+            # print(name,list([(var[0],var[1].dtype) for var in struct.vars]))
+            self.structures[name] = struct
+            self.used.add(name)
+        else:
+            raise GoException(
+                "Error: Already used struct name '{}'".format(name)
+            )
+
+    def insert_interface(self, name, interface):
+        if name not in self.used:
+            self.interfaces[name] = interface
+            self.used.add(name)
+        else:
+            raise GoException(
+                "Error: Already used interface name '{}'".format(name)
+            )
+
+    def insert_func(self, name, params, result):
+        if name not in table.functions:
+            table.functions[name] = {}
+            table.functions[name]["params"] = params
+            table.functions[name]["result"] = result
+        else:
+            raise GoException("Error: already used function name")
+
+    def insert_method(self, name, params, result, receiver):
+        for rec in receiver:
+            # Indexing by name and receiver
+            key = (name, rec.dtype.name)
+            if key not in table.methods:
+                table.methods[key] = {}
+                table.methods[key]["params"] = params
+                table.methods[key]["result"] = result
+            else:
+                raise GoException("Error: already used method name")
+
+    def nested_module(self, module):
+        parent = module.parent
+        child = module.child
+        if isinstance(parent, GoFromModule):
+            struct_name = (self.nested_module(parent)).dtype
+            return self.get_struct(struct_name, child)
+        elif type(parent) is str:
+            struct_object = self.get_type(parent)
+            struct_name = struct_object.name
+            return self.get_struct(struct_name, child)
+
+    def field2index(self, struct, field):
+        index = 0
+        # print(struct,field)
+        # print(struct,struct.name,field)
+        # if isinstance(struct, GoType):
+        #     struct = self.get_struct_obj(struct.name)
+        for struct_field in struct.vars:
+            if struct_field[0] == field:
+                break
+            index += self.get_size(struct_field[1].dtype)
+        return index
+
+    def type_check(
+        self, dtype1, dtype2, use="", use_name=None, param_name=None
+    ):
+
+        # handles initialisation of arrays
+        if (isinstance(dtype1, GoStruct) and isinstance(dtype2, GoType)) or (
+            isinstance(dtype1, GoType) and isinstance(dtype2, GoStruct)
+        ):
+            name1 = dtype1.name
+            name2 = dtype2.name
+            actual1 = self.get_actual(name1)
+            actual2 = self.get_actual(name2)
+            if actual1:
+                name1 = actual1.name
+            if actual2:
+                name2 = actual2.name
+
+            if name1 != name2:
+                raise GoException(
+                    "Error: Operands in array initialization of different types {} and {}".format(
+                        name1, name2
+                    )
+                )
+
+        elif dtype1.__class__ is not dtype2.__class__:
+            raise GoException(
+                "Error: Operands in '{}' of different type classes '{}' and '{}'".format(
+                    use, dtype1.__class__, dtype2.__class__
+                )
+            )
+        elif isinstance(dtype1, GoStruct) and isinstance(dtype2, GoStruct):
+            if dtype1.name != dtype2.name:
+                raise GoException(
+                    "Error : Structs {} and {} are of different types".format(
+                        dtype1.name, dtype2.name
+                    )
+                )
+
+        elif isinstance(dtype1, GoType) and isinstance(dtype1, GoType):
+            name1 = dtype1.name
+            name2 = dtype2.name
+            logging.info("name1 '{}', name2 '{}'".format(name1, name2))
+
+            # handles recursive typdef/aliases
+            actual1 = self.get_actual(name1)
+            actual2 = self.get_actual(name2)
+            if actual1:
+                name1 = actual1.name
+            if actual2:
+                name2 = actual2.name
+
+            for name in [name1, name2]:
+                if not self.get_basic_type(name):
+                    raise GoException(
+                        "Error: '{}' is unregistered dtype".format(name)
+                    )
+
+            type_error = False
+
+            if dtype1.basic_lit or dtype2.basic_lit:
+                if self.check_basic_type(name1):
+                    new_name = self.get_basic_type(name1)["kind"]
+                    if new_name != "other":
+                        name1 = new_name
+                if self.check_basic_type(name2):
+                    new_name = self.get_basic_type(name2)["kind"]
+                    if new_name != "other":
+                        name2 = new_name
+
+                # in case of expression only one of the operands will have basic_lit = True as the case when both are basic lit is handled in the parser
+                if use == "expression":
+                    if name1 != name2:
+                        type_error = True
+                # ensures that int can be assigned to float but not vice versa
+                # need to ensure that only dtype2 is basic_lit in case of all non-expression type checking
+                else:
+                    if name1 == "int" and name1 != name2:
+                        type_error = True
+                    elif name1 == "float":
+                        if name2 != "int" and name2 != "float":
+                            type_error = True
+                    elif name1 != name2:
+                        type_error = True
+            elif use != "type casting" and name1 != name2:
+                type_error = True
+
+            if type_error:
+                if use == "function call":
+                    raise GoException(
+                        "Error: Mismatch type of param '{}' in function call of '{}'".format(
+                            param_name, use_name
+                        )
+                    )
+                elif use == "array conflicts":
+                    raise GoException(
+                        "Error: Value of '{}' type given to array '{}' instead of '{}' type".format(
+                            dtype2.name, use_name, dtype1.name
+                        )
+                    )
+                else:
+                    raise GoException(
+                        'Error: Operands in "{}" of different types "{}" and '
+                        '"{}"'.format(use, name1, name2)
+                    )
+
+        elif isinstance(dtype1, GoPointType) and isinstance(
+            dtype2, GoPointType
+        ):
+            self.type_check(dtype1.dtype, dtype2.dtype)
 
 
-def p_addmul_op(p):
-    """addmul_op : add_op
-                 | mul_op
+inter_count = 0  # Global counter for intermediate variables
+
+
+def symbol_table(
+    tree,
+    table,
+    name=None,
+    block_type=None,
+    store_var="",
+    scope_label="",
+    insert=False,
+):
+    """Do DFS to traverse the parse tree, construct symbol tables, 3AC.
+    Args:
+        tree: The object representing the current node
+        table (`SymbTable`): The symbol table to be written to
+        name (str): The name of the current function/method node
+        block_type (str): To differentiate b/w regular blocks and functions or
+            methods
+        store_var (str): The variable in which the 3AC results (for
+            expressions) will be stored
+        scope_label (str): Denotes the target label(s) for possible
+            break/continue (to be passed to every recursive call)
+        insert (bool): Whether to insert the function/method or not
     """
-    p[0] = p[1]
-
-
-def p_add_op(p):
-    """add_op : PLUS
-              | MINUS
-              | BITOR
-              | BITXOR
-    """
-    p[0] = p[1]
-
-
-def p_mul_op(p):
-    """mul_op  : MULT
-               | DIV
-               | MODULO
-               | LSHIFT
-               | RSHIFT
-               | BITAND
-               | BITCLR
-    """
-    p[0] = p[1]
-
-
-def p_unary_op(p):
-    """unary_op : PLUS
-                | MINUS
-                | LOGNOT
-                | BITXOR
-                | MULT
-                | BITAND
-                | REC
-                | DECR
-                | INCR
-    """
-    p[0] = (p[1], p.slice[1].lineno)  # Tuple returned for line no.
-
-
-# =============================================================================
-# STATEMENTS
-# =============================================================================
-
-
-def p_Statement(p):
-    """Statement : Declaration
-                 | SimpleStmt
-                 | ReturnStmt
-                 | Block
-                 | IfStmt
-                 | SwitchStmt
-                 | ForStmt
-                 | BreakStmt
-                 | ContinueStmt
-                 | GotoStmt
-                 | FallthroughStmt
-    """
-    p[0] = p[1]
-
-
-def p_SimpleStmt(p):
-    """SimpleStmt : Expression
-                  | Assignment
-                  | ShortVarDecl
-                  | IncDecStmt
-    """
-    p[0] = p[1]
-
-
-def p_IncDecStmt(p):
-    """IncDecStmt : Expression INCR
-                  | Expression DECR
-    """
-    # 1st arg. is expression, 2nd arg. is unary_op
-    # p[0] = GoUnaryExpr(p[1], p[2])
-    constant = GoBasicLit(1, GoType("int", True, 1))
-    constant.lineno = adjust_lineno(p.slice[2].lineno)
-    if p[2] == "++":
-        temp = GoExpression(p[1], constant, "+")
-    else:
-        temp = GoExpression(p[1], constant, "-")
-    temp.lineno = adjust_lineno(p.slice[2].lineno)
-    lhs = [p[1]]
-    rhs = [temp]
-    p[0] = GoAssign(lhs, rhs, "=")
-    p[0].lineno = adjust_lineno(lexer.lineno - 1)
-
-
-def p_Assignment(p):
-    """Assignment : Expression assign_op Expression
-                  | Expression assign_op ExpressionList
-                  | ExpressionList assign_op Expression
-                  | ExpressionList assign_op ExpressionList
-    """
-    if type(p[1]) is list:  # LHS is ExpressionList
-        lhs = p[1]
-    else:  # LHS is a single Expression
-        lhs = [p[1]]
-
-    if type(p[3]) is list:  # RHS is ExpressionList
-        rhs = p[3]
-    else:  # RHS is a single Expression
-        rhs = [p[3]]
-
-    # 1st arg. is LHS, 2nd arg. is RHS, and 3rd arg. is the assign op
-    if p[2] is not None:
-        rhs = [GoExpression(p[1],p[3],p[2])]
-    p[0] = GoAssign(lhs, rhs, p[2])
-    p[0].lineno = adjust_lineno(lexer.lineno - 1)
-
-
-def p_assign_op(p):
-    """assign_op : addmul_op ASSIGN
-                 | ASSIGN
-    """
-    if len(p) == 2:  # simple assignment
-        p[0] = None
-    else:
-        p[0] = p[1]
-
-
-def p_IfStmt(p):
-    """IfStmt : IF LBRACK Expression RBRACK Block ElseBot
-              | IF LBRACK SimpleStmt SEMICOLON Expression RBRACK Block ElseBot
-    """
-    if len(p) == 7:  # No SimpleStmt
-        stmt = None
-    else:
-        stmt = p[3]
-    p[0] = GoIf(stmt, p[len(p) - 4], p[len(p) - 2], p[len(p) - 1])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_ElseBot(p):
-    """ElseBot : empty
-               | ELSE ElseTail
-    """
-    if len(p) == 2:  # empty
-        p[0] = GoBlock([])
-    else:
-        p[0] = p[2]
-
-
-def p_ElseTail(p):
-    """ElseTail : IfStmt
-                | Block
-    """
-    if isinstance(p[1], GoBlock):
-        p[0] = p[1]
-    else:
-        p[0] = GoBlock([p[1]])
-
-
-def p_SwitchStmt(p):
-    """SwitchStmt : ExprSwitchStmt
-    """
-    p[0] = p[1]
-
-
-def p_ExprSwitchStmt(p):
-    """ExprSwitchStmt : SWITCH LBRACK SimpleStmt SEMICOLON  ExpressionBot RBRACK LCURLBR ExprCaseClauseList RCURLBR
-                      | SWITCH LBRACK ExpressionBot RBRACK LCURLBR ExprCaseClauseList RCURLBR
-    """
-    if len(p) == 8:  # No SimpleStmt given
-        stmt = None
-    else:
-        stmt = p[3]
-    p[0] = GoSwitch(stmt, p[len(p) - 5], p[len(p) - 2])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_ExprCaseClauseList(p):
-    """ExprCaseClauseList : empty
-                          | ExprCaseClauseList ExprCaseClause
-    """
-    if len(p) == 2:  # empty
-        p[0] = []
-    else:
-        p[0] = p[1] + [p[2]]
-
-
-def p_ExprCaseClause(p):
-    """ExprCaseClause : ExprSwitchCase COLON StatementList
-    """
-    p[0] = GoCaseClause(*p[1], p[3])
-
-
-def p_ExprSwitchCase(p):
-    """ExprSwitchCase : CASE ExpressionList
-                      | CASE Expression
-                      | DEFAULT
-    """
-    if len(p) == 2:  # default
-        expressions = []
-    elif type(p[2]) is list:
-        expressions = p[2]
-    else:
-        expressions = [p[2]]
-    p[0] = (p[1], expressions)
-
-
-def p_ForStmt(p):
-    """ForStmt : FOR LBRACK ExpressionBot RBRACK Block
-               | FOR LBRACK ForClause RBRACK Block
-               | FOR LBRACK RangeClause RBRACK Block
-    """
-    if not isinstance(p[3], GoForClause) and not isinstance(
-        p[3], GoRange
-    ):  # while loop
-        clause = GoForClause(None, p[3], None)
-    else:
-        clause = p[3]
-    p[0] = GoFor(clause, p[5])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_ForClause(p):
-    """ForClause : SimpleStmt SEMICOLON SimpleStmt SEMICOLON SimpleStmt
-                 | SimpleStmt SEMICOLON SimpleStmt SEMICOLON empty
-                 | SimpleStmt SEMICOLON empty SEMICOLON SimpleStmt
-                 | SimpleStmt SEMICOLON empty SEMICOLON empty
-                 | empty SEMICOLON SimpleStmt SEMICOLON SimpleStmt
-                 | empty SEMICOLON SimpleStmt SEMICOLON empty
-                 | empty SEMICOLON empty SEMICOLON SimpleStmt
-                 | empty SEMICOLON empty SEMICOLON empty
-    """
-    p[0] = GoForClause(p[1], p[3], p[5])
-
-
-def p_RangeClause(p):
-    """RangeClause : ExpressionList assign_op RANGE Expression
-                   | Expression assign_op RANGE Expression
-                   | ExpressionList SHDECL RANGE Expression
-                   | Expression SHDECL RANGE Expression
-                   | empty RANGE Expression
-    """
-    if len(p) == 4:  # empty
-        lhs = []
-    else:
-        lhs = p[1]
-    p[0] = GoRange(lhs, p[len(p) - 1])
-
-
-def p_ReturnStmt(p):
-    """ReturnStmt : RETURN ExpressionList
-                  | RETURN Expression
-                  | RETURN
-    """
-    if len(p) == 2:
-        expressions = []
-    elif type(p[2]) is list:
-        expressions = p[2]
-    else:
-        expressions = [p[2]]
-    p[0] = GoReturn(expressions)
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_BreakStmt(p):
-    """BreakStmt : BREAK ID
-                 | BREAK
-    """
-    if len(p) == 3:
-        p[0] = GoLabelCtrl(p[1], p[2])
-    else:
-        p[0] = GoLabelCtrl(p[1], None)
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_ContinueStmt(p):
-    """ContinueStmt : CONTINUE ID
-                    | CONTINUE
-    """
-    if len(p) == 3:
-        p[0] = GoLabelCtrl(p[1], p[2])
-    else:
-        p[0] = GoLabelCtrl(p[1], None)
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_GotoStmt(p):
-    """GotoStmt : GOTO ID
-    """
-    p[0] = GoLabelCtrl(p[1], p[2])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_FallthroughStmt(p):
-    """FallthroughStmt : FALLTHROUGH
-    """
-    p[0] = GoControl("fallthrough")
-
-
-# =============================================================================
-# PACKAGES
-# =============================================================================
-
-
-def p_SourceFile(p):
-    """SourceFile : PACKAGE ID SEMICOLON ImportDeclList TopLevelDeclList
-    """
-    p[0] = GoSourceFile(p[2], p[4], p[5])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_ImportDecl(p):
-    """ImportDecl : IMPORT LBRACK ImportSpecList RBRACK
-                  | IMPORT ImportSpec
-    """
-    if len(p) == 3:  # single ImportSpec
-        p[0] = GoDecl("import", [p[2]])
-    else:  # ImportSpecList
-        p[0] = GoDecl("import", p[3])
-    p[0].lineno = adjust_lineno(p.slice[1].lineno)
-
-
-def p_ImportDeclList(p):
-    """ImportDeclList : ImportDecl SEMICOLON ImportDeclList
-                      | empty
-    """
-    if len(p) == 2:  # empty
-        p[0] = []
-    else:
-        p[0] = [p[1]] + p[3]
-
-
-def p_ImportSpec(p):
-    """ImportSpec : DOT STRING
-                  | ID STRING
-                  | empty STRING
-    """
-    # package alias kept last so as to account for empty/default alias of None
-    p[0] = GoImportSpec(p[2], p[1])
-
-
-def p_ImportSpecList(p):
-    """ImportSpecList : ImportSpec SEMICOLON ImportSpecList
-                      | empty
-    """
-    if len(p) == 2:  # empty
-        p[0] = []
-    else:
-        p[0] = [p[1]] + p[3]
-
-
-parser = yacc.yacc()
+    ir_code = ""
+    DTYPE = None
+    global inter_count
+    inter_count += 1
+
+    logging.info(tree)
+
+    def string_handler(item, dtype, store_loc):
+        """Handle storing of an "str" item of given dtype into store_loc."""
+        global inter_count
+        inter_count += 1
+        local_ir = ""
+        if store_loc == "":
+            pass
+        elif isinstance(dtype, GoArray):
+            for arr_index in range(
+                0, table.get_size(dtype), table.get_size(dtype.dtype)
+            ):
+                arr_elem = GoPrimaryExpr(
+                    item,
+                    GoIndex(GoBasicLit(arr_index, GoType("int", True, 1))),
+                )
+                local_ir += symbol_table(
+                    arr_elem,
+                    table,
+                    name,
+                    block_type,
+                    store_var=store_loc + "[{}]".format(arr_index),
+                    scope_label=scope_label,
+                )[1]
+        elif isinstance(dtype, GoStruct):
+            field_index = 0
+            for field, govar in dtype.vars:
+                local_ir += string_handler(
+                    item + "[{}]".format(field_index),
+                    govar.dtype,
+                    store_loc + "[{}]".format(field_index),
+                )
+                field_index += table.get_size(govar.dtype)
+        elif hasattr(dtype, "name") and dtype.name == "string":
+            index_name = "__str_ind_{}".format(inter_count)
+            cond_name = "__str_cond_{}".format(inter_count)
+            table.insert_var(index_name, GoType("uint"), "intermediate")
+            table.insert_var(cond_name, GoType("bool"), "intermediate")
+
+            while_label = "StrStart{}".format(inter_count)
+            endwhile_label = "StrEnd{}".format(inter_count)
+
+            local_ir += "{} = 0\n".format(index_name)
+            local_ir += '{}: {} = {}[{}] == "\\0"\n'.format(
+                while_label, cond_name, item, index_name
+            )
+            local_ir += "if {} goto {}\n".format(cond_name, endwhile_label)
+            local_ir += "{}[{}] = {}[{}]\n".format(
+                store_loc, index_name, item, index_name
+            )
+            local_ir += "{} = {} + 1\n".format(cond_name, cond_name)
+            local_ir += "goto {}\n".format(while_label)
+            local_ir += '{}: {}[{}] = "\\0"\n'.format(
+                endwhile_label, store_loc, index_name
+            )
+        else:
+            local_ir += "{} = {}\n".format(store_loc, item)
+        return local_ir
+
+    # If code enters here then it looks only for variables, hence
+    # we need to make sure that sybmol table is not called uneccessary strings
+    # otherwise code will fail
+    if type(tree) is str:  # variable
+        logging.info("STR: '{}'".format(tree))
+        DTYPE = table.get_type(tree)
+        ir_code += string_handler(tree, DTYPE, store_var)
+
+    # Trying to catch GoException raised by SymbTable's methods
+    try:
+        if isinstance(tree, GoBasicLit):
+            DTYPE = tree.dtype
+            if store_var == "":
+                ir_code = str(tree.item)
+            elif hasattr(tree.dtype, "name") and tree.dtype.name == "string":
+                for i, char in enumerate(tree.item[1:-1]):
+                    ir_code += '{}[{}] = "{}"\n'.format(store_var, i, char)
+                ir_code += '{}[{}] = "\\0"\n'.format(
+                    store_var, len(tree.item) - 2
+                )
+            else:
+                ir_code = "{} = {}\n".format(store_var, tree.item)
+
+        elif isinstance(tree, GoFromModule):
+            parent = tree.parent
+            child = tree.child
+            this_name = tree.name
+            # print("parent '{}', child '{}'".format(parent, child))
+
+            # currently handles accessing a field of a struct
+            if type(parent) is str:
+                struct_obj = table.get_type(parent)
+                struct_name = struct_obj.name
+                # print(struct_name)
+                # print(parent,struct_obj)
+                parent_name = parent
+            else:
+                parent_name = "__parent_{}".format(inter_count)
+                parent_dtype, parent_code = symbol_table(
+                    parent,
+                    table,
+                    name,
+                    block_type,
+                    store_var=parent_name,
+                    scope_label=scope_label,
+                )
+                ir_code += parent_code
+                table.insert_var(parent_name, parent_dtype, "intermediate")
+                struct_obj = parent_dtype
+                struct_name = parent_dtype.name
+            # print(struct_name,child)
+            DTYPE = table.get_struct(struct_name, child).dtype
+            this_name = "{}[{}]".format(
+                parent_name, table.field2index(struct_obj, child)
+            )
+            ir_code += string_handler(this_name, DTYPE, store_var)
+
+        # TODO: Store modules
+        elif isinstance(tree, GoSourceFile):
+            # iterating over package imports
+            for item in tree.imports:
+                table.imports[item.import_as] = item
+            # iteraing over TopLevelDeclList
+            for item in tree.declarations:
+                ir_code += symbol_table(
+                    item, table, name, block_type, scope_label=scope_label
+                )[1]
+            DTYPE = None
+
+        # method declarations
+        elif isinstance(tree, GoMethDecl):
+            receiver = tree.receiver
+            name = tree.name
+            params = tree.params
+            result = tree.result
+            body = tree.body
+            table.insert_method(name, params, result, receiver)
+
+            for rec in receiver:
+                ir_code += "func begin {}.{}\n".format(rec.dtype.name, name)
+                ir_code += symbol_table(
+                    body,
+                    table,
+                    (name, rec),
+                    "method",
+                    scope_label=scope_label,
+                    insert=True,
+                )[1]
+                ir_code += "func end\n"
+            DTYPE = None
+
+        # function declarations
+        elif isinstance(tree, GoFuncDecl):
+            name = tree.name
+            params = tree.params
+            result = tree.result
+            if result is None:
+                result = []
+            body = tree.body  # instance of GoBlock
+            table.insert_func(name, params, result)
+            ir_code += "func begin {}\n".format(name)
+            ir_code += symbol_table(
+                body,
+                table,
+                name,
+                "function",
+                scope_label=scope_label,
+                insert=True,
+            )[1]
+            ir_code += "func end\n"
+            DTYPE = None
+
+        elif isinstance(tree, GoDecl) and tree.kind == "var":
+            var_list = tree.declarations
+            for item in var_list:
+                lhs = item.lhs
+                dtype = item.dtype
+                rhs = item.rhs
+                if len(lhs) != len(rhs) and len(rhs) != 0:
+                    raise GoException(
+                        "Error: different number of variables and values in "
+                        "var declaration"
+                    )
+                elif len(rhs) == 0 and dtype is None:
+                    raise GoException(
+                        "Error: neither data type nor values given in var "
+                        "declaration"
+                    )
+                else:
+                    # iterating over all expressions to evaluate their types
+                    evaluated_types = []
+                    inter_names = []
+                    for i, expr in enumerate(rhs):
+                        decl_name = "__decl{}_{}".format(i, inter_count)
+                        expr_dtype, expr_code = symbol_table(
+                            expr,
+                            table,
+                            name,
+                            block_type,
+                            store_var=decl_name,
+                            scope_label=scope_label,
+                        )
+                        table.insert_var(
+                            decl_name,
+                            expr_dtype,
+                            use="intermediate",
+                        )
+                        inter_names.append(decl_name)
+                        ir_code += expr_code
+                        evaluated_types.append(expr_dtype)
+                    if len(rhs) != 0:
+                        for i, (var, eval_type) in enumerate(
+                            zip(lhs, evaluated_types)
+                        ):
+                            ir_code += "{} = {}\n".format(
+                                var, inter_names[i]
+                            )
+                            if dtype is not None:
+                                # If defined type is not None then check if the
+                                # evaluated type is same as the defined type
+                                table.type_check(
+                                    dtype, eval_type, "variable declaration"
+                                )
+                                logging.info(
+                                    'var "{}":"{}"'.format(var, dtype)
+                                )
+                                if isinstance(eval_type, GoType):
+                                    dtype.value = eval_type.value
+                                table.insert_var(var, dtype)
+                            else:
+                                table.insert_var(var, eval_type)
+                    else:
+                        for var in lhs:
+                            logging.info('var "{}":"{}"'.format(var, dtype))
+
+                            def zero_initializer(dtype_loc, store_loc):
+                                local_ir = ""
+                                if isinstance(dtype_loc, GoArray):
+                                    for arr_index in range(
+                                        0,
+                                        table.get_size(dtype_loc),
+                                        table.get_size(dtype_loc.dtype),
+                                    ):
+                                        local_ir += zero_initializer(
+                                            dtype_loc.dtype,
+                                            store_loc=store_loc
+                                            + "[{}]".format(arr_index),
+                                        )
+                                elif isinstance(dtype_loc, GoStruct):
+                                    field_index = 0
+                                    for field, govar in dtype_loc.vars:
+                                        local_ir += zero_initializer(
+                                            dtype_loc.dtype,
+                                            store_loc=govar.dtype
+                                            + "[{}]".format(field_index),
+                                        )
+                                        field_index += table.get_size(
+                                            govar.dtype
+                                        )
+                                elif (
+                                    hasattr(dtype_loc, "name")
+                                    and dtype_loc.name == "string"
+                                ):
+                                    local_ir += '{} = "\\0"\n'.format(
+                                        store_loc
+                                    )
+                                else:
+                                    local_ir += "{} = 0\n".format(store_loc)
+                                return local_ir
+
+                            ir_code += zero_initializer(dtype, var)
+
+                            if isinstance(dtype, GoArray):
+                                depth = 1
+                                curr = dtype
+                                while isinstance(curr.dtype, GoArray):
+                                    depth = depth + 1
+                                    curr = curr.dtype
+                                dtype.depth = depth
+                            table.insert_var(var, dtype)
+            DTYPE = None
+
+        # typedef and aliases
+        # still need to incorporate typedef alias during type checking
+        elif isinstance(tree, GoDecl) and tree.kind == "type":
+            type_list = tree.declarations
+            # iterating over AliasDecl and Typedef
+            for item in type_list:
+                kind = item.kind
+                alias = item.alias
+                actual = item.actual
+                if isinstance(actual, GoStruct):
+                    table.insert_struct(alias, actual)
+                elif isinstance(actual, GoInterfaceType):
+                    table.insert_interface(alias, actual)
+                else:
+                    table.insert_alias(alias, actual, kind)
+
+                logging.info('{} "{}" : "{}"'.format(kind, alias, actual))
+            DTYPE = None
+
+        elif isinstance(tree, GoDecl) and tree.kind == "constant":
+            const_list = tree.declarations
+            for item in const_list:
+                id_list = item.id_list
+                dtype = item.dtype
+                expr_list = item.expr
+                if len(id_list) != len(expr_list):
+                    raise GoException(
+                        "Error: different number of variables and values in "
+                        "const declaration"
+                    )
+
+                else:
+                    evaluated_types = []
+                    inter_names = []
+                    for i, expr in enumerate(expr_list):
+                        const_name = "__const{}_{}".format(i, inter_count)
+                        expr_dtype, expr_code = symbol_table(
+                            expr,
+                            table,
+                            name,
+                            block_type,
+                            store_var=const_name,
+                            scope_label=scope_label,
+                        )
+                        inter_names.append(const_name)
+                        table.insert_var(
+                            const_name,
+                            expr_dtype,
+                            use="intermediate",
+                        )
+                        ir_code += expr_code
+                        evaluated_types.append(expr_dtype)
+
+                    for i, (const, eval_type) in enumerate(
+                        zip(id_list, evaluated_types)
+                    ):
+                        if dtype is None:
+                            table.insert_const(const, eval_type)
+                        else:
+                            table.type_check(
+                                dtype, eval_type, "const declaration"
+                            )
+                            # Treating constant declarations as variable assignment
+                            ir_code += "{} = {}\n".format(
+                                const, inter_names[i]
+                            )
+                            if isinstance(eval_type, GoType):
+                                dtype.value = eval_type.value
+                            logging.info(
+                                'const "{}":"{}"'.format(const, dtype)
+                            )
+                            table.insert_const(const, dtype)
+            DTYPE = None
+
+        elif isinstance(tree, GoBlock):
+            statement_list = tree.statements
+            if not name:
+                child_table = SymbTable(table)
+                table.scopes.append(child_table)
+
+            elif block_type == "function" and insert:
+                child_table = SymbTable(table, "function")
+                for param in table.functions[name]["params"]:
+                    if param.name:
+                        child_table.insert_var(param.name, param.dtype)
+                    # TODO: need to handle parameters with None name
+                if len(child_table.activation_record) > 0:
+                    last_offset = child_table.activation_record[-1][
+                        1
+                    ].activation_offset
+                for i in range(len(child_table.activation_record)):
+                    child_table.activation_record[i][
+                        1
+                    ].activation_offset -= last_offset
+                child_table.activation_offset = 0
+                for item in ["dynamic_link", "return_address", "static_link"]:
+                    child_table.insert_var(item, GoPointType(None))
+                table.functions[name]["body"] = child_table
+
+            elif block_type == "method" and insert:
+                child_table = SymbTable(table, "method")
+                key = (name[0], name[1].dtype.name)
+                for param in table.methods[key]["params"]:
+                    if param.name:
+                        child_table.insert_var(param.name, dtype)
+
+                struct_obj = GoStruct([])
+                struct_obj.name = name[1].dtype.name
+                struct_obj.size = table.struct_size(name[1].dtype.name)
+                logging.info("STRUCT METHOD SIZE {}".format(struct_obj.size))
+                child_table.insert_var(name[1].name, struct_obj)
+                if len(child_table.activation_record) > 0:
+                    last_offset = child_table.activation_record[-1][
+                        1
+                    ].activation_offset
+                for i in range(len(child_table.activation_record)):
+                    child_table.activation_record[i][
+                        1
+                    ].activation_offset -= last_offset
+                child_table.activation_offset = 0
+                for item in ["dynamic_link", "return_address", "static_link"]:
+                    child_table.insert_var(item, GoPointType(None))
+                table.methods[key]["body"] = child_table
+
+            else:
+                child_table = SymbTable(table)
+                table.scopes.append(child_table)
+
+            for statement in statement_list:
+                if (
+                    statement is None
+                    or statement == ""
+                    or (type(statement) is list and len(statement) == 0)
+                ):
+                    continue
+                ir_code += symbol_table(
+                    statement,
+                    child_table,
+                    name,
+                    block_type,
+                    scope_label=scope_label,
+                )[1]
+            DTYPE = None
+
+            if block_type == "function" and insert:
+                if table.functions[name]["result"] is None:
+                    ir_code += "return\n"
+            elif block_type == "method" and insert:
+                key = (name[0], name[1].dtype.name)
+                if table.methods[key]["result"] is None:
+                    ir_code += "return\n"
+                ir_code += "return\n"
+
+        elif isinstance(tree, GoAssign):
+            lhs = tree.lhs
+            rhs = tree.rhs
+            if len(lhs) != len(rhs):
+                # Check if RHS is function return
+                # Will be checked later for multiple return
+                if (
+                    len(rhs) != 1
+                    or not isinstance(rhs[0], GoPrimaryExpr)
+                    or not isinstance(rhs[0].rhs, GoArguments)
+                ):
+                    raise GoException(
+                        "Error: Different number of variables and values in "
+                        "assign operation"
+                    )
+            lhs_3ac = []
+
+            def _get_loc(curr, ind_cnt=0):
+                nonlocal ir_code  # Use ir_code of `symbol_table`
+                error = False
+
+                if isinstance(curr, GoPrimaryExpr):
+                    if isinstance(curr.rhs, GoSelector):
+                        # No checking here; it is done ahead
+                        return (
+                            _get_loc(curr.lhs, ind_cnt) + "." + curr.rhs.child
+                        )
+                    elif isinstance(curr.rhs, GoIndex):
+                        index_name = "__index{}_{}".format(
+                            ind_cnt, inter_count
+                        )
+                        dtype, index_code = symbol_table(
+                            curr.rhs.index,
+                            table,
+                            name,
+                            block_type,
+                            store_var=index_name,
+                            scope_label=scope_label,
+                        )
+                        table.insert_var(index_name, dtype, use="intermediate")
+                        table.type_check(dtype, GoType("int", True))
+                        ir_code += index_code
+                        lhs_dtype = symbol_table(curr.lhs, table)[0]
+                        index_size = table.get_size(lhs_dtype.dtype)
+                        if index_size != 1:
+                            ir_code += "{} = {} * {}\n".format(
+                                index_name, index_name, index_size
+                            )
+
+                        if isinstance(lhs_dtype.dtype, GoArray):
+                            # Multi-dimensional array
+                            lhs_name = "__index_lhs{}_{}".format(
+                                ind_cnt, inter_count
+                            )
+                            table.insert_var(
+                                lhs_name, lhs_dtype, "intermediate"
+                            )
+                            lhs_loc = _get_loc(curr.lhs, ind_cnt + 1)
+                            ir_code += "{} = {} + {}\n".format(
+                                lhs_name, lhs_loc, index_name
+                            )
+                            return lhs_name
+                        else:
+                            return _get_loc(
+                                curr.lhs, ind_cnt + 1
+                            ) + "[{}]".format(index_name)
+                    else:
+                        error = True
+                elif isinstance(curr, GoExpression):
+                    error = True
+                elif isinstance(curr, GoUnaryExpr):
+                    if curr.op == "*":
+                        if type(curr.expr) is str:
+                            if not isinstance(
+                                table.get_type(curr.expr), GoPointType
+                            ):
+                                raise GoException(
+                                    "Error: {} not pointer type".format(
+                                        curr.expr
+                                    )
+                                )
+                            else:
+                                return "*" + _get_loc(curr.expr, ind_cnt)
+                        elif isinstance(curr.expr, GoUnaryExpr):
+                            return "*" + _get_loc(curr.expr, ind_cnt)
+                            loc_lhs += "*"
+
+                    else:
+                        error = True
+                elif isinstance(curr, GoFromModule):
+                    # No checking here; it is done ahead
+                    parent_dtype = symbol_table(
+                        curr.parent,
+                        table,
+                        name,
+                        block_type,
+                        scope_label=scope_label,
+                    )[0]
+                    if not isinstance(parent_dtype, GoStruct):
+                        if hasattr(curr.parent, "name"):
+                            parent_name = curr.parent.name
+                        else:
+                            parent_name = str(curr.parent)
+                        raise GoException(
+                            'Cannot access attribute "{}" as "{}" is not a struct'.format(
+                                curr.child, parent_name
+                            )
+                        )
+                    child_index = table.field2index(parent_dtype, curr.child)
+                    return _get_loc(curr.parent, ind_cnt) + "[{}]".format(
+                        child_index
+                    )
+                elif not table.lookup(curr):
+                    raise GoException(
+                        'Error: "{}" not declared before use'.format(curr)
+                    )
+                elif type(curr) is str:
+                    return curr
+                if error:
+                    raise GoException(
+                        'Error: Expression "{}" cannot be assigned '
+                        "value".format(var)
+                    )
+
+            for var in lhs:
+                lhs_3ac.append(_get_loc(var))
+
+            if len(lhs) != len(rhs):
+                # Check if function return RHS is valid
+                return_name = "__func_ret_{}".format(inter_count)
+                func_dtype, func_code = symbol_table(
+                    rhs[0],
+                    table,
+                    name,
+                    block_type,
+                    store_var=return_name,
+                    scope_label=scope_label,
+                )
+                if len(lhs) != len(func_dtype):
+                    raise GoException(
+                        "Error: Different number of variables and values in "
+                        "function return; expected {}".format(len(func_dtype))
+                    )
+                else:
+                    ir_code += func_code
+
+                field_list = [
+                    GoStructField(["__val{}".format(i)], func_dtype[i], "")
+                    for i in range(len(func_dtype))
+                ]
+                return_struct = GoStruct(field_list)
+                table.insert_var(return_name, return_struct, "intermediate")
+
+                arg_index = 0
+                for i in range(len(func_dtype)):
+                    ir_code += "{} = {}[{}]\n".format(
+                        lhs_3ac[i], return_name, arg_index
+                    )
+                    arg_index += table.get_size(func_dtype[i])
+
+            else:
+                for i, (var, expr) in enumerate(zip(lhs, rhs)):
+                    logging.info('assign: "{}" : "{}"'.format(var, expr))
+                    # can have only struct fields, variables, array on the LHS.
+                    dtype1 = None
+                    if isinstance(var, GoPrimaryExpr):
+                        left = var
+                        depth = 0
+                        indexes = []
+                        while isinstance(left.lhs, GoPrimaryExpr):
+                            if isinstance(left.rhs, GoBasicLit):
+                                indexes.append(left.rhs.index.item)
+                            else:
+                                indexes.append(0)
+                            left = left.lhs
+                            depth = depth + 1
+                        if isinstance(left.rhs, GoBasicLit):
+                            indexes.append(left.rhs.index.item)
+                        else:
+                            indexes.append(0)
+
+                        dtype1 = table.get_type(left.lhs)
+                        if dtype1.length.item <= indexes[len(indexes) - 1]:
+                            raise GoException("Error : Index Out of bound")
+                        indexes.pop()
+                        dtype1 = dtype1.dtype
+                        while depth > 0:
+                            if dtype1.length.item <= indexes[len(indexes) - 1]:
+                                raise GoException("Error : Index Out of bound")
+                            indexes.pop()
+                            dtype1 = dtype1.dtype
+                            depth = depth - 1
+
+                    elif type(var) is str:
+                        dtype1 = table.get_type(var)
+
+                    elif isinstance(var, GoUnaryExpr) and var.op == "*":
+                        symbol_table(
+                            var.expr,
+                            table,
+                            name,
+                            block_type,
+                            scope_label=scope_label,
+                        )
+                        if type(var.expr) is str:
+                            if not isinstance(
+                                table.get_type(var.expr), GoPointType
+                            ):
+                                raise GoException(
+                                    "Error: {} not pointer type".format(
+                                        var.expr
+                                    )
+                                )
+                            var.dtype = table.get_type(var.expr).dtype
+                            dtype1 = var.dtype
+
+                        elif (
+                            isinstance(var.expr, GoUnaryExpr)
+                            and var.expr.op == "*"
+                        ):
+                            if not isinstance(var.expr.dtype, GoPointType):
+                                raise GoException(
+                                    "Error: {} not pointer type".format(
+                                        var.expr
+                                    )
+                                )
+                            var.dtype = var.expr.dtype.dtype
+                            dtype1 = var.dtype
+
+                    # NEW START
+                    elif isinstance(var, GoFromModule):
+                        parent = var.parent
+                        child = var.child
+                        # currently handles accessing a field of a struct
+                        if type(parent) is str:
+                            struct_name = table.get_type(parent).name
+                            dtype1 = table.get_struct(struct_name, child).dtype
+
+                        # handles nesting of structs
+                        elif isinstance(parent, GoFromModule):
+                            logging.info(
+                                "parent '{}', child '{}'".format(parent, child)
+                            )
+                            struct_name = (
+                                table.nested_module(parent)
+                            ).dtype.name
+                            logging.info(
+                                "struct name '{}'".format(struct_name)
+                            )
+                            dtype1 = table.get_struct(struct_name, child).dtype
+
+                    if dtype1 is None:
+                        print("Warning: Getting None dtype in Assignment")
+                    # NEW END
+
+                    dtype2, rhs_code = symbol_table(
+                        expr,
+                        table,
+                        name,
+                        block_type,
+                        store_var=lhs_3ac[i],
+                        scope_label=scope_label,
+                    )
+                    ir_code += rhs_code
+
+                    if type(dtype2) is list:
+                        raise GoException(
+                            "Function with multiple returns not applicable in "
+                            "single return context"
+                        )
+                    table.type_check(dtype1, dtype2, "assignment")
+
+                    DTYPE = None
+
+        elif isinstance(tree, GoShortDecl):
+            id_list = tree.id_list
+            expr_list = tree.expr_list
+            check = True
+            for expr in expr_list:
+                if isinstance(expr, GoPrimaryExpr) and isinstance(expr.rhs, GoArguments):
+                    length = len(table.get_func(expr.lhs,"result")[0])
+                    if length > 1:
+                        check = False
+                    elif length == 0:
+                        raise GoException("SyntaxError: Void function {} used as value".format(expr.lhs))
+        
+            if check == True:
+                if len(id_list) != len(expr_list):
+                    raise GoException(
+                        "Error: Different number of variables and values in short declaration"
+                    )
+
+            else:
+                if len(expr_list) > 1:
+                    raise GoException(
+                        "Error: multiple-value function {} used in single-value context".format(expr.lhs)
+                    )
+                elif len(id_list) != len(table.get_func(expr.lhs,"result")[0]):
+                    raise GoException(
+                        "Error: Different number of variables and values in short declaration"
+                    )
+
+                id_list = [id_list]
+
+            for var in id_list:
+                if type(var) is not str and type(var) is not list:
+                    raise GoException(
+                        "SyntaxError: LHS '{}' is not a variable".format(var)
+                    )
+                if type(var) is list:
+                    for child in var:
+                        if type(child) is not str:
+                            raise GoException(
+                                "SyntaxError: LHS '{}' is not a variable".format(var)
+                            )
+            
+            for var, expr in zip(id_list, expr_list):
+                logging.info('short decl: "{}" : "{}"'.format(var, expr))
+                dtype, rhs_code = symbol_table(
+                    expr,
+                    table,
+                    name,
+                    block_type,
+                    store_var=var,
+                    scope_label=scope_label,
+                )
+                ir_code += rhs_code
+                # if isinstance(dtype,GoArray) and isinstance(dtype.dtype,GoArray):
+                #     print(var,dtype.dtype.dtype)
+                if type(var) is str:
+                    table.insert_var(var, dtype)
+                else:
+                    for child1,child2 in zip(var,dtype):
+                        table.insert_var(child1, child2)
+
+            DTYPE = None
+
+        elif isinstance(tree, GoExpression):
+            lhs = tree.lhs
+            op = tree.op
+            rhs = tree.rhs
+            logging.info('exp: lhs "{}", rhs "{}"'.format(lhs, rhs))
+
+            # INCOMPLETE : need to handle cases for array types, struct types,
+            # interfaces, function, pointer
+            lhs_name = "__lhs_{}".format(inter_count)
+            dtype1, lhs_code = symbol_table(
+                lhs,
+                table,
+                name,
+                block_type,
+                store_var=lhs_name,
+                scope_label=scope_label,
+            )
+            table.insert_var(
+                lhs_name, dtype1, use="intermediate"
+            )
+            rhs_name = "__rhs_{}".format(inter_count)
+            dtype2, rhs_code = symbol_table(
+                rhs,
+                table,
+                name,
+                block_type,
+                store_var=rhs_name,
+                scope_label=scope_label,
+            )
+            table.insert_var(
+                rhs_name, dtype1, use="intermediate"
+            )
+            ir_code += lhs_code + rhs_code
+            ir_code += "{} = {} {} {}\n".format(
+                store_var, lhs_name, op, rhs_name
+            )
+
+            logging.info('exp lhs: "{}", rhs: "{}"'.format(dtype1, dtype2))
+
+            if dtype1.__class__ is not dtype2.__class__:
+                raise GoException(
+                    "Error: Operands in expression of different type classes '{}' "
+                    "and '{}'".format(dtype1.__class__, dtype2.__class__)
+                )
+
+            # INCOMPLETE need to check for other type classes
+            if isinstance(dtype1, GoType) and isinstance(dtype2, GoType):
+                name1 = dtype1.name
+                name2 = dtype2.name
+
+                table.type_check(dtype1, dtype2, "expression")
+                if dtype1.basic_lit is False:
+                    name = dtype1.name
+                else:
+                    name = dtype2.name
+
+                if name == "bool" and op not in ["&&", "||"]:
+                    raise GoException(
+                        "Error: Invalid operator for bool operands"
+                    )
+                elif op in ["&&", "||"] and name != "bool":
+                    raise GoException(
+                        "Error: Invalid operand types '{}' and '{}' for bool operator".format(
+                            name1, name2
+                        )
+                    )
+                elif op in [">>", "<<", "&", "&^", "^", "|", "%"] and (
+                    not table.check_basic_type(name)
+                    or table.get_basic_type(name)["kind"] != "int"
+                ):
+                    raise GoException(
+                        "Error: Operator '{}' is not applicable for '{}'".format(
+                            op, name
+                        )
+                    )
+                elif name == "string" and op not in [
+                    "+",
+                    "==",
+                    "!=",
+                    ">=",
+                    "<=",
+                    ">",
+                    "<",
+                ]:
+                    raise GoException(
+                        "Error: Invalid operator for string type"
+                    )
+                else:
+                    logging.info(
+                        'basic_lit "{}", "{}", "{}"'.format(
+                            dtype1, dtype2, dtype1.basic_lit & dtype2.basic_lit
+                        )
+                    )
+                    if op in [">", "<", ">=", "<=", "==", "!="]:
+                        tree.dtype = GoType(
+                            "bool", dtype1.basic_lit & dtype2.basic_lit
+                        )
+                    else:
+                        tree.dtype = GoType(
+                            name, dtype1.basic_lit & dtype2.basic_lit
+                        )
+                    DTYPE = tree.dtype
+
+        elif isinstance(tree, GoIf):
+            # New symbol table needed as stmt is in the scope of both if and else
+            newtable = SymbTable(table)
+            ir_code += symbol_table(
+                tree.stmt, newtable, name, block_type, scope_label=scope_label
+            )[1]
+            cond_name = "__cond_{}".format(inter_count)
+            cond_dtype, cond_code = symbol_table(
+                tree.cond,
+                newtable,
+                name,
+                block_type,
+                store_var=cond_name,
+                scope_label=scope_label,
+            )
+            ir_code += cond_code
+            table.insert_var(
+                cond_name, cond_dtype, use="intermediate"
+            )
+
+            # Choosing the labels
+            if_label = "If{}".format(inter_count)
+            endif_label = "EndIf{}".format(inter_count)
+
+            ir_code += "if {} goto {}\n".format(cond_name, if_label)
+            if (
+                not (
+                    isinstance(tree.cond, GoExpression)
+                    or isinstance(tree.cond, GoBasicLit)
+                )
+                or not isinstance(tree.cond.dtype, GoType)
+                or tree.cond.dtype.name != "bool"
+            ):
+                raise GoException(
+                    "Error: If condition is not evaluating to bool"
+                )
+            ir_code += symbol_table(
+                tree.inelse,
+                newtable,
+                name,
+                block_type,
+                scope_label=scope_label,
+            )[1]
+            ir_code += "goto {}\n{}: ".format(endif_label, if_label)
+            ir_code += symbol_table(
+                tree.inif, newtable, name, block_type, scope_label=scope_label
+            )[1]
+            ir_code += "{}: ".format(endif_label)
+            table.scopes.append(newtable)
+            DTYPE = None
+
+        elif isinstance(tree, GoFor):
+            logging.info("Entered GoFor")
+            cond_label = "ForCond{}".format(inter_count)
+            for_label = "For{}".format(inter_count)
+            postfor_label = "ForPost{}".format(inter_count)
+            endfor_label = "EndFor{}".format(inter_count)
+
+            DTYPE = None
+
+            if isinstance(tree.clause, GoForClause):
+                logging.info("Entered GoForClause")
+                if (
+                    (tree.clause.init is not None)
+                    and not isinstance(tree.clause.init, GoShortDecl)
+                    and not isinstance(tree.clause.init, GoAssign)
+                ):
+                    raise GoException(
+                        "Error: Error in for loop Initialization"
+                    )
+                elif (
+                    (tree.clause.expr is not None)
+                    and not isinstance(tree.clause.expr, GoBasicLit)
+                    and not isinstance(tree.clause.expr, GoExpression)
+                ):
+                    raise GoException("Error: Error in for loop Condition")
+                elif (
+                    (tree.clause.post is not None)
+                    and not isinstance(tree.clause.post, GoAssign)
+                    and not (
+                        isinstance(tree.clause.post, GoUnaryExpr)
+                        and tree.clause.post.op in ["++", "--"]
+                    )
+                ):
+                    raise GoException(
+                        "Error: Error in for loop post expression"
+                    )
+
+                ir_code += symbol_table(
+                    tree.clause.init,
+                    table,
+                    name,
+                    block_type,
+                    scope_label=scope_label,
+                )[1]
+                ir_code += "{}: ".format(cond_label)
+                fcond_name = "__fcond_{}".format(inter_count)
+                fcond_dtype, fcond_code = symbol_table(
+                    tree.clause.expr,
+                    table,
+                    name,
+                    block_type,
+                    store_var=fcond_name,
+                    scope_label=scope_label,
+                )
+                ir_code += fcond_code
+                if tree.clause.expr is not None:
+                    table.insert_var(
+                        fcond_name,
+                        fcond_dtype,
+                        use="intermediate",
+                    )
+                    ir_code += "if {} goto {}\ngoto {}\n{}: ".format(
+                        fcond_name, for_label, endfor_label, for_label
+                    )
+                else:
+                    ir_code += "goto {}\ngoto {}\n{}: ".format(
+                        for_label, endfor_label, for_label
+                    )
+                post_code = symbol_table(
+                    tree.clause.post,
+                    table,
+                    name,
+                    block_type,
+                    scope_label=scope_label,
+                )[1]
+
+                if (
+                    tree.clause.expr is not None
+                ) and tree.clause.expr.dtype.name is not "bool":
+                    raise GoException(
+                        "Error: Loop condition must be bool type"
+                    )
+
+            elif isinstance(tree.clause, GoRange):
+                raise NotImplementedError("Range not implemented")
+
+            ir_code += symbol_table(
+                tree.infor,
+                table,
+                name,
+                block_type,
+                scope_label="{}|{}".format(endfor_label, postfor_label),
+            )[1]
+            ir_code += "{}: ".format(postfor_label) + post_code
+            ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
+
+        elif isinstance(tree, GoSwitch):
+            new_table = SymbTable(table)
+            symbol_table(
+                tree.stmt, new_table, name, block_type, scope_label=scope_label
+            )
+            table.scopes.append(new_table)
+
+            newtable = SymbTable(new_table)
+            for case_stmt in tree.case_list:
+                for child in case_stmt.expr_list:
+                    symbol_table(
+                        child,
+                        newtable,
+                        name,
+                        block_type,
+                        scope_label=scope_label,
+                    )
+                newnewtable = SymbTable(newtable)
+                for child in case_stmt.stmt_list:
+                    symbol_table(
+                        child,
+                        newnewtable,
+                        name,
+                        block_type,
+                        scope_label="Switch",
+                    )
+                newtable.scopes.append(newnewtable)
+            new_table.scopes.append(newtable)
+
+            # Converting Switch to If-Else for 3AC
+            prev_stmts = []
+            for case_stmt in tree.case_list:
+                if case_stmt.kind == "default":
+                    prev_stmts = case_stmt.stmt_list
+                    break
+
+            for case_stmt in tree.case_list[::-1]:
+                if case_stmt.kind == "default":
+                    continue
+                for expr in case_stmt.expr_list:
+                    prev_stmts = [
+                        GoIf(
+                            None,
+                            GoExpression(tree.cond, expr, "=="),
+                            GoBlock(case_stmt.stmt_list),
+                            GoBlock(prev_stmts),
+                        )
+                    ]
+
+            if_conv = prev_stmts[0]
+            if_conv.stmt = tree.stmt
+            copy_table = deepcopy(table)
+            switch_label = "Switch{}".format(inter_count)
+            DTYPE, ir_code = symbol_table(
+                if_conv, copy_table, name, block_type, scope_label=switch_label
+            )
+
+            old_switch_label = re.search(
+                r"\w+", ir_code.split("\n")[-1][::-1]
+            ).group()[::-1]
+            ir_code = ir_code.replace(old_switch_label, switch_label)
+
+        # XXX: 3AC necessary ??
+        # DTYPE needs to be verified
+        # ==========================================================================
+        elif isinstance(tree, GoArray):
+            if tree.length != "variable":
+                symbol_table(
+                    tree.length,
+                    table,
+                    name,
+                    block_type,
+                    scope_label=scope_label,
+                )
+            symbol_table(
+                tree.dtype, table, name, block_type, scope_label=scope_label
+            )
+            if isinstance(tree.dtype, GoArray):
+                tree.depth = tree.dtype.depth + 1
+                tree.final_type = tree.dtype.final_type
+                if not isinstance(tree.dtype.dtype, GoArray):
+                    tree.dtype.dtype = tree.dtype.final_type
+            else:
+                try:
+                    dtype1 = table.get_struct_obj(tree.dtype.name)
+                    tree.final_type = dtype1
+                except GoException:
+                    tree.final_type = tree.dtype
+
+            length = tree.length
+
+            if length == "variable":
+                return ir_code
+            elif type(length) is str:  # variable
+                dtype = table.get_type(length)
+            elif isinstance(length, GoExpression):
+                dtype = length.dtype
+            elif isinstance(length, GoBasicLit):
+                dtype = length.dtype
+
+            # Need to handle the case for typedef/alias of dtype.name
+            if isinstance(dtype, GoType) and (
+                not table.check_basic_type(dtype.name)
+                or table.get_basic_type(dtype.name)["kind"] != "int"
+            ):
+                tree.size = dtype.value * tree.dtype.size
+                logging.info("ARRAY SIZE: {}".format(tree.size))
+                raise GoException("Error: Array length must be an integer")
+
+            DTYPE = tree.final_type
+
+        elif isinstance(tree, GoIndex):
+            index = tree.index
+            dtype, ir_code = symbol_table(
+                index,
+                table,
+                name,
+                block_type,
+                store_var=store_var,
+                scope_label=scope_label,
+            )
+            if isinstance(dtype, GoType):
+                name = dtype.name
+                if (
+                    not table.check_basic_type(name)
+                    or table.get_basic_type(name)["kind"] != "int"
+                ):
+                    raise GoException("Error: Index of array is not integer")
+            else:
+                raise GoException("Error: Index of array is not integer")
+            DTYPE = dtype
+
+        elif isinstance(tree, GoPrimaryExpr):
+            rhs = tree.rhs
+            lhs = tree.lhs
+            # print(lhs,rhs)
+            if isinstance(rhs, GoIndex):  # array indexing
+                logging.info("array = '{}'".format(lhs))
+                # TODO: need to handle multiple return from function
+                if isinstance(lhs, GoPrimaryExpr):
+                    lhs.depth = tree.depth + 1
+                else:
+                    if not table.lookup(lhs):
+                        raise GoException(
+                            "Error: '{}' array not declared".format(lhs)
+                        )
+                    elif not isinstance(table.get_type(lhs), GoArray):
+                        raise GoException("Error: '{}' not array".format(lhs))
+                    elif tree.depth > table.get_type(lhs).depth:
+                        raise GoException(
+                            "Error: Incorrect number of indexes in array '{}'".format(
+                                lhs
+                            )
+                        )
+
+                    tree.dtype = (table.get_type(lhs)).dtype
+                    # if the array if one dimensional then simply return the final_type of that array
+                    # if not isinstance(tree.dtype,GoArray):
+                    #     tree.dtype = (table.get_type(lhs)).final_type
+                    # print(lhs,tree.dtype)
+                    DTYPE = tree.dtype
+
+                lhs_name = "__indlhs_{}".format(inter_count)
+                if type(lhs) is not str:
+                    lhs_dtype, lhs_code = symbol_table(
+                        lhs,
+                        table,
+                        name,
+                        block_type,
+                        store_var=lhs_name,
+                        scope_label=scope_label,
+                    )
+                else:
+                    lhs_dtype = table.get_type(lhs)
+                    lhs_code = "{} = {}\n".format(lhs_name, lhs)
+
+                if isinstance(lhs, GoPrimaryExpr):
+                    #     if isinstance(lhs.dtype,GoArray) and isinstance(lhs.dtype.dtype,GoArray)
+                    #         tree.dtype = lhs.dtype.dtype
+                    tree.dtype = lhs.dtype.dtype
+                    DTYPE = tree.dtype
+                    # print(tree.dtype.name)
+                    # print("HERE")
+
+                ir_code += lhs_code
+                table.insert_var(lhs_name, lhs_dtype, use="intermediate")
+
+                rhs_name = "__indrhs_{}".format(inter_count)
+                rhs_dtype, rhs_code = symbol_table(
+                    rhs,
+                    table,
+                    name,
+                    block_type,
+                    store_var=rhs_name,
+                    scope_label=scope_label,
+                )
+                ir_code += rhs_code
+                ir_code += "{} = {} * {}\n".format(
+                    rhs_name, rhs_name, table.get_size(lhs_dtype.dtype)
+                )
+                table.insert_var(rhs_name, rhs_dtype, use="intermediate")
+                if isinstance(lhs_dtype, GoArray) and isinstance(
+                    lhs_dtype.dtype, GoArray
+                ):
+                    ir_code += "{} = {} + {}\n".format(
+                        store_var, lhs_name, rhs_name, scope_label=scope_label
+                    )
+                else:
+                    ir_code += "{} = {}[{}]\n".format(
+                        store_var, lhs_name, rhs_name, scope_label=scope_label
+                    )
+
+            elif isinstance(rhs, GoArguments):  # fuction call
+                argument_list = rhs.expr_list
+                is_type_cast = False  # Type-casting has the same syntax
+
+                if type(lhs) is str:
+                    logging.info("FUNCTION CALL '{}'".format(lhs))
+                    func_name = lhs
+                    # type checking of arguments passed to function
+                    argument_list = rhs.expr_list
+                    params_list, is_type_cast = table.get_func(
+                        func_name, "params"
+                    )
+                    if is_type_cast:
+                        logging.info("type-casting '{}'".format(func_name))
+
+                    result = table.get_func(func_name, "result")[0]
+                    # assert result is None or isinstance(result, GoParam) ## Functions with no return value
+
+                    # Get function name/location in memory
+                    func_loc = func_name
+
+                elif isinstance(lhs, GoFromModule):
+                    parent = lhs.parent
+                    child = lhs.child
+                    # double imports
+                    logging.info(
+                        "METHOD parent: '{}',child: '{}'".format(parent, child)
+                    )
+                    if isinstance(parent, GoFromModule):
+                        raise NotImplementedError(
+                            "Multiple imports not done yet"
+                        )
+                    # single imports
+                    # ID DOT ID
+                    elif type(parent) is str:
+                        # check if the child is actually a method defined for parent (struct)
+                        # check is the type of arguments passed to child are same as that defined in method declaration
+                        method_name = child
+                        struct_name = (table.get_type(parent)).name
+                        logging.info(
+                            "method call'{}' on struct '{}' with arguments '{}'".format(
+                                method_name, struct_name, rhs
+                            )
+                        )
+                        key = (method_name, struct_name)
+                        # type checking of arguments passed to function
+                        params_list = table.get_method(key, "params")
+
+                        result = table.get_method(key, "result")
+
+                    # Get function name/location in memory
+                    func_loc = lhs.name
+
+                if len(argument_list) is not len(params_list):
+                    raise GoException(
+                        'Error: "{}" parameters passed to function "{}" '
+                        'instead of "{}"'.format(
+                            len(argument_list), func_name, len(params_list)
+                        )
+                    )
+
+                inter_names = []
+                for i, (argument, param) in enumerate(
+                    zip(argument_list, params_list)
+                ):
+                    arg_name = "__fcond_{}".format(inter_count)
+                    arg_dtype, arg_code = symbol_table(
+                        argument,
+                        table,
+                        name,
+                        block_type,
+                        store_var=arg_name,
+                        scope_label=scope_label,
+                    )
+                    ir_code += arg_code
+                    table.insert_var(
+                        arg_name,
+                        arg_dtype,
+                        use="intermediate",
+                    )
+                    inter_names.append(arg_name)
+                    table.type_check(
+                        param.dtype,
+                        arg_dtype,
+                        "type casting" if is_type_cast else "function call",
+                        func_name,
+                        param.name,
+                    )
+
+                if len(result) > 1:
+                    result_type = [item.dtype for item in result]
+                elif len(result) == 1:
+                    result_type = result[0].dtype
+                else:
+                    result_type = []
+                tree.dtype = []
+
+                DTYPE = result_type
+
+                if is_type_cast:
+                    ir_code += "{} = {} __arg0_{}\n".format(
+                        store_var, result_type.name, inter_count
+                    )
+                else:
+                    ir_code += "".join(
+                        [
+                            "param {}\n".format(inter_names[i])
+                            for i in range(len(argument_list))
+                        ]
+                    )
+                    if store_var == "":
+                        ir_code += "call {}, {}\n".format(
+                            func_loc, len(argument_list)
+                        )
+                    elif type(store_var) is not list:
+                        ir_code += "{} = call {}, {}\n".format(
+                            store_var, func_loc, len(argument_list)
+                        )
+                    else:
+                        ir_code += "temp_var = call {},{}\n".format(
+                            func_loc, len(argument_list)
+                        )
+                        count = 0
+                        for i, child in enumerate(store_var):
+                            ir_code += "{} = temp_var[{}]\n".format(
+                                child, count
+                            )
+                            count += table.get_size(table.get_func(tree.lhs,"result")[0][i].dtype)
+
+
+            elif isinstance(rhs, GoSelector):
+                child = rhs.child
+                lhs_name = "__sellhs_{}".format(inter_count)
+                lhs_dtype, lhs_code = symbol_table(
+                    lhs,
+                    table,
+                    name,
+                    block_type,
+                    store_var=lhs_name,
+                    scope_label=scope_label,
+                )
+                ir_code += lhs_code
+                if isinstance(lhs_dtype, GoStruct):
+                    struct_name = lhs_dtype.name
+                    if type(child) is str:
+                        DTYPE = table.get_struct(struct_name, child).dtype
+                    struct_obj = table.get_struct_obj(struct_name)
+                    ir_code += "{} = {}[{}]\n".format(
+                        store_var,
+                        lhs_name,
+                        table.field2index(struct_obj, child),
+                    )
+
+        # TODO(later): check number of elements in array same as that
+        # specified
+        elif isinstance(tree, GoKeyedElement):
+            logging.info("keyedelement: {} {}".format(store_var, tree.use))
+            if tree.use == "array":
+
+                def num2index(store_loc, element_type):
+                    search = re.search(r"--\[([^\]]*)\]--", store_loc)
+                    if search is not None:
+                        store_index = table.get_size(element_type) * int(
+                            search.groups()[0]
+                        )
+                        store_loc = re.sub(
+                            r"--\[([^\]]*)\]--",
+                            "[{}]".format(store_index),
+                            store_loc,
+                        )
+                    return store_loc
+
+                if isinstance(tree.element, GoBasicLit) or isinstance(
+                    tree.element, GoExpression
+                ):
+                    element_type = tree.element.dtype
+                    store_var = num2index(store_var, element_type)
+                    if isinstance(tree.element, GoExpression):
+                        ir_code += symbol_table(
+                            tree.element,
+                            table,
+                            name,
+                            block_type,
+                            store_var=store_var,
+                            scope_label=scope_label,
+                        )[1]
+                    else:
+                        ir_code += "{} = {}\n".format(
+                            store_var, tree.element.item
+                        )
+                    tree.size += 1
+                elif type(tree.element) is str:
+                    element_type = table.get_type(tree.element)
+                    store_var = num2index(store_var, element_type)
+                    ir_code = "{} = {}".format(store_var, tree.element)
+                    tree.size += 1
+                else:  # LiteralValue is a list
+                    # Convert multiple indexing ([][]) to single indexing ([])
+                    len_arr = len(
+                        [
+                            True
+                            for child in tree.element
+                            if isinstance(child, GoKeyedElement)
+                        ]
+                    )
+                    search = re.search(r"--\[([^\]]*)\]--", store_var)
+                    if search is None:
+                        parent_index = 0
+                    else:
+                        parent_index = len_arr * int(search.groups()[0])
+                        store_var = store_var[: search.start()]
+
+                    depth = 0
+                    child_count = 0
+                    cur_size = 0
+                    for child in tree.element:
+                        if isinstance(child, GoKeyedElement):
+                            child.use = "array"
+                            store_loc = "{}--[{}]--".format(
+                                store_var, parent_index + child_count
+                            )
+                            child_dtype, child_code = symbol_table(
+                                child,
+                                table,
+                                name,
+                                block_type,
+                                store_var=store_loc,
+                                scope_label=scope_label,
+                            )
+                            ir_code += child_code
+                            child.dtype = child_dtype
+                            child_count += 1
+
+                            count = 1
+                            temp_child = child
+                            while type(temp_child.element) is list:
+                                count = count * len(temp_child.element)
+                                temp_child = temp_child.element[0]
+                            if depth == 0:
+                                depth = child.depth
+                            elif depth != child.depth:
+                                raise GoException(
+                                    "Error: Wrong array declaration"
+                                )
+                            logging.info("child dtype {}".format(child.dtype))
+                            element_type = child.dtype
+                            tree.size += child.size
+
+                            if cur_size == 0:
+                                cur_size = child.size
+                            elif cur_size != child.size:
+                                raise GoException(
+                                    "Error: Incorrect number of elements in array"
+                                )
+                        if tree.dtype is None:
+                            # print(element_type.name)
+                            tree.dtype = element_type
+                        else:
+                            # print(tree.dtype.name,element_type.name)
+                            table.type_check(
+                                tree.dtype, element_type, "array conflicts"
+                            )
+
+                    tree.depth = depth + 1
+                tree.dtype = element_type
+                # print(tree.dtype)
+                logging.info("tree.dtype '{}'".format(tree.dtype))
+
+            elif tree.use == "struct":
+                element = tree.element
+                logging.info("struct element '{}'".format(element))
+                if (
+                    isinstance(element, GoBasicLit)
+                    or isinstance(element, GoExpression)
+                    or isinstance(element, GoCompositeLit)
+                    or type(element) is str
+                ):
+                    element_type, ir_code = symbol_table(
+                        element,
+                        table,
+                        name,
+                        block_type,
+                        scope_label=scope_label,
+                        store_var=store_var,
+                    )
+
+                elif type(element) is list:
+                    raise GoException(
+                        "Error: Missing type in composite literal"
+                    )
+                tree.dtype = element_type
+
+            DTYPE = tree.dtype
+            # print(DTYPE.name)
+
+        # UN-IMPLEMENTED
+        # XXX long declaration of arrays not working
+        # XXX no check implemented for valid indicies in arrays
+        elif isinstance(tree, GoCompositeLit):
+            logging.info(
+                "tree.dtype {}, tree.value {}".format(tree.dtype, tree.value)
+            )
+            symbol_table(
+                tree.dtype, table, name, block_type, scope_label=scope_label
+            )
+
+            elem_num = 0
+            # How does this handle array of structs
+            if isinstance(tree.dtype, GoArray):
+                symbol_table(
+                    tree.dtype,
+                    table,
+                    name,
+                    block_type,
+                    scope_label=scope_label,
+                )
+                dtype = tree.dtype.final_type
+                # if type of the array is a struct_name change it's type to GoStruct
+                try:
+                    dtype = table.get_struct_obj(dtype.name)
+                    tree.dtype.final_type = dtype
+                except GoException:
+                    pass
+
+                depth = 0
+                cur_size = 0
+
+                for child in tree.value:
+                    if isinstance(child, GoKeyedElement):
+                        child.use = "array"
+                        elem_dtype, elem_code = symbol_table(
+                            child,
+                            table,
+                            name,
+                            block_type,
+                            store_var=store_var + "--[{}]--".format(elem_num),
+                            scope_label=scope_label,
+                        )
+                        ir_code += elem_code
+                        elem_num += 1
+
+                        if depth == 0:
+                            depth = child.depth
+                        elif depth != child.depth:
+                            raise GoException("Error: Wrong array declaration")
+                        element_type = child.dtype
+                        tree.dtype.size += child.size
+                        logging.info(
+                            "final array type {}".format(element_type)
+                        )
+
+                        if cur_size == 0:
+                            cur_size = child.size
+                        elif cur_size != child.size:
+                            raise GoException(
+                                "Error: Incorrect number of elements in array"
+                            )
+
+                    # print(dtype,element_type)
+                    table.type_check(
+                        dtype, element_type, "array initialization"
+                    )
+
+                if not isinstance(tree.dtype.dtype, GoArray):
+                    tree.dtype.dtype = tree.dtype.final_type
+                # if isinstance(tree.dtype.dtype,GoArray):
+                #     print(tree.dtype.dtype.dtype.name)
+                DTYPE = tree.dtype
+                # print(DTYPE.final_type)
+                # print(tree.dtype,tree.dtype.final_type)
+
+                if depth != tree.dtype.depth:
+                    raise GoException("Error: Wrong array declaration")
+
+                tree_value = tree.value
+                tree_type = tree.dtype
+                logging.info("START")
+                while isinstance(tree_type, GoArray):
+                    if (
+                        tree_type.length != "variable"
+                        and tree_type.length.item != len(tree_value)
+                    ):
+                        raise GoException(
+                            "Error: Array declaration of incorrect size"
+                        )
+
+                    elif tree_type.length == "variable":
+                        tree_type.length = GoBasicLit(
+                            len(tree_value), GoType("int", True)
+                        )
+                    tree_type = tree_type.dtype
+                    tree_value = tree_value[0].element
+
+            elif isinstance(tree.dtype, GoType) or isinstance(
+                tree.dtype, GoStruct
+            ):  # handles structs
+                if isinstance(tree.dtype, GoType):
+                    struct_name = tree.dtype.name
+                    logging.info("Struct name {}".format(struct_name))
+                    struct_obj = table.get_struct_obj(struct_name)
+                else:
+                    struct_name = "__inline_struct_{}".format(
+                        table.inline_count
+                    )
+                    table.inline_count += 1
+                    struct_obj = tree.dtype
+                    # print(struct_obj.vars)
+
+                field_list = tree.value
+                type_list = []
+                type_dict = {}
+                unnamed_keys = True
+                field_index = 0
+                for i, field in enumerate(field_list):
+                    field.use = "struct"
+                    if field.key is not None:
+                        unnamed_keys = False
+                        field_name = store_var + "[{}]".format(
+                            table.field2index(struct_obj, field.key)
+                        )
+                    elif not unnamed_keys:
+                        raise GoException(
+                            "Error: Cannot mix named and unnamed keys"
+                        )
+                    else:
+                        field_name = store_var + "[{}]".format(field_index)
+
+                    field_type, elem_code = symbol_table(
+                        field,
+                        table,
+                        name,
+                        block_type,
+                        store_var=field_name,
+                        scope_label=scope_label,
+                    )
+                    field_index += table.get_size(field)
+                    type_list.append(field_type)
+                    if field.key is not None:
+                        type_dict[field.key] = field_type
+                    ir_code += elem_code
+
+                logging.info("FINAL LIST '{}'".format(type_list))
+                # struct_obj = GoStruct([])
+                if isinstance(tree.dtype, GoType):
+                    if unnamed_keys:
+                        table.check_struct(struct_name, type_list)
+                    else:
+                        table.check_inline_struct(struct_obj, type_dict)
+                else:
+                    table.check_inline_struct(struct_obj, type_dict)
+
+                struct_obj.size = table.get_size(tree)
+                struct_obj.name = struct_name
+                if struct_name.startswith("__inline_struct"):
+                    table.insert_struct(struct_name, struct_obj)
+
+                DTYPE = struct_obj
+
+        elif isinstance(tree, GoUnaryExpr):
+            opd_name = "__opd_{}".format(inter_count)
+            opd_dtype, opd_code = symbol_table(
+                tree.expr,
+                table,
+                name,
+                block_type,
+                store_var=opd_name,
+                scope_label=scope_label,
+            )
+            ir_code += opd_code
+            table.insert_var(
+                opd_name, opd_dtype, use="intermediate"
+            )
+            ir_code += "{} = {}{}\n".format(
+                store_var, tree.op, opd_name
+            )
+
+            if tree.op == "&" or tree.op == "*":
+                if tree.op == "&":
+                    tree.dtype = GoPointType(opd_dtype)
+                elif hasattr(opd_dtype, "dtype"):  # tree.op == "*"
+                    tree.dtype = opd_dtype.dtype
+                else:  # Not a pointer/array type
+                    raise GoException(
+                        'Error: "{}" not pointer type'.format(opd_dtype)
+                    )
+
+                if (
+                    isinstance(tree.expr, GoUnaryExpr)
+                    and tree.op == "&"
+                    and tree.expr.op == "&"
+                ):
+                    raise GoException("Error: Cannot take address of address")
+
+                elif isinstance(tree.expr, GoCompositeLit) and tree.op == "*":
+                    raise GoException("Cannot dereference composite literals")
+
+            # TODO: need to add better type checking
+            else:
+                tree.dtype = opd_dtype
+
+            DTYPE = tree.dtype
+
+        elif isinstance(tree, GoLabelCtrl):
+            if scope_label == "":
+                raise GoException(
+                    "Error: {} not valid in this scope".format(tree.keyword)
+                )
+            elif tree.keyword == "continue" and scope_label == "Switch":
+                raise GoException(
+                    'Error: "continue" not valid in a "switch" scope'
+                )
+
+            if tree.keyword == "continue":
+                ir_code = "goto {}\n".format(scope_label.split("|")[-1])
+            else:
+                ir_code = "goto {}\n".format(scope_label.split("|")[0])
+
+        # NOTE: Doesn't handle the case when function is defined to return something but doesn't have the 'return' statement
+        elif isinstance(tree, GoReturn):
+            if block_type == "function":
+                results = table.get_func(name, "result")[0]
+            elif block_type == "method":
+                key = (name[0], name[1].dtype.name)
+                results = table.get_method(key, "result")
+            else:
+                raise GoException(
+                    "Error: Return statement not inside any function or method"
+                )
+
+            if len(results) != len(tree.expr_list):
+                raise GoException(
+                    'Error: No. of values returned is "{}"; should be "{}"'.format(
+                        len(tree.expr_list), len(results)
+                    )
+                )
+
+            return_name = "__retval_{}".format(inter_count)
+            field_list = [
+                GoStructField(["__val{}".format(i)], results[i].dtype, "")
+                for i in range(len(results))
+            ]
+            return_struct = GoStruct(field_list)
+            table.insert_var(return_name, return_struct, use="intermediate")
+
+            return_index = 0
+            for i, (res, expr) in enumerate(zip(results, tree.expr_list)):
+                return_name_i = return_name + "[{}]".format(return_index)
+                expr_dtype, expr_code = symbol_table(
+                    expr,
+                    table,
+                    name=name,
+                    block_type=block_type,
+                    store_var=return_name_i,
+                    scope_label=scope_label,
+                )
+                ir_code += expr_code
+                return_index += table.get_size(expr_dtype)
+                table.type_check(res.dtype, expr_dtype, use="return")
+
+            if len(results) is 0:
+                ir_code += "return \n"
+            else:
+                ir_code += "return {}\n".format(return_name)
+
+    except GoException as go_exp:
+        if not hasattr(tree, "lineno"):
+            raise GoException(go_exp)  # Will be handled by the caller
+        go_traceback(tree)
+        print(go_exp)
+        exit(1)
+
+    return DTYPE, ir_code
+
+
+def resolve_dtype(dtype):
+    s = ""
+    if isinstance(dtype, GoType):
+        s = dtype.name
+    elif isinstance(dtype, GoStruct):
+        s = "struct_{}".format(dtype.name)
+    elif isinstance(dtype, GoArray):
+        s = "array_{}".format(resolve_dtype(dtype.dtype))
+    elif isinstance(dtype, GoPointType):
+        while isinstance(dtype, GoPointType):
+            dtype = dtype.dtype
+            s = s + "*"
+        s = s + resolve_dtype(dtype)
+    return s
+
+
+#  Interfaces
+def csv_writer(table, name, dir_name, activation=False):
+    if dir_name[-1] != "/":
+        dir_name += "/"
+
+    file = open(dir_name + "{}.csv".format(name), "w")
+    writer = csv.writer(
+        file,
+        delimiter=",",
+        quoting=csv.QUOTE_NONE,
+        quotechar="",
+        escapechar='"',
+    )
+
+    for kind in ["variables", "intermediates", "constants"]:
+        if kind != "variables":
+            writer.writerow([])
+        writer.writerow(["#" + kind.upper()])
+        writer.writerow(["name", "type", "size", "offset"])
+        var_rows = []
+        for var in getattr(table, kind):
+            dtype = getattr(table, kind)[var]
+            row = None
+            if isinstance(dtype, GoType):
+                row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
+            elif isinstance(dtype, GoStruct):
+                row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
+            elif isinstance(dtype, GoArray):
+                row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
+            elif isinstance(dtype, GoPointType):
+                row = [var, resolve_dtype(dtype), dtype.size, dtype.offset]
+            if row is not None:
+                var_rows.append(row)
+
+        var_rows = sorted(var_rows, key=lambda x: x[3])
+        for row in var_rows:
+            writer.writerow(row)
+
+    writer.writerow([])
+    writer.writerow(["#SCOPES"])
+    writer.writerow(["scope_no", "symbol_table"])
+    count = 0
+    for scope in table.scopes:
+        row = ["scope_{}".format(count), "{}_scope_{}.csv".format(name, count)]
+        csv_writer(scope, "{}_scope_{}".format(name, count), dir_name)
+        writer.writerow(row)
+        count += 1
+
+    if activation:
+        writer.writerow([])
+        writer.writerow(["#ACTIVATION RECORD"])
+        for item in table.activation_record:
+            writer.writerow([item[0], item[1].activation_offset])
+
+    if name == "global":
+        writer.writerow([])
+        writer.writerow(["#ALIASES"])
+        writer.writerow(["alias", "actual"])
+
+        for alias in table.aliases:
+            row = [alias, table.aliases[alias].name]
+            writer.writerow(row)
+
+        writer.writerow([])
+        writer.writerow(["#BUILTINS"])
+        writer.writerow(["name", "size"])
+
+        for builtin in table.basic_types:
+            row = [builtin, table.basic_types[builtin]["size"]]
+            writer.writerow(row)
+
+        writer.writerow([])
+        writer.writerow(["#FUNCTIONS"])
+        writer.writerow(
+            ["name", "[ParamName_type]", "symbol_table", "[ReturnType]"]
+        )
+
+        for func in table.functions:
+            row = [func]
+            params = table.functions[func]["params"]
+            param_string = ""
+            for param in params[:-1]:
+                param_string += "{}_{};".format(
+                    param.name, resolve_dtype(param.dtype)
+                )
+            if len(params) > 0:
+                last = params[len(params) - 1]
+                param_string += "{}_{}".format(
+                    last.name, resolve_dtype(last.dtype)
+                )
+
+            row.append(param_string)
+            row.append("{}.csv".format(func))
+            csv_writer(
+                table.functions[func]["body"], func, dir_name, activation=True
+            )
+            results = table.functions[func]["result"]
+            result_string = ""
+            if results is not None:
+                for result in results[:-1]:
+                    result_string += "{};".format(resolve_dtype(result.dtype))
+                if len(results) > 0:
+                    result_string += "{}".format(
+                        resolve_dtype(results[len(results) - 1].dtype)
+                    )
+            row.append(result_string)
+            writer.writerow(row)
+
+        writer.writerow([])
+        writer.writerow(["#METHODS"])
+        writer.writerow(
+            [
+                "name",
+                "reciever",
+                "[ParamName_type]",
+                "symbol_table",
+                "[ReturnType]",
+            ]
+        )
+        for method in table.methods:
+            row = ["{}_{}".format(method[0], method[1])]
+            params = table.methods[method]["params"]
+            param_string = ";".join(
+                [
+                    "{}_{}".format(param.name, resolve_dtype(param.dtype))
+                    for param in params
+                ]
+            )
+
+            row.append(param_string)
+            row.append("{}_{}.csv".format(method[0], method[1]))
+            csv_writer(
+                table.functions[method]["body"],
+                "{}_{}".format(method[0], method[1]),
+                dir_name,
+                activation=True,
+            )
+            results = table.methods[method]["result"]
+            result_string = ""
+            if results is not None:
+                for result in results[:-1]:
+                    result_string += "{};".format(resolve_dtype(result.dtype))
+                if len(results) > 0:
+                    result_string += "{}".format(
+                        resolve_dtype(results[len(results) - 1].dtype)
+                    )
+            row.append(result_string)
+            writer.writerow(row)
+
+        writer.writerow([])
+        writer.writerow(["#STRUCTURES"])
+        writer.writerow(["struct name", "[VarName_dtype_tag]"])
+        for struct_name in table.structures:
+            struct = table.structures[struct_name]
+            row = [struct_name]
+            vars = struct.vars
+            tags = struct.tags
+            string = ""
+            for item1, item2 in zip(vars[:-1], tags[:-1]):
+                string += "{}_{}_{};".format(
+                    item1[0], resolve_dtype(item1[1].dtype), item2[1]
+                )
+            if len(vars) > 0:
+                item1 = vars[len(vars) - 1]
+                item2 = tags[len(tags) - 1]
+                string += "{}_{}_{}".format(
+                    item1[0], resolve_dtype(item1[1].dtype), item2[1]
+                )
+            row.append(string)
+            writer.writerow(row)
+
+    file.close()
+
+
+def get_csv(table, dir_name):
+    """Generate required CSV and TXT files."""
+    if dir_name[-1] != "/":
+        dir_name += "/"
+
+    subprocess.run(["rm", "-rf", dir_name])
+    os.mkdir(dir_name)
+    csv_writer(table, "global", dir_name)
+
+    for csv_file in os.listdir("."):
+        if len(csv_file.split(".")) == 2 and csv_file.split(".")[1] == "csv":
+            with open(dir_name + csv_file + ".temp", "w+") as out_file:
+                subprocess.call(
+                    ["awk", '{gsub(/"/,"")};1', csv_file], stdout=out_file
+                )
+            subprocess.run(["mv", out_file, csv_file])
+
+
+if __name__ == "__main__":
+    argparser = ArgumentParser(description="IR generator for Go")
+    argparser.add_argument("input", type=str, help="input file")
+    argparser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        help="output directory name for csv and txt files",
+    )
+    argparser.add_argument(
+        "-v", "--verbose", action="store_true", help="enable debug output"
+    )
+    args = argparser.parse_args()
+    if args.output is None:
+        # Output directory name is source filename (w/o extension)
+        args.output = args.input.split("/")[-1][:-3]
+    if args.output[-1] != "/":
+        args.output += "/"
+
+    with open(args.input, "r") as go:
+        input_text = go.read()
+    if input_text[-1] != "\n":
+        input_text += "\n"
+
+    # Storing filename and input text for error reporting
+    lexer.filename = args.input
+    lexer.lines = input_text.split("\n")
+
+    tree = parser.parse(input_text)
+
+    if args.verbose:
+        logging.getLogger().setLevel(logging.INFO)
+    table = SymbTable()
+    ir_code = symbol_table(tree, table)[1]
+
+    get_csv(table, args.output)
+    with open(args.output + "3ac.txt", "w") as ir_file:
+        ir_file.write(ir_code)

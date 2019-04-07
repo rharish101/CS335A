@@ -220,6 +220,7 @@ class SymbTable:
             name = dtype.name
             logging.info("SIZE: getting size of {}".format(name))
             value = dtype.value
+
             if self.check_basic_type(name):
                 basic_type = self.get_basic_type(name)
                 if basic_type["size"] is not None:
@@ -233,9 +234,7 @@ class SymbTable:
             else:
                 actual_type = self.get_actual(name)
                 if actual_type is None:
-                    print(name)
                     size = self.struct_size(name)
-                    print(name)
                     return size
                 actual_type.value = value
                 size = self.get_size(actual_type)
@@ -561,7 +560,6 @@ class SymbTable:
                 exit()
 
     def struct_size(self, struct_name):
-        print("YO",struct_name)
         actual_types = self.get_struct(struct_name)
         size = 0
         for actual in actual_types:

@@ -724,18 +724,26 @@ class SymbTable:
                     if new_name != "other":
                         name2 = new_name
 
-                # in case of expression only one of the operands will have basic_lit = True as the case when both are basic lit is handled in the parser
-                if use == "expression":
-                    if name1 != name2:
-                        type_error = True
                 # ensures that int can be assigned to float but not vice versa
                 # need to ensure that only dtype2 is basic_lit in case of all non-expression type checking
-                else:
+                if use == "assignment":
                     if name1 == "int" and name1 != name2:
                         type_error = True
                     elif name1 == "float":
                         if name2 != "int" and name2 != "float":
                             type_error = True
+                    elif name1 != name2:
+                        type_error = True
+                # in case of expression only one of the operands will have basic_lit = True as the case when both are basic lit is handled in the parser
+                elif use == "expression":
+                    if dtype1.basic_lit:
+                        basic_lit = name1
+                        other = name2
+                    else:
+                        basic_lit = name2
+                        other = name1
+                    if basic_lit == "int" and other in ["int", "float"]:
+                        pass
                     elif name1 != name2:
                         type_error = True
             elif use != "type casting" and name1 != name2:

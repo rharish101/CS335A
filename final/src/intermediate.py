@@ -1606,6 +1606,10 @@ def symbol_table(
             DTYPE = None
 
         elif isinstance(tree, GoExpression):
+            start_label = "Start{}".format(inter_count)
+            mid_label = "Mid{}".format(inter_count)
+            end_label = "End{}".format(inter_count)
+            
             lhs = tree.lhs
             op = tree.op
             rhs = tree.rhs
@@ -1646,11 +1650,30 @@ def symbol_table(
                 )
 
             table.insert_var(rhs_name, dtype1, use="intermediate")
-            ir_code += lhs_code + rhs_code
 
-            if dtype1.name == "string" and dtype2.name == "string":
+            if dtype1.name == "bool" and dtype2.name == "bool":                
+                ir_code += "{}: ".format(start_label)
+                ir_code += lhs_code
+                if op == "||":
+                    ir_code += "{} = True\n".format(rhs_name)
+                    ir_code += "if {} goto {}\n".format(lhs_name, end_label)
+                elif op == "&&":
+                    ir_code += "if {} goto {}\n".format(lhs_name, mid_label)
+                    ir_code += "{} = True\n".format(rhs_name)
+                    ir_code += "goto {}\n".format(end_label)
+                    ir_code += "{}: ".format(mid_label)
+                
+                ir_code += rhs_code
+                ir_code += "{}: ".format(end_label)
+                ir_code += "{} = {} {} {}\n".format(
+                    store_var, lhs_name, op, rhs_name
+                )
+
+            elif dtype1.name == "string" and dtype2.name == "string":
+                ir_code += lhs_code + rhs_code
                 ir_code += "{} = {}\n".format(store_var, lhs_name)
             else:
+                ir_code += lhs_code + rhs_code
                 ir_code += "{} = {} {} {}\n".format(
                     store_var, lhs_name, op, rhs_name
                 )
@@ -2049,7 +2072,8 @@ def symbol_table(
                     dtype1.length.item <= indexes[len(indexes) - 1]
                     or indexes[len(indexes) - 1] < 0
                 ):
-                    raise GoException("Error : Index Out of bound")
+                    pass
+                    #raise GoException("Error : Index Out of bound")
                 indexes.pop()
                 dtype1 = dtype1.dtype
                 while depth > 0:
@@ -2057,7 +2081,8 @@ def symbol_table(
                         dtype1.length.item <= indexes[len(indexes) - 1]
                         or indexes[len(indexes) - 1] < 0
                     ):
-                        raise GoException("Error : Index Out of bound")
+                        pass
+                        #raise GoException("Error : Index Out of bound")
                     indexes.pop()
                     dtype1 = dtype1.dtype
                     depth = depth - 1

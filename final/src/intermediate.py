@@ -1114,7 +1114,16 @@ def symbol_table(
 
         elif isinstance(tree, GoDecl) and tree.kind == "constant":
             const_list = tree.declarations
+            
+            item_list = []
+            
             for item in const_list:
+                if isinstance(item, GoConstSpec):
+                    item_list.append(item.id_list)
+                else:
+                    item_list.append(item)
+            
+            for item in item_list:
                 id_list = item.id_list
                 dtype = item.dtype
                 expr_list = item.expr

@@ -149,6 +149,22 @@ class SymbTable:
 
         logging.info("offset assigned: {}".format(self.offset))
 
+    def get_import(self,name):
+        if name in self.imports:
+            return self.imports[name]
+        elif self.parent is not None:
+            return self.parent.get_import(name)
+        else:
+            raise GoException("Error : No module named {} imported".format(name)) 
+
+    def lookup_function(self,name):
+        if name in self.functions:
+            return True
+        elif self.parent is not None:
+            return self.parent.lookup_function(name)
+        else:
+            return False                               
+
     def lookup(self, name):
         if name in self.variables:
             return True
@@ -934,8 +950,11 @@ def symbol_table(
             this_name = tree.name
             # print("parent '{}', child '{}'".format(parent, child))
 
-            # currently handles accessing a field of a struct
             if type(parent) is str:
+                try :
+                    import_table,import_3ac = table.get_import(parent)
+                except GoException:
+                    pass    
                 struct_obj = table.get_type(parent)
                 struct_name = struct_obj.name
                 # print(struct_name)
@@ -966,7 +985,16 @@ def symbol_table(
         elif isinstance(tree, GoSourceFile):
             # iterating over package imports
             for item in tree.imports:
-                table.imports[item.import_as] = item
+                # table.imports[item.import_as] = item
+                package_name = item.package[:-1][1:]
+                # print(package_name)
+                package_path = os.path.join('./packages',"{}.go".format(package_name))
+                try:
+                    # print(process_code(package_path))
+                    table.imports[package_name] = process_code(package_path)
+                except FileNotFoundError:
+                    raise GoException("Error : Package name {} is not present in the packages folder".format(package_name))
+
             # iteraing over TopLevelDeclList
             for item in tree.declarations:
                 ir_code += symbol_table(
@@ -2173,10 +2201,12 @@ def symbol_table(
                     )
 
             elif isinstance(rhs, GoArguments):  # fuction call
+                use = None
                 argument_list = rhs.expr_list
                 is_type_cast = False  # Type-casting has the same syntax
 
                 if type(lhs) is str:
+                    use = "function"
                     logging.info("FUNCTION CALL '{}'".format(lhs))
                     func_name = lhs
                     # type checking of arguments passed to function
@@ -2196,10 +2226,9 @@ def symbol_table(
                 elif isinstance(lhs, GoFromModule):
                     parent = lhs.parent
                     child = lhs.child
-                    # double imports
-                    logging.info(
-                        "METHOD parent: '{}',child: '{}'".format(parent, child)
-                    )
+                    # print(
+                    #     "METHOD/IMPORT parent: '{}',child: '{}'".format(parent, child)
+                    # )
                     if isinstance(parent, GoFromModule):
                         raise NotImplementedError(
                             "Multiple imports not done yet"
@@ -2207,98 +2236,110 @@ def symbol_table(
                     # single imports
                     # ID DOT ID
                     elif type(parent) is str:
-                        # check if the child is actually a method defined for parent (struct)
-                        # check is the type of arguments passed to child are same as that defined in method declaration
-                        method_name = child
-                        struct_name = (table.get_type(parent)).name
-                        logging.info(
-                            "method call'{}' on struct '{}' with arguments '{}'".format(
-                                method_name, struct_name, rhs
+                        try:
+                            use = "method"
+                            # check if the child is actually a method defined for parent (struct)
+                            # check is the type of arguments passed to child are same as that defined in method declaration
+                            method_name = child
+                            struct_name = (table.get_type(parent)).name
+                            logging.info(
+                                "method call'{}' on struct '{}' with arguments '{}'".format(
+                                    method_name, struct_name, rhs
+                                )
+                            )
+                            key = (method_name, struct_name)
+                            # type checking of arguments passed to function
+                            params_list = table.get_method(key, "params")
+
+                            result = table.get_method(key, "result")
+
+                            # Get function name/location in memory
+                            func_loc = lhs.name
+
+                        #package imports
+                        #TODO @Harish handle the 3AC            
+                        except GoException:
+                            import_table,import_3ac = table.get_import(parent)
+                            if import_table.lookup_function(child) is False:
+                                raise GoException("Error : function {} is not supported by the {} package".format(child,parent))
+                            use = "import"    
+                            
+
+                if use != "import":
+                    if len(argument_list) is not len(params_list):
+                        raise GoException(
+                            'Error: "{}" parameters passed to function "{}" '
+                            'instead of "{}"'.format(
+                                len(argument_list), func_name, len(params_list)
                             )
                         )
-                        key = (method_name, struct_name)
-                        # type checking of arguments passed to function
-                        params_list = table.get_method(key, "params")
 
-                        result = table.get_method(key, "result")
-
-                    # Get function name/location in memory
-                    func_loc = lhs.name
-
-                if len(argument_list) is not len(params_list):
-                    raise GoException(
-                        'Error: "{}" parameters passed to function "{}" '
-                        'instead of "{}"'.format(
-                            len(argument_list), func_name, len(params_list)
+                    inter_names = []
+                    depth_num = inter_count
+                    for i, (argument, param) in enumerate(
+                        zip(argument_list, params_list)
+                    ):
+                        arg_name = "__arg{}_{}".format(i, depth_num)
+                        arg_dtype, arg_code = symbol_table(
+                            argument,
+                            table,
+                            name,
+                            block_type,
+                            store_var=arg_name,
+                            scope_label=scope_label,
                         )
-                    )
-
-                inter_names = []
-                depth_num = inter_count
-                for i, (argument, param) in enumerate(
-                    zip(argument_list, params_list)
-                ):
-                    arg_name = "__arg{}_{}".format(i, depth_num)
-                    arg_dtype, arg_code = symbol_table(
-                        argument,
-                        table,
-                        name,
-                        block_type,
-                        store_var=arg_name,
-                        scope_label=scope_label,
-                    )
-                    ir_code += arg_code
-                    table.insert_var(arg_name, arg_dtype, use="intermediate")
-                    inter_names.append(arg_name)
-                    table.type_check(
-                        param.dtype,
-                        arg_dtype,
-                        "type casting" if is_type_cast else "function call",
-                        func_name,
-                        param.name,
-                    )
-
-                if len(result) > 1:
-                    result_type = [item.dtype for item in result]
-                elif len(result) == 1:
-                    result_type = result[0].dtype
-                else:
-                    result_type = []
-                tree.dtype = []
-
-                DTYPE = result_type
-
-                if is_type_cast:
-                    ir_code += "{} = {} {}\n".format(
-                        store_var, result_type.name, inter_names[0]
-                    )
-                else:
-                    ir_code += "".join(
-                        [
-                            "param {}\n".format(inter_names[i])
-                            for i in range(len(argument_list))
-                        ]
-                    )
-                    if store_var == "":
-                        ir_code += "call {}, {}\n".format(
-                            func_loc, len(argument_list)
+                        ir_code += arg_code
+                        table.insert_var(arg_name, arg_dtype, use="intermediate")
+                        inter_names.append(arg_name)
+                        table.type_check(
+                            param.dtype,
+                            arg_dtype,
+                            "type casting" if is_type_cast else "function call",
+                            func_name,
+                            param.name,
                         )
-                    elif type(store_var) is not list:
-                        ir_code += "{} = call {}, {}\n".format(
-                            store_var, func_loc, len(argument_list)
+
+                    if len(result) > 1:
+                        result_type = [item.dtype for item in result]
+                    elif len(result) == 1:
+                        result_type = result[0].dtype
+                    else:
+                        result_type = []
+                    tree.dtype = []
+
+                    DTYPE = result_type
+
+                    if is_type_cast:
+                        ir_code += "{} = {} {}\n".format(
+                            store_var, result_type.name, inter_names[0]
                         )
                     else:
-                        ir_code += "temp_var = call {},{}\n".format(
-                            func_loc, len(argument_list)
+                        ir_code += "".join(
+                            [
+                                "param {}\n".format(inter_names[i])
+                                for i in range(len(argument_list))
+                            ]
                         )
-                        count = 0
-                        for i, child in enumerate(store_var):
-                            ir_code += "{} = temp_var[{}]\n".format(
-                                child, count
+                        if store_var == "":
+                            ir_code += "call {}, {}\n".format(
+                                func_loc, len(argument_list)
                             )
-                            count += table.get_size(
-                                table.get_func(tree.lhs, "result")[0][i].dtype
+                        elif type(store_var) is not list:
+                            ir_code += "{} = call {}, {}\n".format(
+                                store_var, func_loc, len(argument_list)
                             )
+                        else:
+                            ir_code += "temp_var = call {},{}\n".format(
+                                func_loc, len(argument_list)
+                            )
+                            count = 0
+                            for i, child in enumerate(store_var):
+                                ir_code += "{} = temp_var[{}]\n".format(
+                                    child, count
+                                )
+                                count += table.get_size(
+                                    table.get_func(tree.lhs, "result")[0][i].dtype
+                                )
 
             elif isinstance(rhs, GoSelector):
                 child = rhs.child
@@ -2854,6 +2895,11 @@ def csv_writer(table, name, dir_name, activation=False):
 
     if name == "global":
         writer.writerow([])
+        writer.writerow(["#PACKAGES"])
+        for package in table.imports:
+            writer.writerow([package])
+
+        writer.writerow([])
         writer.writerow(["#ALIASES"])
         writer.writerow(["alias", "actual"])
 
@@ -2990,6 +3036,7 @@ def get_csv(table, dir_name):
             subprocess.run(["mv", out_file, csv_file])
 
 
+
 if __name__ == "__main__":
     argparser = ArgumentParser(description="IR generator for Go")
     argparser.add_argument("input", type=str, help="input file")
@@ -3008,11 +3055,10 @@ if __name__ == "__main__":
         # Output directory name is source filename (w/o extension)
         args.output = ".".join(args.input.split("/")[-1].split(".")[:-1])
     if args.output[-1] != "/":
-        args.output += "/"
+        args.output += "/"   
 
     if args.verbose:
         logging.getLogger().setLevel(logging.INFO)
-
     table, ir_code = process_code(args.input)
     get_csv(table, args.output)
     with open(args.output + "3ac.txt", "w") as ir_file:

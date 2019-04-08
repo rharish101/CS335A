@@ -1,4 +1,5 @@
 package main
+import "fmt"
 
 // Yo
 /* Hello "world" program
@@ -144,6 +145,7 @@ func temp(x int, y int) {
 }
 
 func main() {
+	fmt.println("vishwas")
 	s := "string"
 	var a int = 4
 	b := a + 4*5

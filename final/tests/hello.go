@@ -76,14 +76,14 @@ func Factorial(n uint64)(result uint64) {
 
 func loop(){
 	var sum int = 0
-		for(i:=0;i<100;i++){
-			sum += i
-		}
+    for(i:=0;i<100;i++){
+        sum += i
+    }
 
-		// infinte loop
-		for(;;){
+    // infinte loop
+    for(;;){
 
-		}
+    }
 }
 
 func temp(x int, y int) {

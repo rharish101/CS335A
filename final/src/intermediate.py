@@ -874,33 +874,29 @@ def symbol_table(
                 )
                 field_index += table.get_size(govar.dtype)
         elif hasattr(dtype, "name") and dtype.name == "string":
-            index_name = "__str_ind_{}".format(inter_count)
-            index_left_name = "__str_ind_left_{}".format(inter_count)
+            left_index_name = "__str_ind_left_{}".format(inter_count)
+            right_index_name = "__str_ind_right_{}".format(inter_count)
             cond_name = "__str_cond_{}".format(inter_count)
-            table.insert_var(index_name, GoType("uint"), "intermediate")
+            table.insert_var(right_index_name, GoType("uint"), "intermediate")
             table.insert_var(cond_name, GoType("bool"), "intermediate")
 
             while_label = "StrStart{}".format(inter_count)
             endwhile_label = "StrEnd{}".format(inter_count)
 
-            local_ir += "{} = 0\n".format(index_name)
-            local_ir += "{} = {} + {}\n".format(
-                index_left_name, index_name, start
-            )
+            local_ir += "{} = 0\n".format(right_index_name)
+            local_ir += "{} = {}\n".format(left_index_name, start)
             local_ir += '{}: {} = {}[{}] == "\\0"\n'.format(
-                while_label, cond_name, item, index_name
+                while_label, cond_name, item, right_index_name
             )
             local_ir += "if {} goto {}\n".format(cond_name, endwhile_label)
             local_ir += "{}[{}] = {}[{}]\n".format(
-                store_loc, index_left_name, item, index_name
+                store_loc, left_index_name, item, right_index_name
             )
-            local_ir += "{} = {} + 1\n".format(index_name, index_name)
-            local_ir += "{} = {} + 1\n".format(
-                index_left_name, index_left_name
-            )
+            local_ir += "{0:} = {0:} + 1\n".format(right_index_name)
+            local_ir += "{0:} = {0:} + 1\n".format(left_index_name)
             local_ir += "goto {}\n".format(while_label)
             local_ir += '{}: {}[{}] = "\\0"\n'.format(
-                endwhile_label, store_loc, index_left_name
+                endwhile_label, store_loc, left_index_name
             )
         else:
             local_ir += "{} = {}\n".format(store_loc, item)
@@ -1656,6 +1652,7 @@ def symbol_table(
             # INCOMPLETE : need to handle cases for array types, struct types,
             # interfaces, function, pointer
             lhs_name = "__lhs_{}".format(inter_count)
+            rhs_name = "__rhs_{}".format(inter_count)
             dtype1, lhs_code = symbol_table(
                 lhs,
                 table,
@@ -1665,7 +1662,6 @@ def symbol_table(
                 scope_label=scope_label,
             )
             table.insert_var(lhs_name, dtype1, use="intermediate")
-            rhs_name = "__rhs_{}".format(inter_count)
             dtype2, rhs_code = symbol_table(
                 rhs,
                 table,
@@ -1674,6 +1670,8 @@ def symbol_table(
                 store_var=rhs_name,
                 scope_label=scope_label,
             )
+            table.insert_var(rhs_name, dtype1, use="intermediate")
+
             if dtype1.name == "string" and dtype2.name == "string":
                 length = len(dtype1.value) - 2
                 # print(length)
@@ -1686,8 +1684,6 @@ def symbol_table(
                     scope_label=scope_label,
                     start=length,
                 )
-
-            table.insert_var(rhs_name, dtype1, use="intermediate")
 
             if dtype1.name == "bool" and dtype2.name == "bool":
                 ir_code += "{}: ".format(start_label)
@@ -2237,10 +2233,11 @@ def symbol_table(
                     )
 
                 inter_names = []
+                depth_num = inter_count
                 for i, (argument, param) in enumerate(
                     zip(argument_list, params_list)
                 ):
-                    arg_name = "__fcond_{}".format(inter_count)
+                    arg_name = "__arg{}_{}".format(i, depth_num)
                     arg_dtype, arg_code = symbol_table(
                         argument,
                         table,
@@ -2271,8 +2268,8 @@ def symbol_table(
                 DTYPE = result_type
 
                 if is_type_cast:
-                    ir_code += "{} = {} __arg0_{}\n".format(
-                        store_var, result_type.name, inter_count
+                    ir_code += "{} = {} {}\n".format(
+                        store_var, result_type.name, inter_names[0]
                     )
                 else:
                     ir_code += "".join(
@@ -2692,7 +2689,6 @@ def symbol_table(
             else:
                 ir_code = "goto {}\n".format(scope_label.split("|")[0])
 
-        # NOTE: Doesn't handle the case when function is defined to return something but doesn't have the 'return' statement
         elif isinstance(tree, GoReturn):
             if block_type == "function":
                 results = table.get_func(name, "result")[0]
@@ -2712,16 +2708,26 @@ def symbol_table(
                 )
 
             return_name = "__retval_{}".format(inter_count)
-            field_list = [
-                GoStructField(["__val{}".format(i)], results[i].dtype, "")
-                for i in range(len(results))
-            ]
-            return_struct = GoStruct(field_list)
-            table.insert_var(return_name, return_struct, use="intermediate")
+            if len(results) > 1:
+                field_list = [
+                    GoStructField(["__val{}".format(i)], results[i].dtype, "")
+                    for i in range(len(results))
+                ]
+                return_struct = GoStruct(field_list)
+                table.insert_var(
+                    return_name, return_struct, use="intermediate"
+                )
+            elif len(results) == 1:
+                table.insert_var(
+                    return_name, results[0].dtype, use="intermediate"
+                )
 
             return_index = 0
             for i, (res, expr) in enumerate(zip(results, tree.expr_list)):
-                return_name_i = return_name + "[{}]".format(return_index)
+                if len(results) > 1:
+                    return_name_i = return_name + "[{}]".format(return_index)
+                else:
+                    return_name_i = return_name
                 expr_dtype, expr_code = symbol_table(
                     expr,
                     table,
@@ -2734,7 +2740,7 @@ def symbol_table(
                 return_index += table.get_size(expr_dtype)
                 table.type_check(res.dtype, expr_dtype, use="return")
 
-            if len(results) is 0:
+            if len(results) == 0:
                 ir_code += "return \n"
             else:
                 ir_code += "return {}\n".format(return_name)

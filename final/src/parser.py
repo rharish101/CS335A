@@ -53,8 +53,11 @@ def p_empty(p):
 def p_error(p):
     t_error(p)
 
-
+#XXX @harish Bug
 def adjust_lineno(line_num):
+    # returning so as to bypass the error 
+    return 0
+
     while lexer.lines[line_num - 1].strip() == "" or lexer.lines[
         line_num - 1
     ].strip().startswith("//"):

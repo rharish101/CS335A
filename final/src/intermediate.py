@@ -621,7 +621,7 @@ class SymbTable:
                 for item in struct.embeds:
                     embed_obj = deepcopy(self.get_struct_obj(embeds[item]))
                     struct.vars.insert(0, (item, GoVar(GoType(embeds[item]))))
-                    struct.tags.insert(0,(item,""))
+                    struct.tags.insert(0, (item, ""))
                     # struct.vars.insert(0,(item,GoVar(embed_obj)))
             # print(name,list([(var[0],var[1].dtype) for var in struct.vars]))
             self.structures[name] = struct
@@ -641,10 +641,10 @@ class SymbTable:
             )
 
     def insert_func(self, name, params, result):
-        if name not in table.functions:
-            table.functions[name] = {}
-            table.functions[name]["params"] = params
-            table.functions[name]["result"] = result
+        if name not in self.functions:
+            self.functions[name] = {}
+            self.functions[name]["params"] = params
+            self.functions[name]["result"] = result
         else:
             raise GoException("Error: already used function name")
 
@@ -652,10 +652,10 @@ class SymbTable:
         for rec in receiver:
             # Indexing by name and receiver
             key = (name, rec.dtype.name)
-            if key not in table.methods:
-                table.methods[key] = {}
-                table.methods[key]["params"] = params
-                table.methods[key]["result"] = result
+            if key not in self.methods:
+                self.methods[key] = {}
+                self.methods[key]["params"] = params
+                self.methods[key]["result"] = result
             else:
                 raise GoException("Error: already used method name")
 
@@ -2756,6 +2756,32 @@ def symbol_table(
     return DTYPE, ir_code
 
 
+def process_code(input_path):
+    """Generate the symbol table and the 3AC for the input file path.
+
+    Args:
+        input_path (str): The path to the input file
+
+    Returns:
+        SymbTable, str: The symbol table and the 3AC code for the input
+
+    """
+    with open(input_path, "r") as go:
+        input_text = go.read()
+    if input_text[-1] != "\n":
+        input_text += "\n"
+
+    # Storing filename and input text for error reporting
+    lexer.filename = input_path
+    lexer.lines = input_text.split("\n")
+
+    tree = parser.parse(input_text)
+
+    table = SymbTable()
+    ir_code = symbol_table(tree, table)[1]
+    return table, ir_code
+
+
 def resolve_dtype(dtype):
     s = ""
     if isinstance(dtype, GoType):
@@ -2980,26 +3006,14 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     if args.output is None:
         # Output directory name is source filename (w/o extension)
-        args.output = args.input.split("/")[-1][:-3]
+        args.output = ".".join(args.input.split("/")[-1].split(".")[:-1])
     if args.output[-1] != "/":
         args.output += "/"
 
-    with open(args.input, "r") as go:
-        input_text = go.read()
-    if input_text[-1] != "\n":
-        input_text += "\n"
-
-    # Storing filename and input text for error reporting
-    lexer.filename = args.input
-    lexer.lines = input_text.split("\n")
-
-    tree = parser.parse(input_text)
-
     if args.verbose:
         logging.getLogger().setLevel(logging.INFO)
-    table = SymbTable()
-    ir_code = symbol_table(tree, table)[1]
 
+    table, ir_code = process_code(args.input)
     get_csv(table, args.output)
     with open(args.output + "3ac.txt", "w") as ir_file:
         ir_file.write(ir_code)

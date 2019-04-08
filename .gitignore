@@ -32,3 +32,4 @@ final/src/parser.out
 final/src/parsetab.py
 final/src/*/*.csv
 final/src/*/*.txt
+final/src/*.s

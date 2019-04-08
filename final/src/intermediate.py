@@ -1118,7 +1118,7 @@ def symbol_table(
             item_list = []
             
             for item in const_list:
-                if isinstance(item, GoConstSpec):
+                if isinstance(item.id_list, GoConstSpec):
                     item_list.append(item.id_list)
                 else:
                     item_list.append(item)

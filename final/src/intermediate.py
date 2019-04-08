@@ -250,7 +250,25 @@ class SymbTable:
             size += self.get_size(item[1].dtype)
         return size
 
-    def get_type(self, name, use="variable/array/struct"):
+    def get_type(self, name, use="variable/array/struct",side=""):
+        if side == "left":
+            curr = self
+            while curr.parent:
+                if name in self.constants:
+                    raise GoException(
+                        "Error: Attempt to assign to constant {} ".format(
+                            name
+                        )
+                    )
+                curr = curr.parent
+            
+            if name in curr.constants:
+                raise GoException(
+                    "Error: Attempt to assign to constant {} ".format(
+                        name
+                    )
+                )
+        
         if name in self.variables:
             return self.variables[name]
         elif self.parent:
@@ -570,10 +588,16 @@ class SymbTable:
                 size += a
         return size
 
+    
     def insert_const(self, const, dtype):
         if const not in self.used:
             self.constants[const] = dtype
             self.used.add(const)
+            #self.
+            dtype.size = self.get_size(dtype)
+            dtype.offset = self.offset + ceil(dtype.size / 4) * 4
+            self.offset = dtype.offset
+            self.variables[const] = dtype
         else:
             raise GoException(
                 "Error: Already used constant name '{}'".format(name)
@@ -1453,7 +1477,8 @@ def symbol_table(
                             depth = depth - 1
 
                     elif type(var) is str:
-                        dtype1 = table.get_type(var)
+                        dtype1 = table.get_type(var,side="left")
+
 
                     elif isinstance(var, GoUnaryExpr) and var.op == "*":
                         symbol_table(

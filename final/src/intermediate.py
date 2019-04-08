@@ -621,6 +621,7 @@ class SymbTable:
                 for item in struct.embeds:
                     embed_obj = deepcopy(self.get_struct_obj(embeds[item]))
                     struct.vars.insert(0, (item, GoVar(GoType(embeds[item]))))
+                    struct.tags.insert(0,(item,""))
                     # struct.vars.insert(0,(item,GoVar(embed_obj)))
             # print(name,list([(var[0],var[1].dtype) for var in struct.vars]))
             self.structures[name] = struct
@@ -2926,15 +2927,15 @@ def csv_writer(table, name, dir_name, activation=False):
         for struct_name in table.structures:
             struct = table.structures[struct_name]
             row = [struct_name]
-            vars = struct.vars
+            var = struct.vars
             tags = struct.tags
             string = ""
-            for item1, item2 in zip(vars[:-1], tags[:-1]):
+            for item1, item2 in zip(var[:-1], tags[:-1]):
                 string += "{}_{}_{};".format(
                     item1[0], resolve_dtype(item1[1].dtype), item2[1]
                 )
-            if len(vars) > 0:
-                item1 = vars[len(vars) - 1]
+            if len(var) > 0:
+                item1 = var[len(var) - 1]
                 item2 = tags[len(tags) - 1]
                 string += "{}_{}_{}".format(
                     item1[0], resolve_dtype(item1[1].dtype), item2[1]

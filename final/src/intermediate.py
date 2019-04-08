@@ -250,25 +250,21 @@ class SymbTable:
             size += self.get_size(item[1].dtype)
         return size
 
-    def get_type(self, name, use="variable/array/struct",side=""):
+    def get_type(self, name, use="variable/array/struct", side=""):
         if side == "left":
             curr = self
             while curr.parent:
                 if name in self.constants:
                     raise GoException(
-                        "Error: Attempt to assign to constant {} ".format(
-                            name
-                        )
+                        "Error: Attempt to assign to constant {} ".format(name)
                     )
                 curr = curr.parent
-            
+
             if name in curr.constants:
                 raise GoException(
-                    "Error: Attempt to assign to constant {} ".format(
-                        name
-                    )
+                    "Error: Attempt to assign to constant {} ".format(name)
                 )
-        
+
         if name in self.variables:
             return self.variables[name]
         elif self.parent:
@@ -588,12 +584,11 @@ class SymbTable:
                 size += a
         return size
 
-    
     def insert_const(self, const, dtype):
         if const not in self.used:
             self.constants[const] = dtype
             self.used.add(const)
-            #self.
+            # self.
             dtype.size = self.get_size(dtype)
             dtype.offset = self.offset + ceil(dtype.size / 4) * 4
             self.offset = dtype.offset
@@ -1138,15 +1133,15 @@ def symbol_table(
 
         elif isinstance(tree, GoDecl) and tree.kind == "constant":
             const_list = tree.declarations
-            
+
             item_list = []
-            
+
             for item in const_list:
                 if isinstance(item.id_list, GoConstSpec):
                     item_list.append(item.id_list)
                 else:
                     item_list.append(item)
-            
+
             for item in item_list:
                 id_list = item.id_list
                 dtype = item.dtype
@@ -1477,8 +1472,7 @@ def symbol_table(
                             depth = depth - 1
 
                     elif type(var) is str:
-                        dtype1 = table.get_type(var,side="left")
-
+                        dtype1 = table.get_type(var, side="left")
 
                     elif isinstance(var, GoUnaryExpr) and var.op == "*":
                         symbol_table(
@@ -1582,7 +1576,7 @@ def symbol_table(
                             )
                         )
 
-            if check == True:
+            if check is True:
                 if len(id_list) != len(expr_list):
                     raise GoException(
                         "Error: Different number of variables and values in short declaration"
@@ -1643,7 +1637,7 @@ def symbol_table(
             start_label = "Start{}".format(inter_count)
             mid_label = "Mid{}".format(inter_count)
             end_label = "End{}".format(inter_count)
-            
+
             lhs = tree.lhs
             op = tree.op
             rhs = tree.rhs
@@ -1685,7 +1679,7 @@ def symbol_table(
 
             table.insert_var(rhs_name, dtype1, use="intermediate")
 
-            if dtype1.name == "bool" and dtype2.name == "bool":                
+            if dtype1.name == "bool" and dtype2.name == "bool":
                 ir_code += "{}: ".format(start_label)
                 ir_code += lhs_code
                 if op == "||":
@@ -1696,7 +1690,7 @@ def symbol_table(
                     ir_code += "{} = True\n".format(rhs_name)
                     ir_code += "goto {}\n".format(end_label)
                     ir_code += "{}: ".format(mid_label)
-                
+
                 ir_code += rhs_code
                 ir_code += "{}: ".format(end_label)
                 ir_code += "{} = {} {} {}\n".format(
@@ -2107,7 +2101,7 @@ def symbol_table(
                     or indexes[len(indexes) - 1] < 0
                 ):
                     pass
-                    #raise GoException("Error : Index Out of bound")
+                    # raise GoException("Error : Index Out of bound")
                 indexes.pop()
                 dtype1 = dtype1.dtype
                 while depth > 0:
@@ -2116,7 +2110,7 @@ def symbol_table(
                         or indexes[len(indexes) - 1] < 0
                     ):
                         pass
-                        #raise GoException("Error : Index Out of bound")
+                        # raise GoException("Error : Index Out of bound")
                     indexes.pop()
                     dtype1 = dtype1.dtype
                     depth = depth - 1
@@ -2362,7 +2356,14 @@ def symbol_table(
                 elif type(tree.element) is str:
                     element_type = table.get_type(tree.element)
                     store_var = num2index(store_var, element_type)
-                    ir_code = "{} = {}".format(store_var, tree.element)
+                    ir_code += symbol_table(
+                        tree.element,
+                        table,
+                        name,
+                        block_type,
+                        store_var=store_var,
+                        scope_label=scope_label,
+                    )[1]
                     tree.size += 1
                 else:  # LiteralValue is a list
                     # Convert multiple indexing ([][]) to single indexing ([])

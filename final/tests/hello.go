@@ -54,6 +54,11 @@ func add(x uint, y uint) uint {
 	return x + y
 }
 
+func temp3(x person) person {
+    x.age = 3
+    return x
+}
+
 func FibonacciRecursion(n int) int {
     if( n <= 1 ){
         return n

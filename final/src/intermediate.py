@@ -171,7 +171,7 @@ class SymbTable:
         elif self.parent is not None:
             return self.parent.get_basic_type(name)
         else:
-            raise GoException('"{}" is unregistered dtype'.format(name))
+            raise GoException('Error: "{}" is unregistered dtype'.format(name))
 
     def get_actual(self, alias):
         if alias in self.aliases:
@@ -322,6 +322,20 @@ class SymbTable:
             )
         dtype = deepcopy(dtype)
         if name not in self.used:
+            # Get the underlying dtype
+            if hasattr(dtype, "name"):
+                actual = self.get_actual(dtype.name)
+                if actual is not None:
+                    dtype = actual
+                # Check if dtype is of a struct or not
+                if isinstance(dtype, GoType):
+                    try:
+                        struct_obj = self.get_struct_obj(dtype.name)
+                        struct_obj.name = dtype.name
+                        dtype = struct_obj
+                    except GoException:
+                        pass
+
             if isinstance(dtype, GoType):
                 dtype.size = self.get_size(dtype)
                 logging.info(
@@ -1371,10 +1385,6 @@ def symbol_table(
                         scope_label=scope_label,
                     )[0]
                     if not isinstance(parent_dtype, GoStruct):
-                        if hasattr(curr.parent, "name"):
-                            parent_name = curr.parent.name
-                        else:
-                            parent_name = str(curr.parent)
                         raise GoException(
                             'Cannot access attribute "{}" as "{}" is not a struct'.format(
                                 curr.child, parent_name

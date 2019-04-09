@@ -53,11 +53,8 @@ def p_empty(p):
 def p_error(p):
     t_error(p)
 
-#XXX @harish Bug
-def adjust_lineno(line_num):
-    # returning so as to bypass the error 
-    return 0
 
+def adjust_lineno(line_num):
     while lexer.lines[line_num - 1].strip() == "" or lexer.lines[
         line_num - 1
     ].strip().startswith("//"):
@@ -970,7 +967,11 @@ def p_Expression(p):
     if len(p) == 2:  # UnaryExpr given
         p[0] = p[1]
     else:
-        if isinstance(p[1], GoBasicLit) and isinstance(p[3], GoBasicLit) and p[1].dtype.name != "string":
+        if (
+            isinstance(p[1], GoBasicLit)
+            and isinstance(p[3], GoBasicLit)
+            and p[1].dtype.name != "string"
+        ):
             # Direct calculation
             error = False
             try:
@@ -1267,7 +1268,7 @@ def p_Assignment(p):
 
     # 1st arg. is LHS, 2nd arg. is RHS, and 3rd arg. is the assign op
     if p[2] is not None:
-        rhs = [GoExpression(p[1],p[3],p[2])]
+        rhs = [GoExpression(p[1], p[3], p[2])]
     p[0] = GoAssign(lhs, rhs, p[2])
     p[0].lineno = adjust_lineno(lexer.lineno - 1)
 

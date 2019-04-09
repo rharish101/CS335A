@@ -149,21 +149,23 @@ class SymbTable:
 
         logging.info("offset assigned: {}".format(self.offset))
 
-    def get_import(self,name):
+    def get_import(self, name):
         if name in self.imports:
             return self.imports[name]
         elif self.parent is not None:
             return self.parent.get_import(name)
         else:
-            raise GoException("Error : No module named {} imported".format(name)) 
+            raise GoException(
+                "Error : No module named {} imported".format(name)
+            )
 
-    def lookup_function(self,name):
+    def lookup_function(self, name):
         if name in self.functions:
             return True
         elif self.parent is not None:
             return self.parent.lookup_function(name)
         else:
-            return False                               
+            return False
 
     def lookup(self, name):
         if name in self.variables:
@@ -951,10 +953,10 @@ def symbol_table(
             # print("parent '{}', child '{}'".format(parent, child))
 
             if type(parent) is str:
-                try :
-                    import_table,import_3ac = table.get_import(parent)
+                try:
+                    import_table, import_3ac = table.get_import(parent)
                 except GoException:
-                    pass    
+                    pass
                 struct_obj = table.get_type(parent)
                 struct_name = struct_obj.name
                 # print(struct_name)
@@ -988,12 +990,18 @@ def symbol_table(
                 # table.imports[item.import_as] = item
                 package_name = item.package[:-1][1:]
                 # print(package_name)
-                package_path = os.path.join('./packages',"{}.go".format(package_name))
+                package_path = os.path.join(
+                    "./packages", "{}.go".format(package_name)
+                )
                 try:
                     # print(process_code(package_path))
                     table.imports[package_name] = process_code(package_path)
                 except FileNotFoundError:
-                    raise GoException("Error : Package name {} is not present in the packages folder".format(package_name))
+                    raise GoException(
+                        "Error : Package name {} is not present in the packages folder".format(
+                            package_name
+                        )
+                    )
 
             # iteraing over TopLevelDeclList
             for item in tree.declarations:
@@ -2256,14 +2264,17 @@ def symbol_table(
                             # Get function name/location in memory
                             func_loc = lhs.name
 
-                        #package imports
-                        #TODO @Harish handle the 3AC            
+                        # package imports
+                        # TODO @Harish handle the 3AC
                         except GoException:
-                            import_table,import_3ac = table.get_import(parent)
+                            import_table, import_3ac = table.get_import(parent)
                             if import_table.lookup_function(child) is False:
-                                raise GoException("Error : function {} is not supported by the {} package".format(child,parent))
-                            use = "import"    
-                            
+                                raise GoException(
+                                    "Error : function {} is not supported by the {} package".format(
+                                        child, parent
+                                    )
+                                )
+                            use = "import"
 
                 if use != "import":
                     if len(argument_list) is not len(params_list):
@@ -2289,12 +2300,16 @@ def symbol_table(
                             scope_label=scope_label,
                         )
                         ir_code += arg_code
-                        table.insert_var(arg_name, arg_dtype, use="intermediate")
+                        table.insert_var(
+                            arg_name, arg_dtype, use="intermediate"
+                        )
                         inter_names.append(arg_name)
                         table.type_check(
                             param.dtype,
                             arg_dtype,
-                            "type casting" if is_type_cast else "function call",
+                            "type casting"
+                            if is_type_cast
+                            else "function call",
                             func_name,
                             param.name,
                         )
@@ -2338,7 +2353,9 @@ def symbol_table(
                                     child, count
                                 )
                                 count += table.get_size(
-                                    table.get_func(tree.lhs, "result")[0][i].dtype
+                                    table.get_func(tree.lhs, "result")[0][
+                                        i
+                                    ].dtype
                                 )
 
             elif isinstance(rhs, GoSelector):
@@ -2812,10 +2829,15 @@ def process_code(input_path):
     if input_text[-1] != "\n":
         input_text += "\n"
 
+    # Reset the lexer to line no. 1
+    lexer.lineno = 1
     # Storing filename and input text for error reporting
     lexer.filename = input_path
     lexer.lines = input_text.split("\n")
 
+    if hasattr(parser, "statestack"):
+        # Parser was used earlier
+        parser.restart()
     tree = parser.parse(input_text)
 
     table = SymbTable()
@@ -3036,7 +3058,6 @@ def get_csv(table, dir_name):
             subprocess.run(["mv", out_file, csv_file])
 
 
-
 if __name__ == "__main__":
     argparser = ArgumentParser(description="IR generator for Go")
     argparser.add_argument("input", type=str, help="input file")
@@ -3055,7 +3076,7 @@ if __name__ == "__main__":
         # Output directory name is source filename (w/o extension)
         args.output = ".".join(args.input.split("/")[-1].split(".")[:-1])
     if args.output[-1] != "/":
-        args.output += "/"   
+        args.output += "/"
 
     if args.verbose:
         logging.getLogger().setLevel(logging.INFO)

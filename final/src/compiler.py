@@ -4,6 +4,21 @@ from intermediate import process_code
 from argparse import ArgumentParser
 import logging
 
+
+def ir2mips(table, ir_code):
+    """Convert 3AC to MIPS assembly using the given symbol table.
+
+    Args:
+        table (`SymbTable`): The symbol table
+        ir_code (str): The 3AC
+
+    Returns:
+        str: The MIPS assembly code for the given 3AC
+
+    """
+    return ir_code
+
+
 if __name__ == "__main__":
     argparser = ArgumentParser(description="Compiler for Go to MIPS")
     argparser.add_argument("input", type=str, help="input file")
@@ -28,5 +43,6 @@ if __name__ == "__main__":
         logging.getLogger().setLevel(logging.INFO)
 
     table, ir_code = process_code(args.input)
+    mips = ir2mips(table, ir_code)
     with open(args.output, "w") as out_file:
-        out_file.write(ir_code)
+        out_file.write(mips)

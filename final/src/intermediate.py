@@ -904,7 +904,7 @@ def symbol_table(
 
             local_ir += "{} = 0\n".format(right_index_name)
             local_ir += "{} = {}\n".format(left_index_name, start)
-            local_ir += '{}: {} = {}[{}] == "\\0"\n'.format(
+            local_ir += "{}: {} = {}[{}] == 0\n".format(
                 while_label, cond_name, item, right_index_name
             )
             local_ir += "if {} goto {}\n".format(cond_name, endwhile_label)
@@ -914,7 +914,7 @@ def symbol_table(
             local_ir += "{0:} = {0:} + 1\n".format(right_index_name)
             local_ir += "{0:} = {0:} + 1\n".format(left_index_name)
             local_ir += "goto {}\n".format(while_label)
-            local_ir += '{}: {}[{}] = "\\0"\n'.format(
+            local_ir += "{}: {}[{}] = 0\n".format(
                 endwhile_label, store_loc, left_index_name
             )
         else:
@@ -937,10 +937,10 @@ def symbol_table(
                 ir_code = str(tree.item)
             elif hasattr(tree.dtype, "name") and tree.dtype.name == "string":
                 for i, char in enumerate(tree.item[1:-1]):
-                    ir_code += '{}[{}] = "{}"\n'.format(
-                        store_var, i + start, char
+                    ir_code += "{}[{}] = {}\n".format(
+                        store_var, i + start, ord(char)
                     )
-                ir_code += '{}[{}] = "\\0"\n'.format(
+                ir_code += "{}[{}] = 0\n".format(
                     store_var, len(tree.item) - 2 + start
                 )
             else:
@@ -1050,7 +1050,7 @@ def symbol_table(
                 scope_label=scope_label,
                 insert=True,
             )[1]
-            ir_code += "func end\n"
+            ir_code += "return 0\nfunc end\n"
             DTYPE = None
 
         elif isinstance(tree, GoDecl) and tree.kind == "var":
@@ -1136,13 +1136,6 @@ def symbol_table(
                                         field_index += table.get_size(
                                             govar.dtype
                                         )
-                                elif (
-                                    hasattr(dtype_loc, "name")
-                                    and dtype_loc.name == "string"
-                                ):
-                                    local_ir += '{} = "\\0"\n'.format(
-                                        store_loc
-                                    )
                                 else:
                                     local_ir += "{} = 0\n".format(store_loc)
                                 return local_ir

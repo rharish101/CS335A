@@ -156,6 +156,12 @@ def ir2mips(table, ir_code):
 
         elif "=" in line and "call" not in line:
             mips += " " * indent + "# " + line + "\n"
+            if ":" in line:
+                mips += (
+                    " " * indent
+                    + ":".join(line.split(":")[:-1])
+                    + ": sll $0, $0, 0\n"
+                )
 
             lhs = line.split(":")[-1].split(" = ")[0].strip()
             lhs_dtype = infer_type(lhs, curr_table)
@@ -489,7 +495,11 @@ def ir2mips(table, ir_code):
                 dest,
             )
 
-        # TODO: Check other cases
+        # TODO: Check other cases:
+        #   * Function calling (call and param)
+        #   * Return
+        #   * if
+        #   * goto
         else:
             mips += " " * indent + line + "\n"
     return mips.strip()

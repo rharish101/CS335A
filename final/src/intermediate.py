@@ -285,6 +285,8 @@ class SymbTable:
 
         if name in self.variables:
             return self.variables[name]
+        elif name in self.intermediates:
+            return self.intermediates[name]
         elif self.parent:
             return self.parent.get_type(name)
         else:
@@ -896,6 +898,7 @@ def symbol_table(
             left_index_name = "__str_ind_left_{}".format(inter_count)
             right_index_name = "__str_ind_right_{}".format(inter_count)
             cond_name = "__str_cond_{}".format(inter_count)
+            table.insert_var(left_index_name, GoType("uint"), "intermediate")
             table.insert_var(right_index_name, GoType("uint"), "intermediate")
             table.insert_var(cond_name, GoType("bool"), "intermediate")
 

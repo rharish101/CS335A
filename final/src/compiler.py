@@ -127,7 +127,29 @@ def ir2mips(table, ir_code):
     branch_count = 0
     indent = 0
     act_record = {}
+
+    def get_addr(var, reg):
+        """Obtain the address at which the variable is stored.
+
+        Args:
+            var (str): The name of the variable
+            reg (str): The temporary register where the address is to be
+                stored in case the given variable is a global
+
+        Returns:
+            str: The address where the variable is stored.
+
+        """
+        nonlocal mips
+        if var in global_vars:
+            mips += " " * indent + "la {}, {}\n".format(reg, var)
+            return "({})".format(reg)
+        else:
+            offset = act_record[var].activation_offset
+            return "{}($fp)".format(offset)
+
     for i, line in enumerate(ir_lines):
+        # Make labels occupy a single line
         if ":" in line:
             mips += " " * indent + ":".join(line.split(":")[:-1]) + ":\n"
             line = line.split(":")[-1].strip()
@@ -217,14 +239,7 @@ def ir2mips(table, ir_code):
                         )
 
                 elif rhs[index][0] == "*":
-                    if rhs[index][1:] in global_vars:
-                        mips += " " * indent + "la $t{}, {}\n".format(
-                            reg, rhs[index][1:]
-                        )
-                        source = "($t{})".format(reg)
-                    else:
-                        offset = act_record[rhs[index][1:]].activation_offset
-                        source = "{}($fp)".format(offset)
+                    source = get_addr(rhs[index][1:], "$t{}".format(reg))
                     mips += " " * indent + "lw $t{}, {}\n".format(reg, source)
                     instr = size2instr(rhs_size, "load", is_float, is_unsigned)
                     if is_float:
@@ -247,14 +262,7 @@ def ir2mips(table, ir_code):
                         )
 
                 elif "[" not in rhs[index]:
-                    if rhs[index] in global_vars:
-                        mips += " " * indent + "la $t{}, {}\n".format(
-                            reg, rhs[index]
-                        )
-                        source = "($t{})".format(reg)
-                    else:
-                        offset = act_record[rhs[index]].activation_offset
-                        source = "{}($fp)".format(offset)
+                    source = get_addr(rhs[index], "$t{}".format(reg))
                     if is_float:
                         target = "$f{}".format(reg * 2)
                     else:
@@ -270,27 +278,10 @@ def ir2mips(table, ir_code):
                     items = re.search(
                         r"([\w_]+)\[([^\]]+)\]", rhs[index]
                     ).groups()
-
-                    if items[0] in global_vars:
-                        mips += " " * indent + "la $t{}, {}\n".format(
-                            reg, items[0]
-                        )
-                        source = "($t{})".format(reg)
-                    else:
-                        offset = act_record[items[0]].activation_offset
-                        source = "{}($fp)".format(offset)
-
+                    source = get_addr(items[0], "$t{}".format(reg))
                     if re.match(r"\d+", items[1]) is None:
                         # The index is a variable
-                        if items[1] in global_vars:
-                            mips += " " * indent + "la $t{}, {}\n".format(
-                                reg + 1, items[1]
-                            )
-                            ind_source = "($t{})".format(reg + 1)
-                        else:
-                            ind_offset = act_record[items[1]].activation_offset
-                            ind_source = "{}($fp)".format(ind_offset)
-
+                        ind_source = get_addr(items[1], "$t{}".format(reg + 1))
                         mips += " " * indent + "lw $t{}, {}\n".format(
                             reg, source
                         )
@@ -422,9 +413,8 @@ def ir2mips(table, ir_code):
                     )
                     mips += " " * indent + "ori $t0, $0, 0\n"
                     # Branch to noop, to preserve indentation
-                    mips += (
-                        " " * indent
-                        + "__branch_{}: sll $0, $0, 0\n".format(branch_count)
+                    mips += " " * indent + "__branch_{}:\n".format(
+                        branch_count
                     )
                     branch_count += 1
 
@@ -466,22 +456,10 @@ def ir2mips(table, ir_code):
                     )
 
             if "[" not in lhs:  # No indexing in LHS
-                if lhs in global_vars:
-                    mips += " " * indent + "la $t1, {}\n".format(lhs)
-                    dest = "($t1)"
-                else:
-                    lhs_offset = act_record[lhs].activation_offset
-                    dest = "{}($fp)".format(lhs_offset)
+                dest = get_addr(lhs, "$t1")
 
             elif re.match(r".*\[.+\[", lhs) is None:  # Single indexing in LHS
-                if lhs.split("[")[0] in global_vars:
-                    mips += " " * indent + "la $t1, {}\n".format(
-                        lhs.split("[")[0]
-                    )
-                    source = "($t1)"
-                else:
-                    offset = act_record[lhs.split("[")[0]].activation_offset
-                    source = "{}($fp)".format(offset)
+                source = get_addr(lhs.split("[")[0], "$t1")
                 mips += " " * indent + "lw $t1, {}\n".format(source)
                 index_str = lhs.split("[")[1][:-1]
 
@@ -493,16 +471,7 @@ def ir2mips(table, ir_code):
                     remaining = remaining[split:]
 
                     if before[0] != "[":  # First iteration
-                        if before.split("[")[0] in global_vars:
-                            mips += " " * indent + "la $t1, {}\n".format(
-                                before.split("[")[0]
-                            )
-                            source = "($t1)"
-                        else:
-                            offset = act_record[
-                                before.split("[")[0]
-                            ].activation_offset
-                            source = "{}($fp)".format(offset)
+                        source = get_addr(before.split("[")[0], "$t1")
                         mips += " " * indent + "lw $t1, {}\n".format(source)
                         index_str = before.split("[")[1][:-1]
                     else:
@@ -513,16 +482,7 @@ def ir2mips(table, ir_code):
                             index_str
                         )
                     else:  # Index is a variable
-                        if index_str in global_vars:
-                            mips += " " * indent + "la $t2, {}\n".format(
-                                index_str
-                            )
-                            source = "($t2)"
-                        else:
-                            ind_offset = act_record[
-                                index_str
-                            ].activation_offset
-                            ind_source = "{}($fp)".format(ind_offset)
+                        ind_source = get_addr(index_str, "$t2")
                         mips += " " * indent + "lw $t2, {}\n".format(
                             ind_source
                         )
@@ -537,12 +497,7 @@ def ir2mips(table, ir_code):
                         index_str
                     )
                 else:  # Index is a variable
-                    if index_str in global_vars:
-                        mips += " " * indent + "la $t2, {}\n".format(index_str)
-                        source = "($t2)"
-                    else:
-                        ind_offset = act_record[index_str].activation_offset
-                        ind_source = "{}($fp)".format(ind_offset)
+                    ind_source = get_addr(index_str, "$t2")
                     mips += " " * indent + "lw $t2, {}\n".format(ind_source)
                     mips += " " * indent + "add $t1, $t1, $t2\n".format(
                         index_str
@@ -572,15 +527,8 @@ def ir2mips(table, ir_code):
 
         elif line.startswith("if"):
             cond = line.split()[1]
+            source = get_addr(cond, "$t0")
             target = line.split()[-1]
-
-            if cond in global_vars:
-                mips += " " * indent + "la $t0, {}\n".format(cond)
-                source = "($t0)"
-            else:
-                offset = act_record[cond].activation_offset
-                source = "{}($fp)".format(offset)
-
             mips += " " * indent + "lb $t0, {}\n".format(source)
             mips += " " * indent + "bne $t0, $0, {}\n".format(target)
 

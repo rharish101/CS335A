@@ -198,7 +198,7 @@ def ir2mips(table, ir_code):
 
             # Callee saving
             mips += " " * indent + "sw $fp, -4($sp)\n"  # dynamic link
-            mips += " " * indent + "ori $fp, $sp, 0\n"  # stack pointer
+            mips += " " * indent + "move $fp, $sp\n"  # stack pointer
             mips += " " * indent + "addi $sp, $sp, -4\n"
             mips += " " * indent + "sw $ra, -4($sp)\n"  # return address
             mips += " " * indent + "addi $sp, $sp, -4\n"
@@ -274,7 +274,7 @@ def ir2mips(table, ir_code):
                             rhs[index],
                         )
                     else:
-                        mips += " " * indent + "ori $t{}, $0, {}\n".format(
+                        mips += " " * indent + "li $t{}, {}\n".format(
                             reg, rhs[index]
                         )
 
@@ -378,14 +378,14 @@ def ir2mips(table, ir_code):
                 elif rhs[1] == "||":  # bool only
                     # Set result to 1 in $t2 (to preserve $t0) by default.
                     # The branch will NOT set it to 0.
-                    mips += " " * indent + "ori $t2, $0, 1\n"
+                    mips += " " * indent + "li $t2, 1\n"
                     mips += " " * indent + "bne $t0, $0, __branch_{}\n".format(
                         branch_count
                     )
                     mips += " " * indent + "bne $t1, $0, __branch_{}\n".format(
                         branch_count
                     )
-                    mips += " " * indent + "ori $t2, $0, 0\n"
+                    mips += " " * indent + "li $t2, 0\n"
                     mips += (
                         " " * indent
                         + "__branch_{}: or $t0, $t2, $0\n".format(branch_count)
@@ -394,14 +394,14 @@ def ir2mips(table, ir_code):
                 elif rhs[1] == "&&":  # bool only
                     # Set result to 0 in $t2 (to preserve $t0) by default.
                     # The branch will NOT set it to 1.
-                    mips += " " * indent + "ori $t2, $0, 0\n"
+                    mips += " " * indent + "li $t2, 0\n"
                     mips += " " * indent + "beq $t0, $0, __branch_{}\n".format(
                         branch_count
                     )
                     mips += " " * indent + "beq $t1, $0, __branch_{}\n".format(
                         branch_count
                     )
-                    mips += " " * indent + "ori $t2, $0, 1\n"
+                    mips += " " * indent + "li $t2, 1\n"
                     # Copy $t2 to $t0
                     mips += (
                         " " * indent
@@ -423,7 +423,7 @@ def ir2mips(table, ir_code):
 
                     # Set result to 1 by default.
                     # The branch will NOT set it to 0.
-                    mips += " " * indent + "ori $t0, $0, 1\n"
+                    mips += " " * indent + "li $t0, 1\n"
                     if rhs[1] in ["==", "<", "<="]:
                         instr = "bc1t"
                     else:
@@ -431,7 +431,7 @@ def ir2mips(table, ir_code):
                     mips += " " * indent + "{} __branch_{}\n".format(
                         instr, branch_count
                     )
-                    mips += " " * indent + "ori $t0, $0, 0\n"
+                    mips += " " * indent + "li $t0, 0\n"
                     # Branch to noop, to preserve indentation
                     mips += " " * indent + "__branch_{}:\n".format(
                         branch_count
@@ -587,7 +587,7 @@ def ir2mips(table, ir_code):
             if return_val == "0" and not is_main:
                 mips += " " * indent + "sw $t0, -12($fp)\n"
                 mips += " " * indent + "sw $0, ($t0)\n"
-                mips += " " * indent + "ori $v0, $0, 0\n"
+                mips += " " * indent + "li $v0, 0\n"
             elif not is_main:
                 return_dtype = get_type(return_val)
                 return_size = ceil(table.get_size(return_dtype) / 4) * 4
@@ -603,7 +603,7 @@ def ir2mips(table, ir_code):
 
             # Callee retrieving
             mips += " " * indent + "lw $ra, -8($fp)\n"  # return address
-            mips += " " * indent + "ori $sp, $fp, 0\n"  # stack pointer
+            mips += " " * indent + "move $sp, $fp\n"  # stack pointer
             mips += " " * indent + "lw $fp, -4($fp)\n"  # dynamic link
             mips += " " * indent + "jr $ra\n"
 

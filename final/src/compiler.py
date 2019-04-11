@@ -5,9 +5,10 @@ from intermediate import process_code
 from argparse import ArgumentParser
 import logging
 import re
+from math import ceil
 
 
-def infer_type(item, table):
+def _infer_type(item, table):
     """Infer the type from the given string operand and return it."""
     if "[" not in item:
         # Check if it is in this table or in a child scope's table
@@ -83,6 +84,7 @@ def size2instr(size, mode, is_float=False, is_unsigned=False):
             return mode[0] + "w"
 
 
+# TODO: Hardcode printf and scanf
 def ir2mips(table, ir_code):
     """Convert 3AC to MIPS assembly using the given symbol table.
 
@@ -95,7 +97,7 @@ def ir2mips(table, ir_code):
 
     """
     # Store global variables in the data segment
-    mips = ".data:\n"
+    mips = ".data\n"
     global_vars = {}
     for collection in [table.variables, table.intermediates]:
         for var in collection:
@@ -128,8 +130,14 @@ def ir2mips(table, ir_code):
 
     branch_count = 0  # For branch labels: "__branch_{}".format(branch_count)
     indent = 0
-    act_record = {}  # Kept as a dict for quick lookup
-    is_main = False  # Used in "func end" for inserting exit syscall
+    is_main = False  # For choosing whether to save data in static link or not
+
+    def get_type(var):
+        """Get the type of the variable."""
+        if var in global_vars:
+            return global_vars[var]
+        else:
+            return _infer_type(var, table)
 
     def get_addr(var, reg):
         """Obtain the address at which the variable is stored.
@@ -148,8 +156,27 @@ def ir2mips(table, ir_code):
             mips += " " * indent + "la {}, {}\n".format(reg, var)
             return "({})".format(reg)
         else:
-            offset = act_record[var].activation_offset
+            for item in table.activation_record:
+                if item[0] == var:
+                    offset = item[1].activation_offset
             return "{}($fp)".format(offset)
+
+    def store_pointer(var, reg):
+        """Obtain the pointer to the address at which the variable is stored.
+
+        Args:
+            var (str): The name of the variable
+            reg (str): The temporary register where the pointer is to be
+                stored
+        """
+        nonlocal mips
+        if var in global_vars:
+            mips += " " * indent + "la {}, {}\n".format(reg, var)
+        else:
+            for item in table.activation_record:
+                if item[0] == var:
+                    offset = item[1].activation_offset
+            mips += " " * indent + "addi {}, $fp, {}\n".format(reg, offset)
 
     for i, line in enumerate(ir_lines):
         # Make labels occupy a single separate line
@@ -157,7 +184,6 @@ def ir2mips(table, ir_code):
             mips += " " * indent + ":".join(line.split(":")[:-1]) + ":\n"
             line = line.split(":")[-1].strip()
 
-        # TODO: Callee saving
         if line.startswith("func begin"):
             func_name = line.split()[-1]
             mips += " " * indent + "{}:\n".format(line.split()[-1])
@@ -167,10 +193,20 @@ def ir2mips(table, ir_code):
                 rec_name = func_name.split(".")[0]
                 meth_name = func_name.split(".")[1]
                 table = table.get_method((meth_name, rec_name), "body")
-                act_record = dict(table.activation_record)
             else:  # Function
                 table = table.get_func(func_name, "body")[0]
-                act_record = dict(table.activation_record)
+
+            # Callee saving
+            mips += " " * indent + "sw $fp, -4($sp)\n"  # dynamic link
+            mips += " " * indent + "ori $fp, $sp, 0\n"  # stack pointer
+            mips += " " * indent + "addi $sp, $sp, -4\n"
+            mips += " " * indent + "sw $ra, -4($sp)\n"  # return address
+            mips += " " * indent + "addi $sp, $sp, -4\n"
+            mips += " " * indent + "addi $sp, $sp, -4\n"  # static link
+            mips += " " * indent + "addi $sp, $sp, {}\n".format(
+                table.activation_record[-1][1].activation_offset + 12
+            )  # local variables (12 already subtracted)
+            # TODO: String allocation
 
             # Move all global declarations into the main function.
             # Inserting them before the next index makes the loop process them
@@ -181,36 +217,32 @@ def ir2mips(table, ir_code):
                     ir_lines.insert(i + 1, item)
 
         elif line == "func end":
-            if is_main:  # Exit the code
-                mips += " " * indent + "li $v0, 10\n"
-                mips += " " * indent + "syscall\n"
-                is_main = False
             mips += "\n"
             indent -= 4
-            act_record = {}
             table = table.parent
+            is_main = False
 
-        elif "=" in line and "= call" not in line:
+        elif "=" in line and "= call " not in line:
             lhs = line.split(" = ")[0].strip()
-            if lhs in global_vars:
-                lhs_dtype = global_vars[lhs]
-            else:
-                lhs_dtype = infer_type(lhs, table)
+            lhs_dtype = get_type(lhs)
 
             rhs = line.split(" = ")[1].strip().split()
             if len(rhs) == 1:
                 indices = [0]
                 # LHS dtype is used, as there are cases when RHS is a constant
                 rhs_dtype = lhs_dtype
-            else:
-                if len(rhs) == 3:
-                    indices = [0, 2]
-                else:  # type-casting
-                    indices = [1]
-                if rhs[-1] in global_vars:
-                    rhs_dtype = global_vars[rhs[-1]]
+            elif len(rhs) == 3:
+                indices = [0, 2]
+                if re.fullmatch(r"[\d.]+", rhs[0]):
+                    if re.fullmatch(r"[\d.]+", rhs[2]):
+                        rhs_dtype = lhs_dtype
+                    else:
+                        rhs_dtype = get_type(rhs[2])
                 else:
-                    rhs_dtype = infer_type(rhs[-1], table)
+                    rhs_dtype = get_type(rhs[0])
+            else:  # type-casting
+                indices = [1]
+                rhs_dtype = get_type(rhs[-1])
 
             rhs_size = table.get_size(rhs_dtype)
             if isinstance(rhs_dtype, GoArray) or isinstance(
@@ -255,15 +287,7 @@ def ir2mips(table, ir_code):
                     )
 
                 elif rhs[index][0] == "&":  # Address of
-                    if rhs[index][1:] in global_vars:
-                        mips += " " * indent + "la $t{}, {}\n".format(
-                            reg, rhs[index][1:]
-                        )
-                    else:
-                        offset = act_record[rhs[index][1:]].activation_offset
-                        mips += " " * indent + "addi $t{}, $fp, {}\n".format(
-                            reg, offset
-                        )
+                    store_pointer(rhs[index][1:], "$t{}".format(reg))
 
                 elif "[" not in rhs[index]:
                     source = get_addr(rhs[index], "$t{}".format(reg))
@@ -532,11 +556,59 @@ def ir2mips(table, ir_code):
         elif line.startswith("goto "):
             mips += " " * indent + line.replace("goto", "j") + "\n"
 
-        # TODO: Check other cases:
-        #   * Function calling (call and param) (caller saving)
-        #   * Return (callee retrieving)
+        elif line.startswith("param "):
+            param = line.split()[-1]
+            # Store address of param in $t0
+            store_pointer(param, "$t0")
+            param_dtype = get_type(param)
+            # Aligning a/c to offsets
+            param_size = ceil(table.get_size(param_dtype) / 4) * 4
+            # Make space for param on the stack
+            mips += " " * indent + "addi $sp, $sp, {}\n".format(
+                -1 * param_size
+            )
+            # Store param on the stack
+            for offset in range(0, param_size, 4):
+                mips += " " * indent + "lw $t1, {}($t0)\n".format(offset)
+                mips += " " * indent + "sw $t1, {}($sp)\n".format(offset)
+
+        elif "= call " in line:
+            func_name = line.split("= call ")[1].split()[0][:-1]
+            lhs = line.split("= call ")[0].strip()
+
+            # Return value is to be stored at address in static link
+            store_pointer(lhs, "$t0")
+            mips += " " * indent + "sw $t0, -12($sp)\n"
+
+            mips += " " * indent + "jal {}\n".format(func_name)
+
+        elif line.startswith("return "):
+            return_val = line.split()[-1]
+            if return_val == "0" and not is_main:
+                mips += " " * indent + "sw $t0, -12($fp)\n"
+                mips += " " * indent + "sw $0, ($t0)\n"
+                mips += " " * indent + "ori $v0, $0, 0\n"
+            elif not is_main:
+                return_dtype = get_type(return_val)
+                return_size = ceil(table.get_size(return_dtype) / 4) * 4
+                store_pointer(return_val, "$t0")
+                mips += " " * indent + "sw $t1, -12($fp)\n"
+                for offset in range(0, return_size, 4):
+                    mips += " " * indent + "lw $t2, {}($t0)\n".format(offset)
+                    mips += " " * indent + "sw $t2, {}($t1)\n".format(offset)
+                if return_size <= 8:
+                    if return_size > 4:
+                        mips += " " * indent + "lw $v1, 4($t0)\n"
+                    mips += " " * indent + "lw $v0, ($t0)\n"
+
+            # Callee retrieving
+            mips += " " * indent + "lw $ra, -8($fp)\n"  # return address
+            mips += " " * indent + "ori $sp, $fp, 0\n"  # stack pointer
+            mips += " " * indent + "lw $fp, -4($fp)\n"  # dynamic link
+            mips += " " * indent + "jr $ra\n"
+
         else:
-            mips += " " * indent + line + "\n"
+            logging.info("Unknown line: " + line)
     return mips.strip()
 
 

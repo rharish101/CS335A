@@ -2332,21 +2332,25 @@ def symbol_table(
                             ]
                         )
                         if store_var == "":
-                            ir_code += "call {}, {}\n".format(
-                                func_loc, len(argument_list)
+                            temp_name = "__call_temp_{}".format(inter_count)
+                            table.insert_var(temp_name, DTYPE, "intermediate")
+                            ir_code += "{} = call {}, {}\n".format(
+                                temp_name, func_loc, len(argument_list)
                             )
                         elif type(store_var) is not list:
                             ir_code += "{} = call {}, {}\n".format(
                                 store_var, func_loc, len(argument_list)
                             )
                         else:
-                            ir_code += "temp_var = call {},{}\n".format(
-                                func_loc, len(argument_list)
+                            temp_name = "__call_temp_{}".format(inter_count)
+                            table.insert_var(temp_name, DTYPE, "intermediate")
+                            ir_code += "{} = call {},{}\n".format(
+                                temp_name, func_loc, len(argument_list)
                             )
                             count = 0
                             for i, child in enumerate(store_var):
-                                ir_code += "{} = temp_var[{}]\n".format(
-                                    child, count
+                                ir_code += "{} = {}[{}]\n".format(
+                                    child, temp_name, count
                                 )
                                 count += table.get_size(
                                     table.get_func(tree.lhs, "result")[0][

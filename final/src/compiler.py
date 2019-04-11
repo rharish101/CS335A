@@ -114,19 +114,22 @@ def ir2mips(table, ir_code):
     outside_func = True
     ir_lines = []
     for i, line in enumerate(ir_code.strip().split("\n")):
+        # This condition kept at the beginning to consider "func begin" as
+        # non-global
         if line.startswith("func begin"):
             outside_func = False
         if outside_func:
             global_lines.append(line)
         else:
             ir_lines.append(line)
+        # This condition kept at the end to consider "func end" as non-global
         if line.startswith("func end"):
             outside_func = True
 
-    # For labelling branches as: "__branch_{}".format(branch_count)
-    branch_count = 0
+    branch_count = 0  # For branch labels: "__branch_{}".format(branch_count)
     indent = 0
-    act_record = {}
+    act_record = {}  # Kept as a dict for quick lookup
+    is_main = False  # Used in "func end" for inserting exit syscall
 
     def get_addr(var, reg):
         """Obtain the address at which the variable is stored.
@@ -149,7 +152,7 @@ def ir2mips(table, ir_code):
             return "{}($fp)".format(offset)
 
     for i, line in enumerate(ir_lines):
-        # Make labels occupy a single line
+        # Make labels occupy a single separate line
         if ":" in line:
             mips += " " * indent + ":".join(line.split(":")[:-1]) + ":\n"
             line = line.split(":")[-1].strip()
@@ -160,22 +163,28 @@ def ir2mips(table, ir_code):
             mips += " " * indent + "{}:\n".format(line.split()[-1])
             indent += 4
 
-            if "." in func_name:
+            if "." in func_name:  # Method
                 rec_name = func_name.split(".")[0]
                 meth_name = func_name.split(".")[1]
                 table = table.get_method((meth_name, rec_name), "body")
                 act_record = dict(table.activation_record)
-            else:
+            else:  # Function
                 table = table.get_func(func_name, "body")[0]
                 act_record = dict(table.activation_record)
 
-            # Move all global declarations into the main function
+            # Move all global declarations into the main function.
+            # Inserting them before the next index makes the loop process them
+            # before processing the "main" function's code
             if func_name == "main":
+                is_main = True
                 for item in global_lines[::-1]:
                     ir_lines.insert(i + 1, item)
 
-        # TODO: Callee retrieving
         elif line == "func end":
+            if is_main:  # Exit the code
+                mips += " " * indent + "li $v0, 10\n"
+                mips += " " * indent + "syscall\n"
+                is_main = False
             mips += "\n"
             indent -= 4
             act_record = {}
@@ -191,23 +200,17 @@ def ir2mips(table, ir_code):
             rhs = line.split(" = ")[1].strip().split()
             if len(rhs) == 1:
                 indices = [0]
-                # For cases when rhs is a constant
-                if lhs in global_vars:
-                    rhs_dtype = global_vars[lhs]
-                else:
-                    rhs_dtype = infer_type(lhs, table)
-            elif len(rhs) == 3:
-                indices = [0, 2]
-                if rhs[0] in global_vars:
-                    rhs_dtype = global_vars[rhs[0]]
-                else:
-                    rhs_dtype = infer_type(rhs[0], table)
+                # LHS dtype is used, as there are cases when RHS is a constant
+                rhs_dtype = lhs_dtype
             else:
-                indices = [1]
-                if rhs[1] in global_vars:
-                    rhs_dtype = global_vars[rhs[1]]
+                if len(rhs) == 3:
+                    indices = [0, 2]
+                else:  # type-casting
+                    indices = [1]
+                if rhs[-1] in global_vars:
+                    rhs_dtype = global_vars[rhs[-1]]
                 else:
-                    rhs_dtype = infer_type(rhs[1], table)
+                    rhs_dtype = infer_type(rhs[-1], table)
 
             rhs_size = table.get_size(rhs_dtype)
             if isinstance(rhs_dtype, GoArray) or isinstance(
@@ -226,7 +229,12 @@ def ir2mips(table, ir_code):
                     is_unsigned = False
 
             for reg, index in enumerate(indices):
-                if re.match(r"\d+", rhs[index]):
+                if is_float:
+                    target = "$f{}".format(reg * 2)
+                else:
+                    target = "$t{}".format(reg)
+
+                if re.fullmatch(r"[\d.]+", rhs[index]):  # RHS is a constant
                     if is_float:
                         mips += " " * indent + "{} $f{}, {}\n".format(
                             size2instr(rhs_size, "load", is_float=True),
@@ -238,19 +246,15 @@ def ir2mips(table, ir_code):
                             reg, rhs[index]
                         )
 
-                elif rhs[index][0] == "*":
+                elif rhs[index][0] == "*":  # Pointer dereference
                     source = get_addr(rhs[index][1:], "$t{}".format(reg))
                     mips += " " * indent + "lw $t{}, {}\n".format(reg, source)
                     instr = size2instr(rhs_size, "load", is_float, is_unsigned)
-                    if is_float:
-                        target = "$f{}".format(reg * 2)
-                    else:
-                        target = "$t{}".format(reg)
                     mips += " " * indent + "{} {}, ($t{})\n".format(
                         instr, target, reg
                     )
 
-                elif rhs[index][0] == "&":
+                elif rhs[index][0] == "&":  # Address of
                     if rhs[index][1:] in global_vars:
                         mips += " " * indent + "la $t{}, {}\n".format(
                             reg, rhs[index][1:]
@@ -263,10 +267,6 @@ def ir2mips(table, ir_code):
 
                 elif "[" not in rhs[index]:
                     source = get_addr(rhs[index], "$t{}".format(reg))
-                    if is_float:
-                        target = "$f{}".format(reg * 2)
-                    else:
-                        target = "$t{}".format(reg)
                     mips += " " * indent + "{} {}, {}\n".format(
                         size2instr(rhs_size, "load", is_float, is_unsigned),
                         target,
@@ -279,7 +279,7 @@ def ir2mips(table, ir_code):
                         r"([\w_]+)\[([^\]]+)\]", rhs[index]
                     ).groups()
                     source = get_addr(items[0], "$t{}".format(reg))
-                    if re.match(r"\d+", items[1]) is None:
+                    if re.fullmatch(r"\d+", items[1]) is None:
                         # The index is a variable
                         ind_source = get_addr(items[1], "$t{}".format(reg + 1))
                         mips += " " * indent + "lw $t{}, {}\n".format(
@@ -305,10 +305,6 @@ def ir2mips(table, ir_code):
                                 reg, items[1]
                             )
                         )
-                    if is_float:
-                        target = "$f{}".format(reg * 2)
-                    else:
-                        target = "$t{}".format(reg)
                     mips += " " * indent + "{} {}, ($t{})\n".format(
                         size2instr(rhs_size, "load", is_float, is_unsigned),
                         target,
@@ -477,7 +473,7 @@ def ir2mips(table, ir_code):
                     else:
                         index_str = before[1:-1]
 
-                    if re.match(r"\d+", index_str):  # Numeric index
+                    if re.fullmatch(r"\d+", index_str):  # Numeric index
                         mips += " " * indent + "lw $t1, {}($t1)\n".format(
                             index_str
                         )
@@ -492,7 +488,7 @@ def ir2mips(table, ir_code):
 
             if "[" in lhs:  # Indexing in LHS
                 dest = "($t1)"
-                if re.match(r"\d+", index_str):  # Numeric index
+                if re.fullmatch(r"\d+", index_str):  # Numeric index
                     mips += " " * indent + "addi $t1, $t1, {}\n".format(
                         index_str
                     )
@@ -529,6 +525,7 @@ def ir2mips(table, ir_code):
             cond = line.split()[1]
             source = get_addr(cond, "$t0")
             target = line.split()[-1]
+            # lb used as condition must be boolean
             mips += " " * indent + "lb $t0, {}\n".format(source)
             mips += " " * indent + "bne $t0, $0, {}\n".format(target)
 
@@ -536,8 +533,8 @@ def ir2mips(table, ir_code):
             mips += " " * indent + line.replace("goto", "j") + "\n"
 
         # TODO: Check other cases:
-        #   * Function calling (call and param)
-        #   * Return
+        #   * Function calling (call and param) (caller saving)
+        #   * Return (callee retrieving)
         else:
             mips += " " * indent + line + "\n"
     return mips.strip()

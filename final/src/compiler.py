@@ -197,11 +197,11 @@ def ir2mips(table, ir_code):
                 table = table.get_func(func_name, "body")[0]
 
             # Callee saving
-            mips += " " * indent + "sw $fp, -4($sp)\n"  # dynamic link
-            mips += " " * indent + "move $fp, $sp\n"  # stack pointer
             mips += " " * indent + "addi $sp, $sp, -4\n"
-            mips += " " * indent + "sw $ra, -4($sp)\n"  # return address
+            mips += " " * indent + "sw $fp, ($sp)\n"  # dynamic link
+            mips += " " * indent + "addi $fp, $sp, 4\n"  # stack pointer
             mips += " " * indent + "addi $sp, $sp, -4\n"
+            mips += " " * indent + "sw $ra, ($sp)\n"  # return address
             mips += " " * indent + "addi $sp, $sp, -4\n"  # static link
             mips += " " * indent + "addi $sp, $sp, {}\n".format(
                 table.activation_record[-1][1].activation_offset + 12
@@ -578,7 +578,9 @@ def ir2mips(table, ir_code):
 
             # Return value is to be stored at address in static link
             store_pointer(lhs, "$t0")
-            mips += " " * indent + "sw $t0, -12($sp)\n"
+            mips += " " * indent + "addi $sp, $sp, -12\n"
+            mips += " " * indent + "sw $t0, ($sp)\n"
+            mips += " " * indent + "addi $sp, $sp, 12\n"
 
             mips += " " * indent + "jal {}\n".format(func_name)
 
@@ -592,7 +594,7 @@ def ir2mips(table, ir_code):
                 return_dtype = get_type(return_val)
                 return_size = ceil(table.get_size(return_dtype) / 4) * 4
                 store_pointer(return_val, "$t0")
-                mips += " " * indent + "sw $t1, -12($fp)\n"
+                mips += " " * indent + "lw $t1, -12($fp)\n"
                 for offset in range(0, return_size, 4):
                     mips += " " * indent + "lw $t2, {}($t0)\n".format(offset)
                     mips += " " * indent + "sw $t2, {}($t1)\n".format(offset)

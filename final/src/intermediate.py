@@ -140,12 +140,18 @@ class SymbTable:
                 self.offset = 0
                 self.activation_record = []
                 self.use = None
-                self.activation_offset = 0
+                # Using list as it is mutable.
+                # This is because any increments by the child should reflect
+                # in the parent
+                self.activation_offset = [0]
         elif use == "function" or use == "method":
             self.offset = 0
             self.activation_record = []
             self.use = use
-            self.activation_offset = 0
+            # Using list as it is mutable.
+            # This is because any increments by the child should reflect
+            # in the parent
+            self.activation_offset = [0]
 
         logging.info("offset assigned: {}".format(self.offset))
 
@@ -396,9 +402,9 @@ class SymbTable:
                 self.activation_record.append((name, dtype))
                 dtype_size = self.get_size(dtype)
                 dtype.activation_offset = (
-                    self.activation_offset - ceil(dtype_size / 4) * 4
+                    self.activation_offset[0] - ceil(dtype_size / 4) * 4
                 )
-                self.activation_offset = dtype.activation_offset
+                self.activation_offset[0] = dtype.activation_offset
 
             self.used.add(name)
         elif use == "intermediate":
@@ -660,8 +666,8 @@ class SymbTable:
                 "Error: Already used interface name '{}'".format(name)
             )
 
-    def insert_func(self, name, params, result,prefix=""):
-        name = "{}{}".format(prefix,name)
+    def insert_func(self, name, params, result, prefix=""):
+        name = "{}{}".format(prefix, name)
         if name not in self.functions:
             self.functions[name] = {}
             self.functions[name]["params"] = params
@@ -669,8 +675,8 @@ class SymbTable:
         else:
             raise GoException("Error: already used function name")
 
-    def insert_method(self, name, params, result, receiver,prefix=""):
-        name = "{}{}".format(prefix,name)
+    def insert_method(self, name, params, result, receiver, prefix=""):
+        name = "{}{}".format(prefix, name)
         for rec in receiver:
             # Indexing by name and receiver
             key = (name, rec.dtype.name)
@@ -842,7 +848,7 @@ def symbol_table(
     scope_label="",
     insert=False,
     start=0,
-    prefix = ""
+    prefix="",
 ):
     """Do DFS to traverse the parse tree, construct symbol tables, 3AC.
 
@@ -1259,7 +1265,7 @@ def symbol_table(
                     child_table.activation_record[i][
                         1
                     ].activation_offset -= last_offset
-                child_table.activation_offset = 0
+                child_table.activation_offset = [0]
                 for item in ["dynamic_link", "return_address", "static_link"]:
                     child_table.insert_var(item, GoPointType(None))
                 table.functions[name]["body"] = child_table
@@ -1284,7 +1290,7 @@ def symbol_table(
                     child_table.activation_record[i][
                         1
                     ].activation_offset -= last_offset
-                child_table.activation_offset = 0
+                child_table.activation_offset = [0]
                 for item in ["dynamic_link", "return_address", "static_link"]:
                     child_table.insert_var(item, GoPointType(None))
                 table.methods[key]["body"] = child_table
@@ -2844,7 +2850,7 @@ def process_code(input_path):
     tree = parser.parse(input_text)
 
     table = SymbTable()
-    ir_code = symbol_table(tree, table,prefix = input_text.split('.')[0])[1]
+    ir_code = symbol_table(tree, table, prefix=input_text.split(".")[0])[1]
     return table, ir_code
 
 

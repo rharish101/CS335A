@@ -191,7 +191,9 @@ def ir2mips(table, ir_code):
     for i, line in enumerate(ir_lines):
         # Make labels occupy a single separate line
         if ":" in line:
-            mips += " " * indent + ":".join(line.split(":")[:-1]) + ":\n"
+            for label in line.split(":")[:-1]:
+                label = label.strip()
+                mips += " " * indent + "{}:\n".format(label)
             line = line.split(":")[-1].strip()
 
         if line.startswith("func begin"):

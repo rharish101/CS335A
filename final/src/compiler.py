@@ -110,6 +110,7 @@ def ir2mips(table, ir_code):
     mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__println_comma: .asciiz " "\n'
     mips += " " * 4 + '__println_newline: .asciiz "\\n"\n'
+    mips += " " * 4 + '__scanln_dummy: .asciiz "\\n"\n'
     mips += "\n"
 
     mips += ".text\n.globl main\n\n"
@@ -229,7 +230,7 @@ def ir2mips(table, ir_code):
 
             elif func_name in inbuilt_funcs:
                 if func_name == "println":
-                    inbuilt_lines = [
+                    code = [
                         "li $t0, 0",
                         "addi $t1, $fp, -16",
                         "__println_loop:",
@@ -270,8 +271,53 @@ def ir2mips(table, ir_code):
                         "li $v0, 4",
                         "syscall",
                     ]
-                    for code in inbuilt_lines:
-                        mips += " " * indent + code + "\n"
+                elif func_name == "scanln":
+                    code = [
+                        "li $t0, 0",
+                        "addi $t1, $fp, -16",
+                        "__scanln_loop:",
+                        "add $t2, $t0, $fp",
+                        "lw $t2, ($t2)",
+                        "move $a0, $t2",
+                        "li $a1, 1",
+                        "lw $v0, ($t1)",
+                        "beqz $v0, __scanln_loop_end",
+                        "addi $v0, $v0, 4",
+                        "syscall",
+                        "lw $t3, ($t1)",
+                        "li $t4, 1",
+                        "bne $t3, $t4, __scanln_float",
+                        "sw $v0, ($t2)",
+                        "j __scanln_end",
+                        "__scanln_float:",
+                        "li $t4, 2",
+                        "bne $t3, $t4, __scanln_double",
+                        "add $t4, $t0, $fp",
+                        "s.s $f0, ($t4)",
+                        "j __scanln_end",
+                        "__scanln_double:",
+                        "add $t4, $t0, $fp",
+                        "s.d $f0, ($t4)",
+                        "addi $t0, $t0, 4",
+                        "addi $t1, $t1, -4",
+                        "__scanln_end:",
+                        "addi $t0, $t0, 4",
+                        "addi $t1, $t1, -4",
+                        "la $a0, __scanln_dummy",
+                        "li $a1, 1",
+                        "li $v0, 8",
+                        "syscall",
+                        "j __scanln_loop",
+                        "__scanln_loop_end:",
+                        "la $a0, __scanln_dummy",
+                        "li $a1, 1",
+                        "li $v0, 8",
+                        "syscall",
+                    ]
+                else:
+                    code = []
+                for command in code:
+                    mips += " " * indent + command + "\n"
 
         elif line == "func end":
             mips += "\n"
@@ -641,6 +687,13 @@ def ir2mips(table, ir_code):
 
             if func_name in inbuilt_funcs:
                 for param_dtype in func_call_dtypes:
+                    if (
+                        isinstance(param_dtype, GoPointType)
+                        or isinstance(param_dtype, GoArray)
+                        and func_name == "scanln"
+                    ):
+                        param_dtype = param_dtype.dtype
+
                     if not isinstance(param_dtype, GoType):
                         raise NotImplementedError(
                             "Inbuilt functions only defined for inbuilt dtypes"

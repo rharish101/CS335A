@@ -9,6 +9,9 @@ func Factorial(n uint32)(result uint32) {
 }
 
 func main() {
-    a := Factorial(3)
-    println(3, a)
+    var num1, num2 uint32
+    scanln(&num1, &num2)
+    a := Factorial(num1)
+    b := Factorial(num2)
+    println(a, b)
 }

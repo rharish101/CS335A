@@ -12,7 +12,7 @@ import logging
 import re
 from math import ceil
 
-inbuilt_funcs = ["println"]
+inbuilt_funcs = ["println", "scanln"]
 
 
 class GoException(Exception):
@@ -2805,7 +2805,10 @@ def symbol_table(
                 DTYPE = struct_obj
 
         elif isinstance(tree, GoUnaryExpr):
-            opd_name = "__opd_{}".format(inter_count)
+            if tree.op == "&":
+                opd_name = str(tree.expr)
+            else:
+                opd_name = "__opd_{}".format(inter_count)
             opd_dtype, opd_code = symbol_table(
                 tree.expr,
                 table,
@@ -2815,8 +2818,9 @@ def symbol_table(
                 scope_label=scope_label,
                 prefix=prefix,
             )
-            ir_code += opd_code
-            table.insert_var(opd_name, opd_dtype, use="intermediate")
+            if tree.op != "&":
+                ir_code += opd_code
+                table.insert_var(opd_name, opd_dtype, use="intermediate")
             ir_code += "{} = {}{}\n".format(store_var, tree.op, opd_name)
 
             if tree.op == "&" or tree.op == "*":
@@ -2974,7 +2978,8 @@ def process_code(input_path, prefix=""):
 
     # Pre-defined functions
     if prefix == "":
-        ir_code += "func begin println\nreturn 0\nfunc end\n"
+        for func_name in inbuilt_funcs:
+            ir_code += "func begin {}\nreturn 0\nfunc end\n".format(func_name)
 
     # Restore older lexer and parser
     lexer = old_lexer

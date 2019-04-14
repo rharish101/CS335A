@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compiler for Go to MIPS."""
 from go_classes import *
-from intermediate import process_code, GoException
+from intermediate import process_code, inbuilt_funcs, GoException
 from argparse import ArgumentParser
 import logging
 import re
@@ -107,6 +107,9 @@ def ir2mips(table, ir_code):
             global_vars[var] = dtype
             size = table.get_size(dtype)
             mips += ".space {}\n".format(size)
+    mips += " " * 4 + ".align 2\n"
+    mips += " " * 4 + '__println_comma: .asciiz " "\n'
+    mips += " " * 4 + '__println_newline: .asciiz "\\n"\n'
     mips += "\n"
 
     mips += ".text\n.globl main\n\n"
@@ -128,9 +131,7 @@ def ir2mips(table, ir_code):
         if line.startswith("func end"):
             outside_func = True
 
-    branch_count = 0  # For branch labels: "__branch_{}".format(branch_count)
     indent = 0
-    is_main = False  # For choosing whether to save data in static link or not
 
     def get_type(var):
         """Get the type of the variable."""
@@ -178,7 +179,10 @@ def ir2mips(table, ir_code):
                     offset = item[1].activation_offset
             mips += " " * indent + "addi {}, $fp, {}\n".format(reg, offset)
 
-    orig_table = table
+    orig_table = table  # Used when returning to global scope
+    branch_count = 0  # For branch labels: "__branch_{}".format(branch_count)
+    is_main = False  # For choosing whether to save data in static link or not
+    func_call_dtypes = []  # Kept track for inbuilt functions
 
     for i, line in enumerate(ir_lines):
         # Make labels occupy a single separate line
@@ -222,6 +226,52 @@ def ir2mips(table, ir_code):
                 is_main = True
                 for item in global_lines[::-1]:
                     ir_lines.insert(i + 1, item)
+
+            elif func_name in inbuilt_funcs:
+                if func_name == "println":
+                    inbuilt_lines = [
+                        "li $t0, 0",
+                        "addi $t1, $fp, -16",
+                        "__println_loop:",
+                        "lw $v0, ($t1)",
+                        "beqz $v0, __println_loop_end",
+                        "li $t2, 1",
+                        "bne $v0, $t2, __println_float",
+                        "add $t2, $t0, $fp",
+                        "lw $a0, ($t2)",
+                        "j __println_end",
+                        "__println_float:",
+                        "li $t2, 2",
+                        "bne $v0, $t2, __println_double",
+                        "add $t2, $t0, $fp",
+                        "l.s $f12, ($t2)",
+                        "j __println_end",
+                        "__println_double:",
+                        "li $t2, 3",
+                        "bne $v0, $t2, __println_string",
+                        "add $t2, $t0, $fp",
+                        "l.d $f12, ($t2)",
+                        "addi $t0, $t0, 4",
+                        "addi $t1, $t1, -4",
+                        "j __println_end",
+                        "__println_string:",
+                        "add $t2, $t0, $fp",
+                        "lw $a0, ($t2)",
+                        "__println_end:",
+                        "syscall",
+                        "addi $t0, $t0, 4",
+                        "addi $t1, $t1, -4",
+                        "la $a0, __println_comma",
+                        "li $v0, 4",
+                        "syscall",
+                        "j __println_loop",
+                        "__println_loop_end:",
+                        "la $a0, __println_newline",
+                        "li $v0, 4",
+                        "syscall",
+                    ]
+                    for code in inbuilt_lines:
+                        mips += " " * indent + code + "\n"
 
         elif line == "func end":
             mips += "\n"
@@ -386,10 +436,10 @@ def ir2mips(table, ir_code):
                     # Set result to 1 in $t2 (to preserve $t0) by default.
                     # The branch will NOT set it to 0.
                     mips += " " * indent + "li $t2, 1\n"
-                    mips += " " * indent + "bne $t0, $0, __branch_{}\n".format(
+                    mips += " " * indent + "bnez $t0, __branch_{}\n".format(
                         branch_count
                     )
-                    mips += " " * indent + "bne $t1, $0, __branch_{}\n".format(
+                    mips += " " * indent + "bnez $t1, __branch_{}\n".format(
                         branch_count
                     )
                     mips += " " * indent + "li $t2, 0\n"
@@ -402,10 +452,10 @@ def ir2mips(table, ir_code):
                     # Set result to 0 in $t2 (to preserve $t0) by default.
                     # The branch will NOT set it to 1.
                     mips += " " * indent + "li $t2, 0\n"
-                    mips += " " * indent + "beq $t0, $0, __branch_{}\n".format(
+                    mips += " " * indent + "beqz $t0, __branch_{}\n".format(
                         branch_count
                     )
-                    mips += " " * indent + "beq $t1, $0, __branch_{}\n".format(
+                    mips += " " * indent + "beqz $t1, __branch_{}\n".format(
                         branch_count
                     )
                     mips += " " * indent + "li $t2, 1\n"
@@ -558,16 +608,17 @@ def ir2mips(table, ir_code):
             target = line.split()[-1]
             # lb used as condition must be boolean
             mips += " " * indent + "lb $t0, {}\n".format(source)
-            mips += " " * indent + "bne $t0, $0, {}\n".format(target)
+            mips += " " * indent + "bnez $t0, {}\n".format(target)
 
         elif line.startswith("goto "):
             mips += " " * indent + line.replace("goto", "j") + "\n"
 
         elif line.startswith("param "):
-            param = line.split()[-1]
+            param = line.split()[1]
             # Store address of param in $t0
             store_pointer(param, "$t0")
             param_dtype = get_type(param)
+            func_call_dtypes.append(param_dtype)
             # Aligning a/c to offsets
             param_size = ceil(table.get_size(param_dtype) / 4) * 4
             # Make space for param on the stack
@@ -587,14 +638,40 @@ def ir2mips(table, ir_code):
             store_pointer(lhs, "$t0")
             mips += " " * indent + "addi $sp, $sp, -12\n"
             mips += " " * indent + "sw $t0, ($sp)\n"
-            mips += " " * indent + "addi $sp, $sp, 12\n"
 
+            if func_name in inbuilt_funcs:
+                for param_dtype in func_call_dtypes:
+                    if not isinstance(param_dtype, GoType):
+                        raise NotImplementedError(
+                            "Inbuilt functions only defined for inbuilt dtypes"
+                        )
+                    elif "float" in param_dtype.name:
+                        if table.get_size(param_dtype) > 4:
+                            syscall = 3  # double
+                        else:
+                            syscall = 2  # float
+                    elif "string" in param_dtype.name:
+                        syscall = 4  # string
+                    else:
+                        syscall = 1  # int
+                    mips += " " * indent + "addi $sp, $sp, -4\n"
+                    mips += " " * indent + "li $t0, {}\n".format(syscall)
+                    mips += " " * indent + "sw $t0, ($sp)\n"
+                mips += " " * indent + "addi $sp, $sp, -4\n"
+                mips += " " * indent + "sw $0, ($sp)\n"
+                mips += " " * indent + "addi $sp, $sp, {}\n".format(
+                    4 * len(func_call_dtypes) + 4
+                )
+
+            mips += " " * indent + "addi $sp, $sp, 12\n"
             mips += " " * indent + "jal {}\n".format(func_name)
+            # Erase, as function call is done
+            func_call_dtypes = []
 
         elif line.startswith("return "):
             return_val = line.split()[-1]
             if return_val == "0" and not is_main:
-                mips += " " * indent + "sw $t0, -12($fp)\n"
+                mips += " " * indent + "lw $t0, -12($fp)\n"
                 mips += " " * indent + "sw $0, ($t0)\n"
                 mips += " " * indent + "li $v0, 0\n"
             elif not is_main:

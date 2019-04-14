@@ -145,7 +145,7 @@ func temp(x int, y int) {
 }
 
 func main() {
-	fmt.println("vishwas")
+	println("vishwas")
 	s := "string"
 	var a int = 4
 	b := a + 4*5

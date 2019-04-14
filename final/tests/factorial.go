@@ -10,4 +10,5 @@ func Factorial(n uint32)(result uint32) {
 
 func main() {
     a := Factorial(3)
+    println(3, a)
 }

@@ -12,6 +12,8 @@ import logging
 import re
 from math import ceil
 
+inbuilt_funcs = ["println"]
+
 
 class GoException(Exception):
     """Simply for catching errors in the source code."""
@@ -2362,7 +2364,11 @@ def symbol_table(
                             func_name = child
                             func_loc = parent + "." + child
 
-                if len(argument_list) is not len(params_list):
+                inbuilt_func = False
+                if params_list is None:  # Inbuilt function
+                    params_list = argument_list
+                    inbuilt_func = True
+                elif len(argument_list) is not len(params_list):
                     raise GoException(
                         'Error: "{}" parameters passed to function "{}" '
                         'instead of "{}"'.format(
@@ -2388,13 +2394,16 @@ def symbol_table(
                     ir_code += arg_code
                     table.insert_var(arg_name, arg_dtype, use="intermediate")
                     inter_names.append(arg_name)
-                    table.type_check(
-                        param.dtype,
-                        arg_dtype,
-                        "type casting" if is_type_cast else "function call",
-                        func_name,
-                        param.name,
-                    )
+                    if not inbuilt_func:
+                        table.type_check(
+                            param.dtype,
+                            arg_dtype,
+                            "type casting"
+                            if is_type_cast
+                            else "function call",
+                            func_name,
+                            param.name,
+                        )
 
                 if len(result) > 1:
                     result_type = [item.dtype for item in result]
@@ -2411,12 +2420,17 @@ def symbol_table(
                         store_var, result_type.name, inter_names[0]
                     )
                 else:
+                    if inbuilt_func:
+                        # Reversing arguments as helpful in inbuilt functions
+                        inter_names = inter_names[::-1]
                     ir_code += "".join(
                         [
                             "param {}\n".format(inter_names[i])
                             for i in range(len(argument_list))
                         ]
                     )
+                    if prefix != "":
+                        func_loc = prefix + "." + func_loc
                     if store_var == "":
                         temp_name = "__call_temp_{}".format(inter_count)
                         table.insert_var(temp_name, DTYPE, "intermediate")
@@ -2945,7 +2959,22 @@ def process_code(input_path, prefix=""):
     tree = parser.parse(input_text)
 
     table = SymbTable()
+
+    # Pre-defined functions
+    if prefix == "":  # global scope
+        for func_name in inbuilt_funcs:
+            table.insert_func(func_name, None, [])
+            child_table = SymbTable(table, "function")
+            child_table.activation_offset = [0]
+            for item in ["dynamic_link", "return_address", "static_link"]:
+                child_table.insert_var(item, GoPointType(None))
+            table.functions[func_name]["body"] = child_table
+
     ir_code = symbol_table(tree, table, prefix=prefix)[1]
+
+    # Pre-defined functions
+    if prefix == "":
+        ir_code += "func begin println\nreturn 0\nfunc end\n"
 
     # Restore older lexer and parser
     lexer = old_lexer
@@ -3056,21 +3085,26 @@ def csv_writer(table, name, dir_name, activation=False):
             row = [func]
             params = table.functions[func]["params"]
             param_string = ""
-            for param in params[:-1]:
-                param_string += "{}_{};".format(
-                    param.name, resolve_dtype(param.dtype)
-                )
-            if len(params) > 0:
-                last = params[len(params) - 1]
-                param_string += "{}_{}".format(
-                    last.name, resolve_dtype(last.dtype)
-                )
+            if params is not None:
+                for param in params[:-1]:
+                    param_string += "{}_{};".format(
+                        param.name, resolve_dtype(param.dtype)
+                    )
+                if len(params) > 0:
+                    last = params[len(params) - 1]
+                    param_string += "{}_{}".format(
+                        last.name, resolve_dtype(last.dtype)
+                    )
 
             row.append(param_string)
-            row.append("{}.csv".format(func))
-            csv_writer(
-                table.functions[func]["body"], func, dir_name, activation=True
-            )
+            if params is not None:
+                row.append("{}.csv".format(func))
+                csv_writer(
+                    table.functions[func]["body"],
+                    func,
+                    dir_name,
+                    activation=True,
+                )
             results = table.functions[func]["result"]
             result_string = ""
             if results is not None:

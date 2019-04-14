@@ -190,14 +190,18 @@ def ir2mips(table, ir_code):
 
     for i, line in enumerate(ir_lines):
         # Make labels occupy a single separate line
-        mips += " " * indent + "# " + line + "\n"
         if ":" in line:
             mips += " " * indent + ":".join(line.split(":")[:-1]) + ":\n"
             line = line.split(":")[-1].strip()
 
         if line.startswith("func begin"):
             func_name = line.split()[-1]
-            mips += " " * indent + "{}:\n".format(line.split()[-1])
+            if func_name != "main":
+                mips += " " * indent + "{}:\n".format(
+                    "__func_" + line.split()[-1]
+                )
+            else:
+                mips += " " * indent + "{}:\n".format(line.split()[-1])
             indent += 4
 
             if "." in func_name:  # Method or import
@@ -759,7 +763,10 @@ def ir2mips(table, ir_code):
                 )
 
             mips += " " * indent + "addi $sp, $sp, 12\n"
-            mips += " " * indent + "jal {}\n".format(func_name)
+            if func_name != "main":
+                mips += " " * indent + "jal {}\n".format("__func_" + func_name)
+            else:
+                mips += " " * indent + "jal {}\n".format(func_name)
             # Erase, as function call is done
             func_call_dtypes = []
 

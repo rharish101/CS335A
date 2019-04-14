@@ -1764,11 +1764,11 @@ def symbol_table(
                 ir_code += "{}: ".format(start_label)
                 ir_code += lhs_code
                 if op == "||":
-                    ir_code += "{} = True\n".format(rhs_name)
+                    ir_code += "{} = 1\n".format(rhs_name)
                     ir_code += "if {} goto {}\n".format(lhs_name, end_label)
                 elif op == "&&":
                     ir_code += "if {} goto {}\n".format(lhs_name, mid_label)
-                    ir_code += "{} = True\n".format(rhs_name)
+                    ir_code += "{} = 1\n".format(rhs_name)
                     ir_code += "goto {}\n".format(end_label)
                     ir_code += "{}: ".format(mid_label)
 

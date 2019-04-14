@@ -30,8 +30,10 @@ def _infer_type(item, table):
             # This is most probably a struct
             dtype = table.get_struct_obj(dtype.name)
 
-        if isinstance(dtype, GoArray):
+        if isinstance(dtype, GoPointType):
             dtype = dtype.dtype
+        elif isinstance(dtype, GoArray):
+            dtype = dtype.final_type
         elif isinstance(dtype, GoStruct):
             index_val = int(remaining[1:end])
             index = 0
@@ -178,6 +180,7 @@ def ir2mips(table, ir_code):
             for item in table.activation_record:
                 if item[0] == var:
                     offset = item[1].activation_offset
+                    break
             mips += " " * indent + "addi {}, $fp, {}\n".format(reg, offset)
 
     orig_table = table  # Used when returning to global scope
@@ -187,6 +190,7 @@ def ir2mips(table, ir_code):
 
     for i, line in enumerate(ir_lines):
         # Make labels occupy a single separate line
+        mips += " " * indent + "# " + line + "\n"
         if ":" in line:
             mips += " " * indent + ":".join(line.split(":")[:-1]) + ":\n"
             line = line.split(":")[-1].strip()
@@ -393,12 +397,20 @@ def ir2mips(table, ir_code):
                     store_pointer(rhs[index][1:], "$t{}".format(reg))
 
                 elif "[" not in rhs[index]:
-                    source = get_addr(rhs[index], "$t{}".format(reg))
-                    mips += " " * indent + "{} {}, {}\n".format(
-                        size2instr(rhs_size, "load", is_float, is_unsigned),
-                        target,
-                        source,
-                    )
+                    this_dtype = get_type(rhs[index])
+                    if isinstance(this_dtype, GoArray) or isinstance(
+                        this_dtype, GoStruct
+                    ):
+                        store_pointer(rhs[index], "$t{}".format(reg))
+                    else:
+                        source = get_addr(rhs[index], "$t{}".format(reg))
+                        mips += " " * indent + "{} {}, {}\n".format(
+                            size2instr(
+                                rhs_size, "load", is_float, is_unsigned
+                            ),
+                            target,
+                            source,
+                        )
 
                 else:
                     # Split the pointer and the index
@@ -432,6 +444,7 @@ def ir2mips(table, ir_code):
                                 reg, items[1]
                             )
                         )
+
                     mips += " " * indent + "{} {}, ($t{})\n".format(
                         size2instr(rhs_size, "load", is_float, is_unsigned),
                         target,
@@ -582,35 +595,64 @@ def ir2mips(table, ir_code):
                 dest = get_addr(lhs, "$t1")
 
             elif re.match(r".*\[.+\[", lhs) is None:  # Single indexing in LHS
-                source = get_addr(lhs.split("[")[0], "$t1")
-                mips += " " * indent + "lw $t1, {}\n".format(source)
+                before_dtype = get_type(lhs.split("[")[0])
+                if isinstance(before_dtype, GoArray) or isinstance(
+                    before_dtype, GoStruct
+                ):
+                    store_pointer(lhs.split("[")[0], "$t1")
+                else:
+                    source = get_addr(lhs.split("[")[0], "$t1")
+                    mips += " " * indent + "lw $t1, {}\n".format(source)
                 index_str = lhs.split("[")[1][:-1]
 
             else:  # Indexing in LHS
                 remaining = lhs
+                start = lhs.split("[")[0]
                 while re.match(r".*\[.+\[", remaining) is not None:
                     split = remaining.index("]") + 1
                     before = remaining[:split]
                     remaining = remaining[split:]
 
+                    start_dtype = get_type(start)
+
                     if before[0] != "[":  # First iteration
-                        source = get_addr(before.split("[")[0], "$t1")
-                        mips += " " * indent + "lw $t1, {}\n".format(source)
+                        if isinstance(start_dtype, GoArray) or isinstance(
+                            start_dtype, GoStruct
+                        ):
+                            store_pointer(before.split("[")[0], "$t1")
+                        else:
+                            source = get_addr(before.split("[")[0], "$t1")
+                            mips += " " * indent + "lw $t1, {}\n".format(
+                                source
+                            )
                         index_str = before.split("[")[1][:-1]
                     else:
                         index_str = before[1:-1]
 
                     if re.fullmatch(r"\d+", index_str):  # Numeric index
-                        mips += " " * indent + "lw $t1, {}($t1)\n".format(
-                            index_str
-                        )
+                        if isinstance(start_dtype, GoArray) or isinstance(
+                            start_dtype, GoStruct
+                        ):
+                            mips += (
+                                " " * indent
+                                + "addi $t1, $t1, {}\n".format(index_str)
+                            )
+                        else:
+                            mips += " " * indent + "lw $t1, {}($t1)\n".format(
+                                index_str
+                            )
                     else:  # Index is a variable
                         ind_source = get_addr(index_str, "$t2")
                         mips += " " * indent + "lw $t2, {}\n".format(
                             ind_source
                         )
                         mips += " " * indent + "add $t1, $t1, $t2\n"
-                        mips += " " * indent + "lw $t1, ($t1)\n"
+                        if not isinstance(
+                            start_dtype, GoArray
+                        ) and not isinstance(start_dtype, GoStruct):
+                            mips += " " * indent + "lw $t1, ($t1)\n"
+
+                    start = start + "[{}]".format(index_str)
                 index_str = remaining[1:-1]
 
             if "[" in lhs:  # Indexing in LHS

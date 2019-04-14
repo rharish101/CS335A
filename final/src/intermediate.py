@@ -2838,6 +2838,11 @@ def process_code(input_path):
     if input_text[-1] != "\n":
         input_text += "\n"
 
+    # Store older lexer and parser
+    global lexer, parser
+    old_lexer = deepcopy(lexer)
+    old_parser = deepcopy(parser)
+
     # Reset the lexer to line no. 1
     lexer.lineno = 1
     # Storing filename and input text for error reporting
@@ -2851,6 +2856,11 @@ def process_code(input_path):
 
     table = SymbTable()
     ir_code = symbol_table(tree, table, prefix=input_text.split(".")[0])[1]
+
+    # Restore older lexer and parser
+    lexer = old_lexer
+    parser = old_parser
+
     return table, ir_code
 
 

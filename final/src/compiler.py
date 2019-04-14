@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compiler for Go to MIPS."""
 from go_classes import *
-from intermediate import process_code
+from intermediate import process_code, GoException
 from argparse import ArgumentParser
 import logging
 import re
@@ -178,6 +178,8 @@ def ir2mips(table, ir_code):
                     offset = item[1].activation_offset
             mips += " " * indent + "addi {}, $fp, {}\n".format(reg, offset)
 
+    orig_table = table
+
     for i, line in enumerate(ir_lines):
         # Make labels occupy a single separate line
         if ":" in line:
@@ -189,10 +191,15 @@ def ir2mips(table, ir_code):
             mips += " " * indent + "{}:\n".format(line.split()[-1])
             indent += 4
 
-            if "." in func_name:  # Method
+            if "." in func_name:  # Method or import
                 rec_name = func_name.split(".")[0]
                 meth_name = func_name.split(".")[1]
-                table = table.get_method((meth_name, rec_name), "body")
+                try:
+                    table = table.get_method((meth_name, rec_name), "body")
+                except GoException:
+                    # Package import
+                    import_table = table.get_import(rec_name)[0]
+                    table = import_table.get_func(meth_name, "body")[0]
             else:  # Function
                 table = table.get_func(func_name, "body")[0]
 
@@ -219,7 +226,7 @@ def ir2mips(table, ir_code):
         elif line == "func end":
             mips += "\n"
             indent -= 4
-            table = table.parent
+            table = orig_table
             is_main = False
 
         elif "=" in line and "= call " not in line:

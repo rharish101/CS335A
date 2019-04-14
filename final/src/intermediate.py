@@ -2338,7 +2338,6 @@ def symbol_table(
                             func_loc = lhs.name
 
                         # package imports
-                        # TODO @Harish handle the 3AC
                         except GoException:
                             import_table, import_3ac = table.get_import(parent)
                             if import_table.lookup_function(child) is False:

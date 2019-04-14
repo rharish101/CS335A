@@ -1,6 +1,6 @@
 package main
 
-func println(){
+func println(input string){
 
 }
 

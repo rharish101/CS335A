@@ -666,8 +666,7 @@ class SymbTable:
                 "Error: Already used interface name '{}'".format(name)
             )
 
-    def insert_func(self, name, params, result, prefix=""):
-        name = "{}{}".format(prefix, name)
+    def insert_func(self, name, params, result):
         if name not in self.functions:
             self.functions[name] = {}
             self.functions[name]["params"] = params
@@ -675,8 +674,7 @@ class SymbTable:
         else:
             raise GoException("Error: already used function name")
 
-    def insert_method(self, name, params, result, receiver, prefix=""):
-        name = "{}{}".format(prefix, name)
+    def insert_method(self, name, params, result, receiver):
         for rec in receiver:
             # Indexing by name and receiver
             key = (name, rec.dtype.name)
@@ -893,6 +891,7 @@ def symbol_table(
                     block_type,
                     store_var=store_loc + "[{}]".format(arr_index),
                     scope_label=scope_label,
+                    prefix=prefix,
                 )[1]
         elif isinstance(dtype, GoStruct):
             field_index = 0
@@ -983,6 +982,7 @@ def symbol_table(
                     block_type,
                     store_var=parent_name,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
                 ir_code += parent_code
                 table.insert_var(parent_name, parent_dtype, "intermediate")
@@ -1006,8 +1006,10 @@ def symbol_table(
                     "./packages", "{}.go".format(package_name)
                 )
                 try:
-                    # print(process_code(package_path))
-                    table.imports[package_name] = process_code(package_path)
+                    table.imports[package_name] = process_code(
+                        package_path, prefix=package_name
+                    )
+                    ir_code += table.imports[package_name][1]
                 except FileNotFoundError:
                     raise GoException(
                         "Error : Package name {} is not present in the packages folder".format(
@@ -1018,7 +1020,12 @@ def symbol_table(
             # iteraing over TopLevelDeclList
             for item in tree.declarations:
                 ir_code += symbol_table(
-                    item, table, name, block_type, scope_label=scope_label
+                    item,
+                    table,
+                    name,
+                    block_type,
+                    scope_label=scope_label,
+                    prefix=prefix,
                 )[1]
             DTYPE = None
 
@@ -1032,7 +1039,14 @@ def symbol_table(
             table.insert_method(name, params, result, receiver)
 
             for rec in receiver:
-                ir_code += "func begin {}.{}\n".format(rec.dtype.name, name)
+                if prefix == "":
+                    ir_code += "func begin {}.{}\n".format(
+                        rec.dtype.name, name
+                    )
+                else:
+                    ir_code += "func begin {}.{}.{}\n".format(
+                        prefix, rec.dtype.name, name
+                    )
                 ir_code += symbol_table(
                     body,
                     table,
@@ -1040,6 +1054,7 @@ def symbol_table(
                     "method",
                     scope_label=scope_label,
                     insert=True,
+                    prefix=prefix,
                 )[1]
                 ir_code += "func end\n"
             DTYPE = None
@@ -1053,7 +1068,10 @@ def symbol_table(
                 result = []
             body = tree.body  # instance of GoBlock
             table.insert_func(name, params, result)
-            ir_code += "func begin {}\n".format(name)
+            if prefix == "":
+                ir_code += "func begin {}\n".format(name)
+            else:
+                ir_code += "func begin {}.{}\n".format(prefix, name)
             ir_code += symbol_table(
                 body,
                 table,
@@ -1061,6 +1079,7 @@ def symbol_table(
                 "function",
                 scope_label=scope_label,
                 insert=True,
+                prefix=prefix,
             )[1]
             ir_code += "return 0\nfunc end\n"
             DTYPE = None
@@ -1094,6 +1113,7 @@ def symbol_table(
                             block_type,
                             store_var=decl_name,
                             scope_label=scope_label,
+                            prefix=prefix,
                         )
                         table.insert_var(
                             decl_name, expr_dtype, use="intermediate"
@@ -1216,6 +1236,7 @@ def symbol_table(
                             block_type,
                             store_var=const_name,
                             scope_label=scope_label,
+                            prefix=prefix,
                         )
                         inter_names.append(const_name)
                         table.insert_var(
@@ -1312,6 +1333,7 @@ def symbol_table(
                     name,
                     block_type,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )[1]
             DTYPE = None
 
@@ -1362,6 +1384,7 @@ def symbol_table(
                             block_type,
                             store_var=index_name,
                             scope_label=scope_label,
+                            prefix=prefix,
                         )
                         table.insert_var(index_name, dtype, use="intermediate")
                         table.type_check(dtype, GoType("int", True))
@@ -1421,6 +1444,7 @@ def symbol_table(
                         name,
                         block_type,
                         scope_label=scope_label,
+                        prefix=prefix,
                     )[0]
                     if not isinstance(parent_dtype, GoStruct):
                         raise GoException(
@@ -1457,6 +1481,7 @@ def symbol_table(
                     block_type,
                     store_var=return_name,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
                 if len(lhs) != len(func_dtype):
                     raise GoException(
@@ -1529,6 +1554,7 @@ def symbol_table(
                             name,
                             block_type,
                             scope_label=scope_label,
+                            prefix=prefix,
                         )
                         if type(var.expr) is str:
                             if not isinstance(
@@ -1587,6 +1613,7 @@ def symbol_table(
                         block_type,
                         store_var=lhs_3ac[i],
                         scope_label=scope_label,
+                        prefix=prefix,
                     )
                     ir_code += rhs_code
                     if type(dtype2) is list:
@@ -1669,6 +1696,7 @@ def symbol_table(
                     block_type,
                     store_var=var,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
                 ir_code += rhs_code
                 # if isinstance(dtype,GoArray) and isinstance(dtype.dtype,GoArray):
@@ -1702,6 +1730,7 @@ def symbol_table(
                 block_type,
                 store_var=lhs_name,
                 scope_label=scope_label,
+                prefix=prefix,
             )
             table.insert_var(lhs_name, dtype1, use="intermediate")
             dtype2, rhs_code = symbol_table(
@@ -1711,6 +1740,7 @@ def symbol_table(
                 block_type,
                 store_var=rhs_name,
                 scope_label=scope_label,
+                prefix=prefix,
             )
             table.insert_var(rhs_name, dtype1, use="intermediate")
 
@@ -1725,6 +1755,7 @@ def symbol_table(
                     store_var=lhs_name,
                     scope_label=scope_label,
                     start=length,
+                    prefix=prefix,
                 )
 
             if dtype1.name == "bool" and dtype2.name == "bool":
@@ -1824,7 +1855,12 @@ def symbol_table(
             # New symbol table needed as stmt is in the scope of both if and else
             newtable = SymbTable(table)
             ir_code += symbol_table(
-                tree.stmt, newtable, name, block_type, scope_label=scope_label
+                tree.stmt,
+                newtable,
+                name,
+                block_type,
+                scope_label=scope_label,
+                prefix=prefix,
             )[1]
             cond_name = "__cond_{}".format(inter_count)
             cond_dtype, cond_code = symbol_table(
@@ -1834,6 +1870,7 @@ def symbol_table(
                 block_type,
                 store_var=cond_name,
                 scope_label=scope_label,
+                prefix=prefix,
             )
             ir_code += cond_code
             table.insert_var(cond_name, cond_dtype, use="intermediate")
@@ -1860,10 +1897,16 @@ def symbol_table(
                 name,
                 block_type,
                 scope_label=scope_label,
+                prefix=prefix,
             )[1]
             ir_code += "goto {}\n{}: ".format(endif_label, if_label)
             ir_code += symbol_table(
-                tree.inif, newtable, name, block_type, scope_label=scope_label
+                tree.inif,
+                newtable,
+                name,
+                block_type,
+                scope_label=scope_label,
+                prefix=prefix,
             )[1]
             ir_code += "{}: ".format(endif_label)
             table.scopes.append(newtable)
@@ -1913,6 +1956,7 @@ def symbol_table(
                     name,
                     block_type,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )[1]
                 ir_code += "{}: ".format(cond_label)
                 fcond_name = "__fcond_{}".format(inter_count)
@@ -1923,6 +1967,7 @@ def symbol_table(
                     block_type,
                     store_var=fcond_name,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
                 ir_code += fcond_code
                 if tree.clause.expr is not None:
@@ -1942,6 +1987,7 @@ def symbol_table(
                     name,
                     block_type,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )[1]
 
                 if (
@@ -1960,6 +2006,7 @@ def symbol_table(
                 name,
                 block_type,
                 scope_label="{}|{}".format(endfor_label, postfor_label),
+                prefix=prefix,
             )[1]
             ir_code += "{}: ".format(postfor_label) + post_code
             ir_code += "goto {}\n{}: ".format(cond_label, endfor_label)
@@ -1969,7 +2016,12 @@ def symbol_table(
         elif isinstance(tree, GoSwitch):
             new_table = SymbTable(table)
             symbol_table(
-                tree.stmt, new_table, name, block_type, scope_label=scope_label
+                tree.stmt,
+                new_table,
+                name,
+                block_type,
+                scope_label=scope_label,
+                prefix=prefix,
             )
             table.scopes.append(new_table)
 
@@ -1982,6 +2034,7 @@ def symbol_table(
                         name,
                         block_type,
                         scope_label=scope_label,
+                        prefix=prefix,
                     )
                 newnewtable = SymbTable(newtable)
                 for child in case_stmt.stmt_list:
@@ -1991,6 +2044,7 @@ def symbol_table(
                         name,
                         block_type,
                         scope_label="Switch",
+                        prefix=prefix,
                     )
                 newtable.scopes.append(newnewtable)
             new_table.scopes.append(newtable)
@@ -2020,7 +2074,12 @@ def symbol_table(
             copy_table = deepcopy(table)
             switch_label = "Switch{}".format(inter_count)
             DTYPE, ir_code = symbol_table(
-                if_conv, copy_table, name, block_type, scope_label=switch_label
+                if_conv,
+                copy_table,
+                name,
+                block_type,
+                scope_label=switch_label,
+                prefix=prefix,
             )
 
             old_switch_label = re.search(
@@ -2039,9 +2098,15 @@ def symbol_table(
                     name,
                     block_type,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
             symbol_table(
-                tree.dtype, table, name, block_type, scope_label=scope_label
+                tree.dtype,
+                table,
+                name,
+                block_type,
+                scope_label=scope_label,
+                prefix=prefix,
             )
             if isinstance(tree.dtype, GoArray):
                 tree.depth = tree.dtype.depth + 1
@@ -2086,6 +2151,7 @@ def symbol_table(
                 block_type,
                 store_var=store_var,
                 scope_label=scope_label,
+                prefix=prefix,
             )
             if isinstance(dtype, GoType):
                 name = dtype.name
@@ -2172,6 +2238,7 @@ def symbol_table(
                         block_type,
                         store_var=lhs_name,
                         scope_label=scope_label,
+                        prefix=prefix,
                     )
                 else:
                     lhs_dtype = table.get_type(lhs)
@@ -2196,6 +2263,7 @@ def symbol_table(
                     block_type,
                     store_var=rhs_name,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
                 ir_code += rhs_code
                 ir_code += "{} = {} * {}\n".format(
@@ -2281,91 +2349,99 @@ def symbol_table(
                                 )
                             use = "import"
 
-                if use != "import":
-                    if len(argument_list) is not len(params_list):
-                        raise GoException(
-                            'Error: "{}" parameters passed to function "{}" '
-                            'instead of "{}"'.format(
-                                len(argument_list), func_name, len(params_list)
+                            # type checking of arguments passed to function
+                            argument_list = rhs.expr_list
+                            params_list, is_type_cast = import_table.get_func(
+                                child, "params"
                             )
-                        )
+                            if is_type_cast:
+                                logging.info("type-casting '{}'".format(child))
 
-                    inter_names = []
-                    depth_num = inter_count
-                    for i, (argument, param) in enumerate(
-                        zip(argument_list, params_list)
-                    ):
-                        arg_name = "__arg{}_{}".format(i, depth_num)
-                        arg_dtype, arg_code = symbol_table(
-                            argument,
-                            table,
-                            name,
-                            block_type,
-                            store_var=arg_name,
-                            scope_label=scope_label,
-                        )
-                        ir_code += arg_code
-                        table.insert_var(
-                            arg_name, arg_dtype, use="intermediate"
-                        )
-                        inter_names.append(arg_name)
-                        table.type_check(
-                            param.dtype,
-                            arg_dtype,
-                            "type casting"
-                            if is_type_cast
-                            else "function call",
-                            func_name,
-                            param.name,
-                        )
+                            result = import_table.get_func(child, "result")[0]
 
-                    if len(result) > 1:
-                        result_type = [item.dtype for item in result]
-                    elif len(result) == 1:
-                        result_type = result[0].dtype
+                            # Get function name/location in memory
+                            func_name = child
+                            func_loc = parent + "." + child
+
+                if len(argument_list) is not len(params_list):
+                    raise GoException(
+                        'Error: "{}" parameters passed to function "{}" '
+                        'instead of "{}"'.format(
+                            len(argument_list), func_name, len(params_list)
+                        )
+                    )
+
+                inter_names = []
+                depth_num = inter_count
+                for i, (argument, param) in enumerate(
+                    zip(argument_list, params_list)
+                ):
+                    arg_name = "__arg{}_{}".format(i, depth_num)
+                    arg_dtype, arg_code = symbol_table(
+                        argument,
+                        table,
+                        name,
+                        block_type,
+                        store_var=arg_name,
+                        scope_label=scope_label,
+                        prefix=prefix,
+                    )
+                    ir_code += arg_code
+                    table.insert_var(arg_name, arg_dtype, use="intermediate")
+                    inter_names.append(arg_name)
+                    table.type_check(
+                        param.dtype,
+                        arg_dtype,
+                        "type casting" if is_type_cast else "function call",
+                        func_name,
+                        param.name,
+                    )
+
+                if len(result) > 1:
+                    result_type = [item.dtype for item in result]
+                elif len(result) == 1:
+                    result_type = result[0].dtype
+                else:
+                    result_type = GoType("int")  # For return 0
+                tree.dtype = []
+
+                DTYPE = result_type
+
+                if is_type_cast:
+                    ir_code += "{} = {} {}\n".format(
+                        store_var, result_type.name, inter_names[0]
+                    )
+                else:
+                    ir_code += "".join(
+                        [
+                            "param {}\n".format(inter_names[i])
+                            for i in range(len(argument_list))
+                        ]
+                    )
+                    if store_var == "":
+                        temp_name = "__call_temp_{}".format(inter_count)
+                        table.insert_var(temp_name, DTYPE, "intermediate")
+                        ir_code += "{} = call {}, {}\n".format(
+                            temp_name, func_loc, len(argument_list)
+                        )
+                    elif type(store_var) is not list:
+                        ir_code += "{} = call {}, {}\n".format(
+                            store_var, func_loc, len(argument_list)
+                        )
                     else:
-                        result_type = []
-                    tree.dtype = []
-
-                    DTYPE = result_type
-
-                    if is_type_cast:
-                        ir_code += "{} = {} {}\n".format(
-                            store_var, result_type.name, inter_names[0]
+                        temp_name = "__call_temp_{}".format(inter_count)
+                        table.insert_var(temp_name, DTYPE, "intermediate")
+                        ir_code += "{} = call {},{}\n".format(
+                            temp_name, func_loc, len(argument_list)
                         )
-                    else:
-                        ir_code += "".join(
-                            [
-                                "param {}\n".format(inter_names[i])
-                                for i in range(len(argument_list))
-                            ]
-                        )
-                        if store_var == "":
-                            temp_name = "__call_temp_{}".format(inter_count)
-                            table.insert_var(temp_name, DTYPE, "intermediate")
-                            ir_code += "{} = call {}, {}\n".format(
-                                temp_name, func_loc, len(argument_list)
+                        count = 0
+                        for i, child in enumerate(store_var):
+                            ir_code += "{} = {}[{}]\n".format(
+                                child, temp_name, count
                             )
-                        elif type(store_var) is not list:
-                            ir_code += "{} = call {}, {}\n".format(
-                                store_var, func_loc, len(argument_list)
+                            count += table.get_size(
+                                table.get_func(tree.lhs, "result")[0][i].dtype
                             )
-                        else:
-                            temp_name = "__call_temp_{}".format(inter_count)
-                            table.insert_var(temp_name, DTYPE, "intermediate")
-                            ir_code += "{} = call {},{}\n".format(
-                                temp_name, func_loc, len(argument_list)
-                            )
-                            count = 0
-                            for i, child in enumerate(store_var):
-                                ir_code += "{} = {}[{}]\n".format(
-                                    child, temp_name, count
-                                )
-                                count += table.get_size(
-                                    table.get_func(tree.lhs, "result")[0][
-                                        i
-                                    ].dtype
-                                )
 
             elif isinstance(rhs, GoSelector):
                 child = rhs.child
@@ -2377,6 +2453,7 @@ def symbol_table(
                     block_type,
                     store_var=lhs_name,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
                 ir_code += lhs_code
                 if isinstance(lhs_dtype, GoStruct):
@@ -2422,6 +2499,7 @@ def symbol_table(
                             block_type,
                             store_var=store_var,
                             scope_label=scope_label,
+                            prefix=prefix,
                         )[1]
                     else:
                         ir_code += "{} = {}\n".format(
@@ -2438,6 +2516,7 @@ def symbol_table(
                         block_type,
                         store_var=store_var,
                         scope_label=scope_label,
+                        prefix=prefix,
                     )[1]
                     tree.size += 1
                 else:  # LiteralValue is a list
@@ -2472,6 +2551,7 @@ def symbol_table(
                                 block_type,
                                 store_var=store_loc,
                                 scope_label=scope_label,
+                                prefix=prefix,
                             )
                             ir_code += child_code
                             child.dtype = child_dtype
@@ -2528,6 +2608,7 @@ def symbol_table(
                         block_type,
                         scope_label=scope_label,
                         store_var=store_var,
+                        prefix=prefix,
                     )
 
                 elif type(element) is list:
@@ -2547,7 +2628,12 @@ def symbol_table(
                 "tree.dtype {}, tree.value {}".format(tree.dtype, tree.value)
             )
             symbol_table(
-                tree.dtype, table, name, block_type, scope_label=scope_label
+                tree.dtype,
+                table,
+                name,
+                block_type,
+                scope_label=scope_label,
+                prefix=prefix,
             )
 
             elem_num = 0
@@ -2559,6 +2645,7 @@ def symbol_table(
                     name,
                     block_type,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
                 dtype = tree.dtype.final_type
                 # if type of the array is a struct_name change it's type to GoStruct
@@ -2581,6 +2668,7 @@ def symbol_table(
                             block_type,
                             store_var=store_var + "--[{}]--".format(elem_num),
                             scope_label=scope_label,
+                            prefix=prefix,
                         )
                         ir_code += elem_code
                         elem_num += 1
@@ -2679,6 +2767,7 @@ def symbol_table(
                         block_type,
                         store_var=field_name,
                         scope_label=scope_label,
+                        prefix=prefix,
                     )
                     type_list.append(field_type)
                     if field.key is not None:
@@ -2711,6 +2800,7 @@ def symbol_table(
                 block_type,
                 store_var=opd_name,
                 scope_label=scope_label,
+                prefix=prefix,
             )
             ir_code += opd_code
             table.insert_var(opd_name, opd_dtype, use="intermediate")
@@ -2803,6 +2893,7 @@ def symbol_table(
                     block_type=block_type,
                     store_var=return_name_i,
                     scope_label=scope_label,
+                    prefix=prefix,
                 )
                 ir_code += expr_code
                 return_index += table.get_size(expr_dtype)
@@ -2823,7 +2914,7 @@ def symbol_table(
     return DTYPE, ir_code
 
 
-def process_code(input_path):
+def process_code(input_path, prefix=""):
     """Generate the symbol table and the 3AC for the input file path.
 
     Args:
@@ -2855,7 +2946,7 @@ def process_code(input_path):
     tree = parser.parse(input_text)
 
     table = SymbTable()
-    ir_code = symbol_table(tree, table, prefix=input_text.split(".")[0])[1]
+    ir_code = symbol_table(tree, table, prefix=prefix)[1]
 
     # Restore older lexer and parser
     lexer = old_lexer

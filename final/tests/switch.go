@@ -7,4 +7,5 @@ func main() {
 		x = 2
 		break
 	}
+	println(x)
 }

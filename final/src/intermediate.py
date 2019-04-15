@@ -2157,11 +2157,10 @@ def symbol_table(
 
             if_conv = prev_stmts[0]
             if_conv.stmt = tree.stmt
-            copy_table = deepcopy(table)
             switch_label = "Switch{}".format(inter_count)
             DTYPE, ir_code = symbol_table(
                 if_conv,
-                copy_table,
+                table,
                 name,
                 block_type,
                 scope_label=switch_label,
@@ -2522,7 +2521,16 @@ def symbol_table(
                         func_loc = prefix + "." + func_loc
                     if store_var == "":
                         temp_name = "__call_temp_{}".format(inter_count)
-                        table.insert_var(temp_name, DTYPE, "intermediate")
+
+                        if type(DTYPE) is list:
+                            field_list = [
+                                GoStructField(["__val{}".format(i)], DTYPE[i], "")
+                                for i in range(len(DTYPE))
+                            ]
+                            temp_dtype = GoStruct(field_list)
+                        else:
+                            temp_dtype = DTYPE
+                        table.insert_var(temp_name, temp_dtype, "intermediate")
                         ir_code += "{} = call {}, {}\n".format(
                             temp_name, func_loc, len(argument_list)
                         )
@@ -3041,8 +3049,10 @@ def process_code(input_path, prefix=""):
 
     # Store older lexer and parser
     global lexer, parser
-    old_lexer = deepcopy(lexer)
-    old_parser = deepcopy(parser)
+    # old_lexer = deepcopy(lexer)
+    # old_parser = deepcopy(parser)
+    old_lexer = lexer
+    old_parser = parser
     # Reset the lexer to line no. 1
     lexer.lineno = 1
     # Storing filename and input text for error reporting

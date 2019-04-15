@@ -11,3 +11,6 @@
 10. switch_2.go not working 
 11. Bools(true, false ) not registered and seaches for a variable name instead 
 12. if_else.go not working 
+13. Scanning address of array items
+14. Negative integers
+15. Global Array

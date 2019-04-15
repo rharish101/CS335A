@@ -1,0 +1,5 @@
+1. b,b = temp(2,3)
+   Storing values from multiple returns into variables
+2. Accessing fields of structs
+3. Passing array into a function
+4. Scanning address of array items   

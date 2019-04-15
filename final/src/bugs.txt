@@ -3,3 +3,8 @@
 2. Accessing fields of structs
 3. Passing array into a function
 4. Scanning address of array items   
+5. **c = 1 not working 
+6. var a,b = 0,0 not working 
+7. switch_1.go not working 
+8. float's not handled in the assembly
+9. handling of rune literals ??

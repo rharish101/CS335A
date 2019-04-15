@@ -2933,10 +2933,14 @@ def symbol_table(
                 ir_code += addr_handler(
                     tree.expr, DTYPE, store_var, start=start
                 )
-            else:
+            elif tree.op != "-":
                 ir_code += opd_code
                 table.insert_var(opd_name, opd_dtype, use="intermediate")
                 ir_code += "{} = {} {}\n".format(store_var, tree.op, opd_name)
+            else:
+                ir_code += opd_code
+                table.insert_var(opd_name, opd_dtype, use="intermediate")
+                ir_code += "{} = -1 * {}\n".format(store_var, opd_name)
 
             if tree.op == "&" or tree.op == "*":
                 if tree.op == "&":

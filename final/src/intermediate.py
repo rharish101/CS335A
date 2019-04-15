@@ -2157,11 +2157,10 @@ def symbol_table(
 
             if_conv = prev_stmts[0]
             if_conv.stmt = tree.stmt
-            copy_table = deepcopy(table)
             switch_label = "Switch{}".format(inter_count)
             DTYPE, ir_code = symbol_table(
                 if_conv,
-                copy_table,
+                table,
                 name,
                 block_type,
                 scope_label=switch_label,

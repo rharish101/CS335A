@@ -1603,6 +1603,8 @@ def symbol_table(
                     arg_index += table.get_size(func_dtype[i])
 
             else:
+                final_assign = []
+                ctr = 0
                 for i, (var, expr) in enumerate(zip(lhs, rhs)):
                     logging.info('assign: "{}" : "{}"'.format(var, expr))
                     # can have only struct fields, variables, array on the LHS.
@@ -1712,7 +1714,19 @@ def symbol_table(
                         scope_label=scope_label,
                         prefix=prefix,
                     )
-                    ir_code += rhs_code
+                    lines = rhs_code.strip().split("\n")
+                    for i,curr_line in enumerate(lines):
+                        if i == len(lines) - 1:
+                            final_assign.append(curr_line.strip().split("=")[0])
+                            ir_code += "final{} = {}\n".format(
+                                ctr, curr_line.strip().split("=")[1]
+                            )
+                            var_name = "final{}".format(ctr)
+                            table.insert_var(var_name, dtype2, use="intermediate")
+                            break
+                        ir_code += curr_line
+                        ir_code += "\n"
+                    #ir_code += rhs_code
                     if type(dtype2) is list:
                         if len(dtype2) == 0:
                             raise GoException(
@@ -1726,6 +1740,12 @@ def symbol_table(
                     table.type_check(dtype1, dtype2, "assignment")
 
                     DTYPE = None
+                    ctr = ctr+1
+
+                for i,curr_line in enumerate(final_assign):
+                    ir_code += "{} = final{}\n".format(
+                        curr_line, i
+                    )
 
         elif isinstance(tree, GoShortDecl):
             id_list = tree.id_list

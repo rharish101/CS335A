@@ -16,3 +16,4 @@
 15. Global Array
 16. In new_test case 14, deeper array gives bug // Not very important bug
 17. Wrong output on new_test case 15
+18. Bug in MIPS code of new_test case 16

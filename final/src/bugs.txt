@@ -9,11 +9,12 @@
 8. float's not handled in the assembly
 9. handling of rune literals ??
 10. switch_2.go not working 
-11. Bools(true, false ) not registered and seaches for a variable name instead 
+11. Bools(true, false ) not registered and seaches for a variable name instead
+    -- Still not working (new_test 16)
+ 
 12. if_else.go not working 
 13. Scanning address of array items
-14. Negative integers
+
 15. Global Array
-16. In new_test case 14, deeper array gives bug // Not very important bug
+    -- Still mips code with error (new_test 9)
 17. Wrong output on new_test case 15
-18. Bug in MIPS code of new_test case 16

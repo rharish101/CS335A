@@ -17,4 +17,3 @@
 
 15. Global Array
     -- Still mips code with error (new_test 9)
-17. Wrong output on new_test case 15

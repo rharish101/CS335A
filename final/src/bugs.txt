@@ -12,6 +12,3 @@
 15. Global Array
     -- Still mips code with error (new_test 9)
     -- same issue in 10 and 15
-
-13. Scanning address of array items
-

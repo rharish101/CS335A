@@ -1,5 +1,7 @@
 package main
 
+var arr [5]int = [5]int{4,2,1,5,6}
+
 func BubbleSort(source *[5]int)  {
    L := 5
    items := *source

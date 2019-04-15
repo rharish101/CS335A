@@ -8,50 +8,6 @@ import re
 from math import ceil
 
 
-def _infer_type(item, table):
-    """Infer the type from the given string operand and return it."""
-    if item.startswith("*"):
-        return GoPointType(_infer_type(item[1:], table))
-    elif "[" not in item:
-        # Check if it is in this table or in a child scope's table
-        for record in table.activation_record:
-            if record[0] == item:
-                return record[1]
-        # Check if it is in this table or in a parent's table
-        return table.get_type(item)
-
-    root = re.search(r"[\w_]+", item).group()
-    for record in table.activation_record:
-        if record[0] == root:
-            dtype = record[1]
-
-    remaining = item[item.index("[") :]
-    while remaining != "":
-        end = remaining.index("]")
-        if isinstance(dtype, GoType) and dtype.name != "string":
-            # This is most probably a struct
-            dtype = table.get_struct_obj(dtype.name)
-
-        if isinstance(dtype, GoPointType):
-            dtype = dtype.dtype
-        elif isinstance(dtype, GoArray):
-            dtype = dtype.final_type
-        elif isinstance(dtype, GoStruct):
-            index_val = int(remaining[1:end])
-            index = 0
-            for struct_field in dtype.vars:
-                if index == index_val:
-                    dtype = struct_field[1].dtype
-                    break
-                index += table.get_size(struct_field[1].dtype)
-        elif isinstance(dtype, GoType) and dtype.name == "string":
-            dtype = GoType("byte", size=1)
-        else:
-            raise ValueError("What is this?: {}".format(dtype.name))
-        remaining = remaining[end + 1 :]
-    return dtype
-
-
 def size2instr(size, mode, is_float=False, is_unsigned=False):
     """Return appropriate instruction for the given size.
 
@@ -103,12 +59,18 @@ def ir2mips(table, ir_code, verbose=False):
     # Store global variables in the data segment
     mips = ".data\n"
     global_vars = {}
-    for collection in [table.variables, table.intermediates]:
+    collections = [(table.variables, ""), (table.intermediates, "")]
+    for package in table.imports:
+        collections.append((table.imports[package][0].variables, package))
+        collections.append((table.imports[package][0].intermediates, package))
+    for collection, package in collections:
         for var in collection:
+            if package != "":
+                package += "."
             mips += " " * 4 + ".align 2\n"
-            mips += " " * 4 + var + ": "
+            mips += " " * 4 + package + var + ": "
             dtype = collection[var]
-            global_vars[var] = dtype
+            global_vars[package + var] = dtype
             size = table.get_size(dtype)
             mips += ".space {}\n".format(size)
     mips += " " * 4 + ".align 2\n"
@@ -142,10 +104,62 @@ def ir2mips(table, ir_code, verbose=False):
 
     def get_type(var):
         """Get the type of the variable."""
-        if var in global_vars:
-            return global_vars[var]
+        """Infer the type from the given string operand and return it."""
+        if var.startswith("*"):
+            return GoPointType(get_type(var[1:]))
+        elif "[" not in var:
+            # Check if it is in this table or in a child scope's table
+            if var in global_vars:
+                return global_vars[var]
+            else:
+                for record in table.activation_record:
+                    if record[0] == var:
+                        return record[1]
+
+            # Check if it is in this table or in a parent's table
+            try:
+                return table.get_type(var)
+            except GoException as ex:
+                for package in table.imports:
+                    try:
+                        return table.get_type(var)
+                    except GoException:
+                        pass
+                raise GoException(ex)
+
+        root = re.search(r"[\w_]+", var).group()
+        if root in global_vars:
+            dtype = global_vars[root]
         else:
-            return _infer_type(var, table)
+            for record in table.activation_record:
+                if record[0] == root:
+                    dtype = record[1]
+
+        remaining = var[var.index("[") :]
+        while remaining != "":
+            end = remaining.index("]")
+            if isinstance(dtype, GoType) and dtype.name != "string":
+                # This is most probably a struct
+                dtype = table.get_struct_obj(dtype.name)
+
+            if isinstance(dtype, GoPointType):
+                dtype = dtype.dtype
+            elif isinstance(dtype, GoArray):
+                dtype = dtype.final_type
+            elif isinstance(dtype, GoStruct):
+                index_val = int(remaining[1:end])
+                index = 0
+                for struct_field in dtype.vars:
+                    if index == index_val:
+                        dtype = struct_field[1].dtype
+                        break
+                    index += table.get_size(struct_field[1].dtype)
+            elif isinstance(dtype, GoType) and dtype.name == "string":
+                dtype = GoType("byte", size=1)
+            else:
+                raise ValueError("What is this?: {}".format(dtype.name))
+            remaining = remaining[end + 1 :]
+        return dtype
 
     def get_addr(var, reg):
         """Obtain the address at which the variable is stored.
@@ -360,8 +374,8 @@ def ir2mips(table, ir_code, verbose=False):
                 rhs_dtype = lhs_dtype
             elif len(rhs) == 3:
                 indices = [0, 2]
-                if re.fullmatch(r"[\d.]+", rhs[0]):
-                    if re.fullmatch(r"[\d.]+", rhs[2]):
+                if re.fullmatch(r"-?[\d.]+", rhs[0]):
+                    if re.fullmatch(r"-?[\d.]+", rhs[2]):
                         rhs_dtype = lhs_dtype
                     else:
                         rhs_dtype = get_type(rhs[2])
@@ -393,12 +407,12 @@ def ir2mips(table, ir_code, verbose=False):
                 else:
                     target = "$t{}".format(reg)
 
-                if re.fullmatch(r"[\d.]+", rhs[index]):  # RHS is a constant
+                if re.fullmatch(r"-?[\d.]+", rhs[index]):  # RHS is a constant
                     if is_float:
+                        instr = size2instr(rhs_size, "load", is_float=True)
+                        instr = instr.replace("l.", "li.")
                         mips += " " * indent + "{} $f{}, {}\n".format(
-                            size2instr(rhs_size, "load", is_float=True),
-                            reg * 2,
-                            rhs[index],
+                            instr, reg * 2, float(rhs[index])
                         )
                     else:
                         mips += " " * indent + "li $t{}, {}\n".format(
@@ -438,7 +452,7 @@ def ir2mips(table, ir_code, verbose=False):
                         r"([\w_]+)\[([^\]]+)\]", rhs[index]
                     ).groups()
                     source = get_addr(items[0], "$t{}".format(reg))
-                    if re.fullmatch(r"\d+", items[1]) is None:
+                    if re.fullmatch(r"-?\d+", items[1]) is None:
                         # The index is a variable
                         ind_source = get_addr(items[1], "$t{}".format(reg + 1))
                         mips += " " * indent + "lw $t{}, {}\n".format(
@@ -478,10 +492,10 @@ def ir2mips(table, ir_code, verbose=False):
                     else:
                         suffix = ".s"
                     op2instr = {
-                        "+": "add." + suffix,
-                        "-": "sub." + suffix,
-                        "*": "mul." + suffix,
-                        "/": "div." + suffix,
+                        "+": "add" + suffix,
+                        "-": "sub" + suffix,
+                        "*": "mul" + suffix,
+                        "/": "div" + suffix,
                     }
                     regs = ["$f0", "$f2"]
                 else:
@@ -551,11 +565,17 @@ def ir2mips(table, ir_code, verbose=False):
                     else:
                         suffix = ".s"
                     if rhs[1] in ["==", "!="]:
-                        mips += " " * indent + "c.eq{} $f0, $f2\n"
+                        mips += " " * indent + "c.eq{} $f0, $f2\n".format(
+                            suffix
+                        )
                     elif rhs[1] in ["<", ">="]:
-                        mips += " " * indent + "c.lt{} $f0, $f2\n"
+                        mips += " " * indent + "c.lt{} $f0, $f2\n".format(
+                            suffix
+                        )
                     elif rhs[1] in ["<=", ">"]:
-                        mips += " " * indent + "c.le{} $f0, $f2\n"
+                        mips += " " * indent + "c.le{} $f0, $f2\n".format(
+                            suffix
+                        )
 
                     # Set result to 1 by default.
                     # The branch will NOT set it to 0.
@@ -607,9 +627,21 @@ def ir2mips(table, ir_code, verbose=False):
                         regs.append("$t0")
                 # Ignoring uint/int casts
                 if suffixes[0] != suffixes[1]:
-                    mips += " " * indent + "cvt{}{} {}, {}\n".format(
-                        *suffixes, *regs
+                    if suffixes[1] == ".w":
+                        mips += " " * indent + "mtc1{} {}, {}\n".format(
+                            ".d" if suffixes[0] == ".d" else "",
+                            regs[1],
+                            regs[0],
+                        )
+                    mips += " " * indent + "cvt{}{} $f0, $f0\n".format(
+                        *suffixes
                     )
+                    if suffixes[0] == ".w":
+                        mips += " " * indent + "mfc1{} {}, {}\n".format(
+                            ".d" if suffixes[1] == ".d" else "",
+                            regs[0],
+                            regs[1],
+                        )
 
             if "[" not in lhs:  # No indexing in LHS
                 dest = get_addr(lhs, "$t1")
@@ -649,7 +681,7 @@ def ir2mips(table, ir_code, verbose=False):
                     else:
                         index_str = before[1:-1]
 
-                    if re.fullmatch(r"\d+", index_str):  # Numeric index
+                    if re.fullmatch(r"-?\d+", index_str):  # Numeric index
                         if isinstance(start_dtype, GoArray) or isinstance(
                             start_dtype, GoStruct
                         ):
@@ -677,7 +709,7 @@ def ir2mips(table, ir_code, verbose=False):
 
             if "[" in lhs:  # Indexing in LHS
                 dest = "($t1)"
-                if re.fullmatch(r"\d+", index_str):  # Numeric index
+                if re.fullmatch(r"-?\d+", index_str):  # Numeric index
                     mips += " " * indent + "addi $t1, $t1, {}\n".format(
                         index_str
                     )
@@ -748,7 +780,7 @@ def ir2mips(table, ir_code, verbose=False):
             mips += " " * indent + "sw $t0, ($sp)\n"
 
             if func_name in inbuilt_funcs:
-                for param_dtype in func_call_dtypes:
+                for param_dtype in func_call_dtypes[::-1]:
                     if (
                         isinstance(param_dtype, GoPointType)
                         or isinstance(param_dtype, GoArray)

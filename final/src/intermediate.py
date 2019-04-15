@@ -1067,6 +1067,8 @@ def symbol_table(
                 ir_code += "{}[{}] = 0\n".format(
                     store_var, len(tree.item) - 2 + start
                 )
+            elif type(tree.item) is bool:
+                ir_code = "{} = {}\n".format(store_var, int(tree.item))
             else:
                 ir_code = "{} = {}\n".format(store_var, tree.item)
 
@@ -1095,13 +1097,27 @@ def symbol_table(
                     table.imports[package_name] = process_code(
                         package_path, prefix=package_name
                     )
-                    ir_code += table.imports[package_name][1]
                 except FileNotFoundError:
                     raise GoException(
                         "Error : Package name {} is not present in the packages folder".format(
                             package_name
                         )
                     )
+                else:
+                    import_code = table.imports[package_name][1]
+                    # Add prefix to global variables
+                    collections = [
+                        table.imports[package_name][0].variables,
+                        table.imports[package_name][0].intermediates,
+                    ]
+                    for coll in collections:
+                        for var in coll:
+                            import_code = re.sub(
+                                r"\b{}\b".format(var),
+                                package_name + "." + var,
+                                import_code,
+                            )
+                    ir_code += import_code
 
             # iteraing over TopLevelDeclList
             for item in tree.declarations:
@@ -1189,29 +1205,22 @@ def symbol_table(
                 else:
                     # iterating over all expressions to evaluate their types
                     evaluated_types = []
-                    inter_names = []
                     for i, expr in enumerate(rhs):
-                        decl_name = "__decl{}_{}".format(i, inter_count)
                         expr_dtype, expr_code = symbol_table(
                             expr,
                             table,
                             name,
                             block_type,
-                            store_var=decl_name,
+                            store_var=lhs[i],
                             scope_label=scope_label,
                             prefix=prefix,
                         )
-                        table.insert_var(
-                            decl_name, expr_dtype, use="intermediate"
-                        )
-                        inter_names.append(decl_name)
                         ir_code += expr_code
                         evaluated_types.append(expr_dtype)
                     if len(rhs) != 0:
                         for i, (var, eval_type) in enumerate(
                             zip(lhs, evaluated_types)
                         ):
-                            ir_code += "{} = {}\n".format(var, inter_names[i])
                             if dtype is not None:
                                 # If defined type is not None then check if the
                                 # evaluated type is same as the defined type
@@ -1488,7 +1497,9 @@ def symbol_table(
                                 ind_cnt, inter_count
                             )
                             table.insert_var(
-                                lhs_name, GoPointType(lhs_dtype.final_type), "intermediate"
+                                lhs_name,
+                                GoPointType(lhs_dtype.final_type),
+                                "intermediate",
                             )
                             lhs_loc = _get_loc(curr.lhs, ind_cnt + 1)
                             ir_code += "{} = {} + {}\n".format(
@@ -1970,9 +1981,10 @@ def symbol_table(
                 not (
                     isinstance(tree.cond, GoExpression)
                     or isinstance(tree.cond, GoBasicLit)
+                    or isinstance(tree.cond, GoPrimaryExpr)
                 )
-                or not isinstance(tree.cond.dtype, GoType)
-                or tree.cond.dtype.name != "bool"
+                or not isinstance(cond_dtype, GoType)
+                or cond_dtype.name != "bool"
             ):
                 raise GoException(
                     "Error: If condition is not evaluating to bool"
@@ -2524,7 +2536,9 @@ def symbol_table(
 
                         if type(DTYPE) is list:
                             field_list = [
-                                GoStructField(["__val{}".format(i)], DTYPE[i], "")
+                                GoStructField(
+                                    ["__val{}".format(i)], DTYPE[i], ""
+                                )
                                 for i in range(len(DTYPE))
                             ]
                             temp_dtype = GoStruct(field_list)
@@ -2922,7 +2936,7 @@ def symbol_table(
             else:
                 ir_code += opd_code
                 table.insert_var(opd_name, opd_dtype, use="intermediate")
-                ir_code += "{} = {}{}\n".format(store_var, tree.op, opd_name)
+                ir_code += "{} = {} {}\n".format(store_var, tree.op, opd_name)
 
             if tree.op == "&" or tree.op == "*":
                 if tree.op == "&":

@@ -8,3 +8,6 @@
 7. switch_1.go not working 
 8. float's not handled in the assembly
 9. handling of rune literals ??
+10. switch_2.go not working 
+11. Bools(true, false ) not registered and seaches for a variable name instead 
+12. if_else.go not working 

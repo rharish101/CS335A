@@ -934,6 +934,117 @@ def symbol_table(
             local_ir += "{} = {}\n".format(store_loc, item)
         return local_ir
 
+    def from_module_handler(parent):
+        local_ir = ""
+        if type(parent) is str:
+            try:
+                import_table, import_3ac = table.get_import(parent)
+            except GoException:
+                pass
+            struct_obj = table.get_type(parent)
+            struct_name = struct_obj.name
+            # print(struct_name)
+            # print(parent,struct_obj)
+            parent_name = parent
+        else:
+            parent_name = "__parent_{}".format(inter_count)
+            parent_dtype, parent_code = symbol_table(
+                parent,
+                table,
+                name,
+                block_type,
+                store_var=parent_name,
+                scope_label=scope_label,
+                prefix=prefix,
+            )
+            local_ir += parent_code
+            table.insert_var(parent_name, parent_dtype, "intermediate")
+            struct_obj = parent_dtype
+            struct_name = parent_dtype.name
+        return struct_obj, struct_name, parent_name, local_ir
+
+    def addr_handler(item, dtype, store_loc, start=0):
+        """Handle storing of the address of an item into store_loc."""
+        global inter_count
+        inter_count += 1
+        local_ir = ""
+        if store_loc == "":
+            pass
+
+        elif isinstance(item, GoPrimaryExpr) and isinstance(item.rhs, GoIndex):
+            lhs_name = "__indlhs_{}".format(inter_count)
+            rhs_name = "__indrhs_{}".format(inter_count)
+            lhs_dtype, lhs_code = symbol_table(
+                item.lhs,
+                table,
+                name,
+                block_type,
+                store_var=lhs_name,
+                scope_label=scope_label,
+                prefix=prefix,
+            )
+            local_ir += lhs_code
+            table.insert_var(lhs_name, lhs_dtype, use="intermediate")
+            rhs_dtype, rhs_code = symbol_table(
+                item.rhs,
+                table,
+                name,
+                block_type,
+                store_var=rhs_name,
+                scope_label=scope_label,
+                prefix=prefix,
+            )
+            local_ir += rhs_code
+            table.insert_var(rhs_name, rhs_dtype, use="intermediate")
+            local_ir += "{} = {} + {}\n".format(store_loc, lhs_name, rhs_name)
+
+        elif (
+            isinstance(item, GoPrimaryExpr)
+            and isinstance(item.rhs, GoSelector)
+        ) or isinstance(item, GoFromModule):
+            if isinstance(item, GoFromModule):
+                struct_obj, _, parent_name, module_code = from_module_handler(
+                    item.parent
+                )
+                local_ir += module_code
+                local_ir += "{} = {} + {}\n".format(
+                    store_loc,
+                    parent_name,
+                    table.field2index(struct_obj, item.child),
+                )
+            else:
+                rhs = item.rhs
+                child = rhs.child
+                lhs_name = "__sellhs_{}".format(inter_count)
+                lhs_dtype, lhs_code = symbol_table(
+                    lhs,
+                    table,
+                    name,
+                    block_type,
+                    store_var=lhs_name,
+                    scope_label=scope_label,
+                    prefix=prefix,
+                )
+                local_ir += lhs_code
+                if isinstance(lhs_dtype, GoStruct):
+                    struct_name = lhs_dtype.name
+                    struct_obj = table.get_struct_obj(struct_name)
+                    local_ir += "{} = {} + {}\n".format(
+                        store_loc,
+                        lhs_name,
+                        table.field2index(struct_obj, child),
+                    )
+
+        elif type(item) is str:
+            if hasattr(dtype, "name") and dtype.name == "string":
+                local_ir += "{} = {}\n".format(store_loc, item)
+            else:
+                local_ir += "{} = &{}\n".format(store_loc, item)
+
+        else:
+            raise GoException("Cannot take address of '{}'".format(item))
+        return local_ir
+
     # If code enters here then it looks only for variables, hence
     # we need to make sure that sybmol table is not called uneccessary strings
     # otherwise code will fail
@@ -960,40 +1071,13 @@ def symbol_table(
                 ir_code = "{} = {}\n".format(store_var, tree.item)
 
         elif isinstance(tree, GoFromModule):
-            parent = tree.parent
-            child = tree.child
-            this_name = tree.name
-            # print("parent '{}', child '{}'".format(parent, child))
-
-            if type(parent) is str:
-                try:
-                    import_table, import_3ac = table.get_import(parent)
-                except GoException:
-                    pass
-                struct_obj = table.get_type(parent)
-                struct_name = struct_obj.name
-                # print(struct_name)
-                # print(parent,struct_obj)
-                parent_name = parent
-            else:
-                parent_name = "__parent_{}".format(inter_count)
-                parent_dtype, parent_code = symbol_table(
-                    parent,
-                    table,
-                    name,
-                    block_type,
-                    store_var=parent_name,
-                    scope_label=scope_label,
-                    prefix=prefix,
-                )
-                ir_code += parent_code
-                table.insert_var(parent_name, parent_dtype, "intermediate")
-                struct_obj = parent_dtype
-                struct_name = parent_dtype.name
-            # print(struct_name,child)
-            DTYPE = table.get_struct(struct_name, child).dtype
+            struct_obj, struct_name, parent_name, module_code = from_module_handler(
+                tree.parent
+            )
+            ir_code += module_code
+            DTYPE = table.get_struct(struct_name, tree.child).dtype
             this_name = "{}[{}]".format(
-                parent_name, table.field2index(struct_obj, child)
+                parent_name, table.field2index(struct_obj, tree.child)
             )
             ir_code += string_handler(this_name, DTYPE, store_var)
 
@@ -2823,10 +2907,14 @@ def symbol_table(
                 scope_label=scope_label,
                 prefix=prefix,
             )
-            if tree.op != "&":
+            if tree.op == "&":
+                ir_code += addr_handler(
+                    tree.expr, DTYPE, store_var, start=start
+                )
+            else:
                 ir_code += opd_code
                 table.insert_var(opd_name, opd_dtype, use="intermediate")
-            ir_code += "{} = {}{}\n".format(store_var, tree.op, opd_name)
+                ir_code += "{} = {}{}\n".format(store_var, tree.op, opd_name)
 
             if tree.op == "&" or tree.op == "*":
                 if tree.op == "&":

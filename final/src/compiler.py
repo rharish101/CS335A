@@ -10,7 +10,9 @@ from math import ceil
 
 def _infer_type(item, table):
     """Infer the type from the given string operand and return it."""
-    if "[" not in item:
+    if item.startswith("*"):
+        return GoPointType(_infer_type(item[1:], table))
+    elif "[" not in item:
         # Check if it is in this table or in a child scope's table
         for record in table.activation_record:
             if record[0] == item:
@@ -87,7 +89,7 @@ def size2instr(size, mode, is_float=False, is_unsigned=False):
 
 
 # TODO: Hardcode printf and scanf
-def ir2mips(table, ir_code):
+def ir2mips(table, ir_code, verbose=False):
     """Convert 3AC to MIPS assembly using the given symbol table.
 
     Args:
@@ -111,7 +113,9 @@ def ir2mips(table, ir_code):
             mips += ".space {}\n".format(size)
     mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__println_comma: .asciiz " "\n'
+    mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__println_newline: .asciiz "\\n"\n'
+    mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__scanln_dummy: .asciiz "\\n"\n'
     mips += "\n"
 
@@ -156,7 +160,11 @@ def ir2mips(table, ir_code):
 
         """
         nonlocal mips
-        if var in global_vars:
+        if var.startswith("*"):
+            source = get_addr(var[1:], reg)
+            mips += " " * indent + "lw {}, {}\n".format(reg, source)
+            return "({})".format(reg)
+        elif var in global_vars:
             mips += " " * indent + "la {}, {}\n".format(reg, var)
             return "({})".format(reg)
         else:
@@ -174,7 +182,10 @@ def ir2mips(table, ir_code):
                 stored
         """
         nonlocal mips
-        if var in global_vars:
+        if var.startswith("*"):
+            source = get_addr(var[1:], reg)
+            mips += " " * indent + "lw {}, {}\n".format(reg, source)
+        elif var in global_vars:
             mips += " " * indent + "la {}, {}\n".format(reg, var)
         else:
             for item in table.activation_record:
@@ -190,6 +201,9 @@ def ir2mips(table, ir_code):
 
     for i, line in enumerate(ir_lines):
         # Make labels occupy a single separate line
+        if verbose:
+            mips += " " * indent + "# " + line + "\n"
+
         if ":" in line:
             for label in line.split(":")[:-1]:
                 label = label.strip()
@@ -826,6 +840,6 @@ if __name__ == "__main__":
         logging.getLogger().setLevel(logging.INFO)
 
     table, ir_code = process_code(args.input)
-    mips = ir2mips(table, ir_code)
+    mips = ir2mips(table, ir_code, verbose=args.verbose)
     with open(args.output, "w") as out_file:
         out_file.write(mips)

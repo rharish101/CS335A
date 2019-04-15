@@ -8,6 +8,8 @@ func FibonacciRecursion(n int) int {
 }
 
 func main(){
-
-
+	var n int
+	scanln(&n)
+	a := FibonacciRecursion(n)
+	println(a)
 }

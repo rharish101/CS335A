@@ -10,11 +10,12 @@ func main() {
 	c := &b
 	d := *b
 	e := **c
+	println(e)
 	**c = 1
 	*b = 1 
 
 	z := 4 + **c
-
+	println(z)
 	var x [3]int
 	x[1] = 3
 

@@ -1488,7 +1488,7 @@ def symbol_table(
                                 ind_cnt, inter_count
                             )
                             table.insert_var(
-                                lhs_name, lhs_dtype, "intermediate"
+                                lhs_name, GoPointType(lhs_dtype.final_type), "intermediate"
                             )
                             lhs_loc = _get_loc(curr.lhs, ind_cnt + 1)
                             ir_code += "{} = {} + {}\n".format(
@@ -3043,7 +3043,6 @@ def process_code(input_path, prefix=""):
     global lexer, parser
     old_lexer = deepcopy(lexer)
     old_parser = deepcopy(parser)
-
     # Reset the lexer to line no. 1
     lexer.lineno = 1
     # Storing filename and input text for error reporting

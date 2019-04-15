@@ -1442,6 +1442,7 @@ def symbol_table(
                 ir_code += "return\n"
 
         elif isinstance(tree, GoAssign):
+            depth_num = inter_count
             lhs = tree.lhs
             rhs = tree.rhs
             if len(lhs) != len(rhs):
@@ -1718,10 +1719,10 @@ def symbol_table(
                     for i,curr_line in enumerate(lines):
                         if i == len(lines) - 1:
                             final_assign.append(curr_line.strip().split("=")[0])
-                            ir_code += "final{} = {}\n".format(
-                                ctr, curr_line.strip().split("=")[1]
+                            ir_code += "final_{}_{} = {}\n".format(
+                                depth_num, ctr, curr_line.strip().split("=")[1]
                             )
-                            var_name = "final{}".format(ctr)
+                            var_name = "final_{}_{}".format(depth_num,ctr)
                             table.insert_var(var_name, dtype2, use="intermediate")
                             break
                         ir_code += curr_line
@@ -1743,8 +1744,8 @@ def symbol_table(
                     ctr = ctr+1
 
                 for i,curr_line in enumerate(final_assign):
-                    ir_code += "{} = final{}\n".format(
-                        curr_line, i
+                    ir_code += "{} = final_{}_{}\n".format(
+                        curr_line, depth_num, i
                     )
 
         elif isinstance(tree, GoShortDecl):

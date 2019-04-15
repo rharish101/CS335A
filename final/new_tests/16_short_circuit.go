@@ -5,7 +5,7 @@ import "fmt"
 func callMyFunc() bool {
 	//println("This should not print\n")
 	println(0)
-	return true
+	return bool(1)
 }
 
 func main() {

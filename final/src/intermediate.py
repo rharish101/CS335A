@@ -881,23 +881,11 @@ def symbol_table(
         elif isinstance(dtype, GoArray):
             elem_size = table.get_size(dtype.dtype)
             for arr_index in range(0, table.get_size(dtype), elem_size):
-                arr_elem = GoPrimaryExpr(
-                    item,
-                    GoIndex(
-                        GoBasicLit(
-                            arr_index // elem_size, GoType("int", True, 1)
-                        )
-                    ),
+                local_ir += string_handler(
+                    item + "[{}]".format(arr_index),
+                    dtype.dtype,
+                    store_loc + "[{}]".format(arr_index),
                 )
-                local_ir += symbol_table(
-                    arr_elem,
-                    table,
-                    name,
-                    block_type,
-                    store_var=store_loc + "[{}]".format(arr_index),
-                    scope_label=scope_label,
-                    prefix=prefix,
-                )[1]
         elif isinstance(dtype, GoStruct):
             field_index = 0
             for field, govar in dtype.vars:
@@ -1033,6 +1021,7 @@ def symbol_table(
                     scope_label=scope_label,
                     prefix=prefix,
                 )
+                table.insert_var(lhs_name, lhs_dtype, "intermediate")
                 local_ir += lhs_code
                 if isinstance(lhs_dtype, GoStruct):
                     struct_name = lhs_dtype.name
@@ -2629,16 +2618,33 @@ def symbol_table(
                     scope_label=scope_label,
                     prefix=prefix,
                 )
+                table.insert_var(lhs_name, lhs_dtype, "intermediate")
                 ir_code += lhs_code
+                if isinstance(lhs_dtype, GoType):
+                    # Get the struct object
+                    struct_name = lhs_dtype.name
+                    lhs_dtype = table.get_struct_obj(struct_name)
+                    lhs_dtype.name = struct_name
                 if isinstance(lhs_dtype, GoStruct):
                     struct_name = lhs_dtype.name
                     if type(child) is str:
                         DTYPE = table.get_struct(struct_name, child).dtype
                     struct_obj = table.get_struct_obj(struct_name)
-                    ir_code += "{} = {}[{}]\n".format(
+                    ir_code += string_handler(
+                        "{}[{}]".format(
+                            lhs_name, table.field2index(struct_obj, child)
+                        ),
+                        DTYPE,
                         store_var,
-                        lhs_name,
-                        table.field2index(struct_obj, child),
+                    )
+                    #  ir_code += "{} = {}[{}]\n".format(
+                    #      store_var,
+                    #      lhs_name,
+                    #      table.field2index(struct_obj, child),
+                    #  )
+                else:
+                    raise GoException(
+                        "Error: Expected struct, got {}".format(lhs_dtype)
                     )
 
         # TODO(later): check number of elements in array same as that
@@ -2966,33 +2972,46 @@ def symbol_table(
                 DTYPE = struct_obj
 
         elif isinstance(tree, GoUnaryExpr):
-            if tree.op == "&":
-                opd_name = str(tree.expr)
-            else:
+            if tree.op != "&":
                 opd_name = "__opd_{}".format(inter_count)
-            opd_dtype, opd_code = symbol_table(
-                tree.expr,
-                table,
-                name,
-                block_type,
-                store_var=opd_name,
-                scope_label=scope_label,
-                prefix=prefix,
-            )
-            if tree.op == "&":
-                ir_code += addr_handler(
-                    tree.expr, DTYPE, store_var, start=start
+                opd_dtype, opd_code = symbol_table(
+                    tree.expr,
+                    table,
+                    name,
+                    block_type,
+                    store_var=opd_name,
+                    scope_label=scope_label,
+                    prefix=prefix,
                 )
 
-            elif tree.op == "*" and (
-                isinstance(opd_dtype.dtype, GoArray)
-                or isinstance(opd_dtype, GoStruct)
-            ):
+            if tree.op == "&":
+                opd_dtype = table.get_type(tree.expr)
+                ir_code += addr_handler(
+                    tree.expr, opd_dtype, store_var, start=start
+                )
+
+            elif tree.op == "*":
                 ir_code += opd_code
                 table.insert_var(opd_name, opd_dtype, use="intermediate")
-                table.intermediates[opd_name] = opd_dtype.dtype
-                ir_code += string_handler(opd_name, opd_dtype.dtype, store_var)
-                table.intermediates[opd_name] = opd_dtype
+                if isinstance(opd_dtype.dtype, GoType):
+                    try:
+                        struct_name = opd_dtype.dtype.name
+                        opd_dtype.dtype = table.get_struct_obj(struct_name)
+                        opd_dtype.dtype.name = struct_name
+                    except GoException:
+                        pass
+                if isinstance(opd_dtype.dtype, GoArray) or isinstance(
+                    opd_dtype.dtype, GoStruct
+                ):
+                    table.intermediates[opd_name] = opd_dtype.dtype
+                    ir_code += string_handler(
+                        opd_name, opd_dtype.dtype, store_var
+                    )
+                    table.intermediates[opd_name] = opd_dtype
+                else:
+                    ir_code += "{} = {} {}\n".format(
+                        store_var, tree.op, opd_name
+                    )
 
             elif tree.op != "-":
                 ir_code += opd_code

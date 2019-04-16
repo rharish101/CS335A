@@ -2439,12 +2439,7 @@ def symbol_table(
                     DTYPE = lhs_dtype.dtype
 
                 ir_code += lhs_code
-                if isinstance(lhs_dtype, GoArray):
-                    table.insert_var(
-                        lhs_name,
-                        GoPointType(GoType("int")),
-                        use="intermediate",
-                    )
+                table.insert_var(lhs_name, lhs_dtype, use="intermediate")
 
                 rhs_name = "__indrhs_{}".format(inter_count)
                 rhs_dtype, rhs_code = symbol_table(

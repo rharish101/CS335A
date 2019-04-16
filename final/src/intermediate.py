@@ -1831,8 +1831,6 @@ def symbol_table(
                     scope_label=scope_label,
                     prefix=prefix,
                 )
-                if dtype.name == "string":
-                    ir_code += "{} = allocate string\n".format(var)
                 ir_code += rhs_code
                 # if isinstance(dtype,GoArray) and isinstance(dtype.dtype,GoArray):
                 #     print(var,dtype.dtype.dtype)
@@ -3129,8 +3127,8 @@ def process_code(input_path, prefix=""):
 
     # Store older lexer and parser
     global lexer, parser
-    #old_lexer = deepcopy(lexer)
-    #old_parser = deepcopy(parser)
+    # old_lexer = deepcopy(lexer)
+    # old_parser = deepcopy(parser)
     # old_lexer = lexer
     # old_parser = parser
     # Reset the lexer to line no. 1
@@ -3164,8 +3162,8 @@ def process_code(input_path, prefix=""):
             ir_code += "func begin {}\nreturn 0\nfunc end\n".format(func_name)
 
     # Restore older lexer and parser
-    #lexer = old_lexer
-    #parser = old_parser
+    # lexer = old_lexer
+    # parser = old_parser
 
     return table, ir_code
 

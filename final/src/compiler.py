@@ -256,7 +256,17 @@ def ir2mips(table, ir_code, verbose=False):
             mips += " " * indent + "addi $sp, $sp, {}\n".format(
                 table.activation_record[-1][1].activation_offset + 12
             )  # local variables (12 already subtracted)
-            # TODO: String allocation
+
+            for var, var_dtype in table.activation_record:
+                if (
+                    isinstance(var_dtype, GoType)
+                    and var_dtype.name == "string"
+                ):
+                    mips += " " * indent + "li $a0, 100\n"
+                    mips += " " * indent + "li $v0, 9\n"
+                    mips += " " * indent + "syscall\n"
+                    source = get_addr(var, "$t0")
+                    mips += " " * indent + "sw $v0, {}\n".format(source)
 
             # Move all global declarations into the main function.
             # Inserting them before the next index makes the loop process them
@@ -359,14 +369,6 @@ def ir2mips(table, ir_code, verbose=False):
             table = orig_table
             is_main = False
 
-        elif "=" in line and "allocate" in line:
-            lhs = line.split(" = ")[0].strip()
-            mips += " " * indent + "li $a0, 100\n"
-            mips += " " * indent + "li $v0, 9\n"
-            mips += " " * indent + "syscall\n"
-            source = get_addr(lhs, "$v0")
-            mips += " " * indent + "sw $v0, {}\n".format(source)
-
         elif "=" in line and "= call " not in line:
             lhs = line.split(" = ")[0].strip()
             lhs_dtype = get_type(lhs)
@@ -458,7 +460,11 @@ def ir2mips(table, ir_code, verbose=False):
                     ]
 
                     store_pointer(items[0], "$t{}".format(reg))
-                    if isinstance(get_type(items[0]), GoPointType):
+                    item_dtype = get_type(items[0])
+                    if isinstance(item_dtype, GoPointType) or (
+                        isinstance(item_dtype, GoType)
+                        and item_dtype.name == "string"
+                    ):
                         mips += " " * indent + "lw $t{0:}, ($t{0:})\n".format(
                             reg
                         )

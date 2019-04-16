@@ -5,10 +5,9 @@ var arr [5]int = [5]int{4,2,1,5,6}
 func BubbleSort(source *[5]int)  {
    L := 5
    items := *source
-   //items := [5]int{4,2,1,5,6}
-   // for(i:=0;i<5;i++){
-   //    println(items[i])
-   // }
+   for(i:=0;i<5;i++){
+      println(items[i])
+   }
    for  (i:=0;i<L;i++){
       for (j:=0;j<(L-1-i);j++){
          if (items[j] > items[j+1]){

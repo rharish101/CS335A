@@ -687,7 +687,6 @@ def ir2mips(table, ir_code, verbose=False):
 
             elif re.match(r".*\[.+\[", lhs) is None:  # Single indexing in LHS
                 before_dtype = get_type(lhs.split("[")[0])
-                print(lhs, lhs.split("[")[0], before_dtype)
                 if isinstance(before_dtype, GoArray) or isinstance(
                     before_dtype, GoStruct
                 ):

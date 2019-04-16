@@ -1,8 +1,6 @@
 1. b,b = temp(2,3)
    Storing values from multiple returns into variables
 6. var a,b = 0,0 not working
-7. switch_1.go not working
-9. handling of rune literals ??
 
 10. switch_2.go not working
 15. Global Array

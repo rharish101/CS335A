@@ -1,7 +1,7 @@
 package main
 
 func main() {
-	var wflg, tflg = 0,0 
+	var wflg, tflg int = 0,0 
 	var dflg int = 0
 	var c rune
 	switch(c) {

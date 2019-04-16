@@ -1,2 +1,3 @@
 1. methods.go not working, call for v.add() looks for a function v.add instead of add() in the 3ac
 2. Multi-level pointers
+3. pass_array.go not working 

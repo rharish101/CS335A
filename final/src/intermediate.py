@@ -2316,7 +2316,6 @@ def symbol_table(
             DTYPE = tree.final_type
 
         elif isinstance(tree, GoIndex):
-            print(12)
             index = tree.index
             dtype, ir_code = symbol_table(
                 index,

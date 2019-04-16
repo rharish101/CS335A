@@ -1,5 +1,5 @@
 //shows typedef/aliasing in structs, operation of fields of structs, inline structs, array of structs, pointers to structs and embeddings
-package main 
+package main
 
 type help struct {
 	b string
@@ -36,9 +36,9 @@ type person1 struct {
 // 	f4, f5 int64  `f four and five`
 // }
 
-func temp(x int, y int){
+func temp(x int, y int) {
 	gu := help{"vishwas"}
-	r := person{info1{"info"},gu, 2}
+	r := person{info1{"info"}, gu, 2}
 	println(r.age)
 	// struct_array := [1][2]person{{r, r}}
 	// harish := &struct_array[0][1]
@@ -48,15 +48,15 @@ func temp(x int, y int){
 	// name1 := struct_array[0][1].name
 
 	//inline structs
-		emp3 := struct {
-		firstName, lastName string
-		age, salary         int
-	}{
-		firstName: "Andreah",
-		lastName:  "Nikola",
-		age:       2,
-		salary:    5000,
-	}
+	//	emp3 := struct {
+	//	firstName, lastName string
+	//	age, salary         int
+	//}{
+	//	firstName: "Andreah",
+	//	lastName:  "Nikola",
+	//	age:       2,
+	//	salary:    5000,
+	//}
 
 	// waste := emp3.age
 
@@ -68,4 +68,8 @@ func temp(x int, y int){
 	// t.age++
 	// n := &t.age
 	// k := t.age + *n
+}
+
+func main() {
+	temp(2, 3)
 }

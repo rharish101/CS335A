@@ -1534,7 +1534,7 @@ def symbol_table(
                             else:
                                 _get_loc(curr.expr, ind_cnt)
                                 return _get_loc(curr.expr.expr, ind_cnt)
-                    
+
                     elif curr.op == "&":
                         if isinstance(curr.expr, GoUnaryExpr):
                             if curr.expr.op == "&":
@@ -1546,7 +1546,7 @@ def symbol_table(
                             elif curr.expr.op == "*":
                                 _get_loc(curr.expr, ind_cnt)
                                 return _get_loc(curr.expr.expr, ind_cnt)
-                        
+
                         else:
                             return "&" + _get_loc(curr.expr, ind_cnt)
 
@@ -2338,7 +2338,7 @@ def symbol_table(
                 # TODO: need to handle multiple return from function
                 if isinstance(lhs, GoPrimaryExpr):
                     lhs.depth = tree.depth + 1
-                else:
+                elif type(lhs) is str:
                     if not table.lookup(lhs):
                         raise GoException(
                             "Error: '{}' array not declared".format(lhs)
@@ -3003,18 +3003,20 @@ def symbol_table(
         elif isinstance(tree, GoUnaryExpr):
             if tree.op != "&":
                 opd_name = "__opd_{}".format(inter_count)
-                opd_dtype, opd_code = symbol_table(
-                    tree.expr,
-                    table,
-                    name,
-                    block_type,
-                    store_var=opd_name,
-                    scope_label=scope_label,
-                    prefix=prefix,
-                )
+            else:
+                opd_name = ""
+
+            opd_dtype, opd_code = symbol_table(
+                tree.expr,
+                table,
+                name,
+                block_type,
+                store_var=opd_name,
+                scope_label=scope_label,
+                prefix=prefix,
+            )
 
             if tree.op == "&":
-                opd_dtype = table.get_type(tree.expr)
                 ir_code += addr_handler(
                     tree.expr, opd_dtype, store_var, start=start
                 )
@@ -3177,10 +3179,8 @@ def process_code(input_path, prefix=""):
 
     # Store older lexer and parser
     global lexer, parser
-    # old_lexer = deepcopy(lexer)
-    # old_parser = deepcopy(parser)
-    # old_lexer = lexer
-    # old_parser = parser
+    old_lexer = deepcopy(lexer)
+    old_parser = deepcopy(parser)
     # Reset the lexer to line no. 1
     lexer.lineno = 1
     # Storing filename and input text for error reporting
@@ -3212,8 +3212,8 @@ def process_code(input_path, prefix=""):
             ir_code += "func begin {}\nreturn 0\nfunc end\n".format(func_name)
 
     # Restore older lexer and parser
-    # lexer = old_lexer
-    # parser = old_parser
+    lexer = old_lexer
+    parser = old_parser
 
     return table, ir_code
 

@@ -44,7 +44,6 @@ def size2instr(size, mode, is_float=False, is_unsigned=False):
             return mode[0] + "w"
 
 
-# TODO: Hardcode printf and scanf
 def ir2mips(table, ir_code, verbose=False):
     """Convert 3AC to MIPS assembly using the given symbol table.
 
@@ -73,15 +72,14 @@ def ir2mips(table, ir_code, verbose=False):
             global_vars[package + var] = dtype
             size = table.get_size(dtype)
             mips += ".space {}\n".format(size)
+
     mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__println_space: .asciiz " "\n'
     mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__println_newline: .asciiz "\\n"\n'
     mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__scanln_dummy: .asciiz "\\n"\n'
-    mips += "\n"
-
-    mips += ".text\n.globl main\n\n"
+    mips += "\n.text\n.globl main\n\n"
 
     # Get all lines in the global scope
     global_lines = []
@@ -102,7 +100,7 @@ def ir2mips(table, ir_code, verbose=False):
 
     indent = 0
 
-    def get_type(var):
+    def get_type(var, kind="rhs"):
         """Get the type of the variable."""
         """Infer the type from the given string operand and return it."""
         if var.startswith("*"):
@@ -145,7 +143,10 @@ def ir2mips(table, ir_code, verbose=False):
             if isinstance(dtype, GoPointType):
                 dtype = dtype.dtype
             elif isinstance(dtype, GoArray):
-                dtype = dtype.final_type
+                if kind == "lhs":
+                    dtype = dtype.dtype
+                else:
+                    dtype = dtype.final_type
             elif isinstance(dtype, GoStruct):
                 index_val = int(remaining[1:end])
                 index = 0
@@ -257,16 +258,53 @@ def ir2mips(table, ir_code, verbose=False):
                 table.activation_record[-1][1].activation_offset + 12
             )  # local variables (12 already subtracted)
 
-            for var, var_dtype in table.activation_record:
-                if (
-                    isinstance(var_dtype, GoType)
-                    and var_dtype.name == "string"
-                ):
+            def str_alloc(offset, dtype, global_var=None):
+                """Allocate string area for address stored in $t0."""
+                nonlocal mips
+                if isinstance(dtype, GoType):
+                    try:
+                        struct_name = dtype.name
+                        dtype = table.get_struct_obj(struct_name)
+                        dtype.name = struct_name
+                    except GoException:
+                        pass
+                if isinstance(dtype, GoType) and dtype.name == "string":
                     mips += " " * indent + "li $a0, 100\n"
                     mips += " " * indent + "li $v0, 9\n"
                     mips += " " * indent + "syscall\n"
-                    source = get_addr(var, "$t0")
-                    mips += " " * indent + "sw $v0, {}\n".format(source)
+                    if global_var is None:
+                        dest = "$fp"
+                    else:
+                        mips += " " * indent + "la $t0, {}\n".format(
+                            global_var
+                        )
+                        dest = "$t0"
+                    mips += " " * indent + "sw $v0, {}({})\n".format(
+                        offset, dest
+                    )
+                elif isinstance(dtype, GoStruct):
+                    field_index = 0
+                    for field in dtype.vars:
+                        str_alloc(
+                            offset + field_index,
+                            field[1].dtype,
+                            global_var=global_var,
+                        )
+                        field_index += table.get_size(field[1].dtype)
+                elif isinstance(dtype, GoArray):
+                    for arr_index in range(
+                        0, table.get_size(dtype), table.get_size(dtype.dtype)
+                    ):
+                        str_alloc(
+                            offset + arr_index,
+                            dtype.dtype,
+                            global_var=global_var,
+                        )
+
+            for var, var_dtype in table.activation_record:
+                if var_dtype.activation_offset >= -12:
+                    continue
+                str_alloc(var_dtype.activation_offset, var_dtype)
 
             # Move all global declarations into the main function.
             # Inserting them before the next index makes the loop process them
@@ -275,6 +313,8 @@ def ir2mips(table, ir_code, verbose=False):
                 is_main = True
                 for item in global_lines[::-1]:
                     ir_lines.insert(i + 1, item)
+                for var in global_vars:
+                    str_alloc(0, global_vars[var], global_var=var)
 
             elif func_name in inbuilt_funcs:
                 if func_name == "println":
@@ -690,9 +730,18 @@ def ir2mips(table, ir_code, verbose=False):
                     else:
                         index_str = before[1:-1]
 
+                    after_dtype = get_type(start + "[{}]".format(index_str))
+                    if isinstance(after_dtype, GoType):
+                        try:
+                            struct_name = after_dtype.name
+                            after_dtype = table.get_struct_obj(struct_name)
+                            after_dtype.name = struct_name
+                        except GoException:
+                            pass
+
                     if re.fullmatch(r"-?\d+", index_str):  # Numeric index
-                        if isinstance(start_dtype, GoArray) or isinstance(
-                            start_dtype, GoStruct
+                        if isinstance(after_dtype, GoArray) or isinstance(
+                            after_dtype, GoStruct
                         ):
                             mips += (
                                 " " * indent
@@ -709,8 +758,8 @@ def ir2mips(table, ir_code, verbose=False):
                         )
                         mips += " " * indent + "add $t1, $t1, $t2\n"
                         if not isinstance(
-                            start_dtype, GoArray
-                        ) and not isinstance(start_dtype, GoStruct):
+                            after_dtype, GoArray
+                        ) and not isinstance(after_dtype, GoStruct):
                             mips += " " * indent + "lw $t1, ($t1)\n"
 
                     start = start + "[{}]".format(index_str)

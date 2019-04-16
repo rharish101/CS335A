@@ -8,3 +8,4 @@
     -- same issue in 10 and 15
 16. methods.go not working, call for v.add() looks for a function v.add instead of add() in the 3ac
 17. Address of struct not working
+18. accessing fields of structs not working in the structs.go 

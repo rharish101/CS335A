@@ -2,9 +2,13 @@ package main
 
 var arr [5]int = [5]int{4,2,1,5,6}
 
-func BubbleSort(source *[5]int)  {
+type bag struct {
+    arr [5]int
+}
+
+func BubbleSort(source *bag)  {
    L := 5
-   items := *source
+   items := (*source).arr
    for(i:=0;i<5;i++){
       println(items[i])
    }
@@ -25,7 +29,8 @@ func BubbleSort(source *[5]int)  {
 
 func main(){
 	a := [5]int{4,2,1,5,6}
-	BubbleSort(&a)
+	b := bag{arr: a}
+	BubbleSort(&b)
    // for(i:=0;i<5;i++){
    //    println(a[i])
    // }

@@ -1528,8 +1528,27 @@ def symbol_table(
                             else:
                                 return "*" + _get_loc(curr.expr, ind_cnt)
                         elif isinstance(curr.expr, GoUnaryExpr):
-                            return "*" + _get_loc(curr.expr, ind_cnt)
-                            loc_lhs += "*"
+                            if curr.expr.op == "*":
+                                return "*" + _get_loc(curr.expr, ind_cnt)
+                                loc_lhs += "*"
+                            else:
+                                _get_loc(curr.expr, ind_cnt)
+                                return _get_loc(curr.expr.expr, ind_cnt)
+                    
+                    elif curr.op == "&":
+                        if isinstance(curr.expr, GoUnaryExpr):
+                            if curr.expr.op == "&":
+                                raise GoException(
+                                    "Cannot take address of {}".format(
+                                        curr.expr
+                                    )
+                                )
+                            elif curr.expr.op == "*":
+                                _get_loc(curr.expr, ind_cnt)
+                                return _get_loc(curr.expr.expr, ind_cnt)
+                        
+                        else:
+                            return "&" + _get_loc(curr.expr, ind_cnt)
 
                     else:
                         error = True
@@ -1679,6 +1698,16 @@ def symbol_table(
                                     )
                                 )
                             var.dtype = var.expr.dtype.dtype
+                            dtype1 = var.dtype
+
+                        elif (
+                            isinstance(var.expr, GoUnaryExpr)
+                            and var.expr.op == "&"
+                        ):
+                            if type(var.expr.expr) is str:
+                                var.dtype = table.get_type(var.expr.expr)
+                            else:
+                                var.dtype = var.expr.expr.dtype
                             dtype1 = var.dtype
 
                     # NEW START

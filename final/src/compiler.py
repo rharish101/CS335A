@@ -66,18 +66,14 @@ def ir2mips(table, ir_code, verbose=False):
         for var in collection:
             if package != "":
                 package += "."
-            mips += " " * 4 + ".align 2\n"
             mips += " " * 4 + package + var + ": "
             dtype = collection[var]
             global_vars[package + var] = dtype
             size = table.get_size(dtype)
             mips += ".space {}\n".format(size)
 
-    mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__println_space: .asciiz " "\n'
-    mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__println_newline: .asciiz "\\n"\n'
-    mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__scanln_dummy: .asciiz "\\n"\n'
     mips += "\n.text\n.globl main\n\n"
 

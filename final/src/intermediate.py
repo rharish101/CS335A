@@ -669,18 +669,25 @@ class SymbTable:
             )
 
     def insert_func(self, name, params, result):
-        if name not in self.functions:
+        try:
+            is_empty = len(self.functions[name]["ir"].strip().split("\n")) <= 3
+        except KeyError:
+            # Inbuilt functions
+            is_empty = False
+
+        if name not in self.functions or is_empty:
             self.functions[name] = {}
             self.functions[name]["params"] = params
             self.functions[name]["result"] = result
         else:
-            raise GoException("Error: already used function name")
+            raise GoException("Error: Already used function name")
 
     def insert_method(self, name, params, result, receiver):
         for rec in receiver:
             # Indexing by name and receiver
             key = (name, rec.dtype.name)
-            if key not in self.methods:
+            is_empty = len(self.methods[key]["ir"].strip().split("\n")) <= 3
+            if key not in self.methods or is_empty:
                 self.methods[key] = {}
                 self.methods[key]["params"] = params
                 self.methods[key]["result"] = result
@@ -720,7 +727,6 @@ class SymbTable:
     def type_check(
         self, dtype1, dtype2, use="", use_name=None, param_name=None
     ):
-
         # handles initialisation of arrays
         if (isinstance(dtype1, GoStruct) and isinstance(dtype2, GoType)) or (
             isinstance(dtype1, GoType) and isinstance(dtype2, GoStruct)
@@ -1128,6 +1134,14 @@ def symbol_table(
                     scope_label=scope_label,
                     prefix=prefix,
                 )[1]
+            for func in table.functions:
+                try:
+                    ir_code += table.functions[func]["ir"]
+                except KeyError:
+                    # Inbuilt function
+                    pass
+            for meth in table.methods:
+                ir_code += table.methods[meth]["ir"]
             DTYPE = None
 
         # method declarations
@@ -1158,6 +1172,8 @@ def symbol_table(
                     prefix=prefix,
                 )[1]
                 ir_code += "func end\n"
+                table.methods[(name, rec.dtype.name)]["ir"] = ir_code
+                ir_code = ""
             DTYPE = None
 
         # function declarations
@@ -1183,6 +1199,8 @@ def symbol_table(
                 prefix=prefix,
             )[1]
             ir_code += "return 0\nfunc end\n"
+            table.functions[name]["ir"] = ir_code
+            ir_code = ""
             DTYPE = None
 
         elif isinstance(tree, GoDecl) and tree.kind == "var":

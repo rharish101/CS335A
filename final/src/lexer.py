@@ -77,6 +77,7 @@ tokens = (
         "IMAG",
         "FLOAT",
         "INT",
+        "BOOL",
         "ID",
         "RUNE",
         "STRING",
@@ -140,6 +141,13 @@ def t_FLOAT(t):
 
 @TOKEN(int_regex)
 def t_INT(t):
+    # Keep track of last token for semicolon insertion on newlines
+    t.lexer.last = True
+    return t
+
+
+def t_BOOL(t):
+    r"(true|false)"
     # Keep track of last token for semicolon insertion on newlines
     t.lexer.last = True
     return t

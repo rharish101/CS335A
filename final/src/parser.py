@@ -748,6 +748,7 @@ def p_BasicLit(p):
                 | IMAG
                 | STRING
                 | RUNE
+                | BOOL
     """
     if p.slice[1].type == "INT":
         p[1] = int(p[1])
@@ -755,6 +756,8 @@ def p_BasicLit(p):
         p[1] = float(p[1])
     elif p.slice[1].type == "IMAG":
         p[1] = complex(p[1][:-1] + "j")
+    elif p.slice[1].type == "BOOL":
+        p[1] = p[1] == "true"
 
     dtype = p.slice[1].type.lower()
     if dtype == "imag":

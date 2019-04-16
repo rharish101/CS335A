@@ -12,7 +12,7 @@ func main() {
 	var g int = 5
 	g += 6
 
-	if (bool(1)) {
+	if (true) {
 		g += 5
 	} else if (5 < 7 && g <= 11) {
 		g = 15

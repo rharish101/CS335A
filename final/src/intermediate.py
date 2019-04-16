@@ -1872,7 +1872,7 @@ def symbol_table(
                 scope_label=scope_label,
                 prefix=prefix,
             )
-            table.insert_var(rhs_name, dtype1, use="intermediate")
+            table.insert_var(rhs_name, dtype2, use="intermediate")
 
             if dtype1.name == "string" and dtype2.name == "string":
                 length = len(dtype1.value) - 2
@@ -1909,8 +1909,28 @@ def symbol_table(
             elif dtype1.name == "string" and dtype2.name == "string":
                 ir_code += lhs_code + rhs_code
                 ir_code += "{} = {}\n".format(store_var, lhs_name)
+
             else:
                 ir_code += lhs_code + rhs_code
+                if dtype1.name != dtype2.name:
+                    if dtype1.basic_lit:
+                        new_name = "__lhs_cast_{}".format(
+                            lhs_name.split("_")[-1]
+                        )
+                        ir_code += "{} = {} {}\n".format(
+                            new_name, dtype2.name, lhs_name
+                        )
+                        table.insert_var(new_name, dtype2, "intermediate")
+                        lhs_name = new_name
+                    else:
+                        new_name = "__rhs_cast_{}".format(
+                            rhs_name.split("_")[-1]
+                        )
+                        ir_code += "{} = {} {}\n".format(
+                            new_name, dtype1.name, rhs_name
+                        )
+                        table.insert_var(new_name, dtype1, "intermediate")
+                        rhs_name = new_name
                 ir_code += "{} = {} {} {}\n".format(
                     store_var, lhs_name, op, rhs_name
                 )
@@ -2010,15 +2030,7 @@ def symbol_table(
             endif_label = "EndIf{}".format(inter_count)
 
             ir_code += "if {} goto {}\n".format(cond_name, if_label)
-            if (
-                not (
-                    isinstance(tree.cond, GoExpression)
-                    or isinstance(tree.cond, GoBasicLit)
-                    or isinstance(tree.cond, GoPrimaryExpr)
-                )
-                or not isinstance(cond_dtype, GoType)
-                or cond_dtype.name != "bool"
-            ):
+            if not isinstance(cond_dtype, GoType) or cond_dtype.name != "bool":
                 raise GoException(
                     "Error: If condition is not evaluating to bool"
                 )
@@ -3100,10 +3112,10 @@ def process_code(input_path, prefix=""):
 
     # Store older lexer and parser
     global lexer, parser
-    # old_lexer = deepcopy(lexer)
-    # old_parser = deepcopy(parser)
-    old_lexer = lexer
-    old_parser = parser
+    old_lexer = deepcopy(lexer)
+    old_parser = deepcopy(parser)
+    # old_lexer = lexer
+    # old_parser = parser
     # Reset the lexer to line no. 1
     lexer.lineno = 1
     # Storing filename and input text for error reporting
@@ -3211,132 +3223,129 @@ def csv_writer(table, name, dir_name, activation=False):
         for item in table.activation_record:
             writer.writerow([item[0], item[1].activation_offset])
 
-    if name == "global":
-        writer.writerow([])
-        writer.writerow(["#PACKAGES"])
-        for package in table.imports:
-            writer.writerow([package])
+    writer.writerow([])
+    writer.writerow(["#PACKAGES"])
+    for package in table.imports:
+        writer.writerow([package, package + ".csv"])
+        csv_writer(table.imports[package][0], package, dir_name)
 
-        writer.writerow([])
-        writer.writerow(["#ALIASES"])
-        writer.writerow(["alias", "actual"])
+    writer.writerow([])
+    writer.writerow(["#ALIASES"])
+    writer.writerow(["alias", "actual"])
 
-        for alias in table.aliases:
-            row = [alias, table.aliases[alias].name]
-            writer.writerow(row)
+    for alias in table.aliases:
+        row = [alias, table.aliases[alias].name]
+        writer.writerow(row)
 
-        writer.writerow([])
-        writer.writerow(["#BUILTINS"])
-        writer.writerow(["name", "size"])
+    writer.writerow([])
+    writer.writerow(["#BUILTINS"])
+    writer.writerow(["name", "size"])
 
-        for builtin in table.basic_types:
-            row = [builtin, table.basic_types[builtin]["size"]]
-            writer.writerow(row)
+    for builtin in table.basic_types:
+        row = [builtin, table.basic_types[builtin]["size"]]
+        writer.writerow(row)
 
-        writer.writerow([])
-        writer.writerow(["#FUNCTIONS"])
-        writer.writerow(
-            ["name", "[ParamName_type]", "symbol_table", "[ReturnType]"]
-        )
+    writer.writerow([])
+    writer.writerow(["#FUNCTIONS"])
+    writer.writerow(
+        ["name", "[ParamName_type]", "symbol_table", "[ReturnType]"]
+    )
 
-        for func in table.functions:
-            row = [func]
-            params = table.functions[func]["params"]
-            param_string = ""
-            if params is not None:
-                for param in params[:-1]:
-                    param_string += "{}_{};".format(
-                        param.name, resolve_dtype(param.dtype)
-                    )
-                if len(params) > 0:
-                    last = params[len(params) - 1]
-                    param_string += "{}_{}".format(
-                        last.name, resolve_dtype(last.dtype)
-                    )
-
-            row.append(param_string)
-            if params is not None:
-                row.append("{}.csv".format(func))
-                csv_writer(
-                    table.functions[func]["body"],
-                    func,
-                    dir_name,
-                    activation=True,
+    for func in table.functions:
+        row = [func]
+        params = table.functions[func]["params"]
+        param_string = ""
+        if params is not None:
+            for param in params[:-1]:
+                param_string += "{}_{};".format(
+                    param.name, resolve_dtype(param.dtype)
                 )
-            results = table.functions[func]["result"]
-            result_string = ""
-            if results is not None:
-                for result in results[:-1]:
-                    result_string += "{};".format(resolve_dtype(result.dtype))
-                if len(results) > 0:
-                    result_string += "{}".format(
-                        resolve_dtype(results[len(results) - 1].dtype)
-                    )
-            row.append(result_string)
-            writer.writerow(row)
+            if len(params) > 0:
+                last = params[len(params) - 1]
+                param_string += "{}_{}".format(
+                    last.name, resolve_dtype(last.dtype)
+                )
 
-        writer.writerow([])
-        writer.writerow(["#METHODS"])
-        writer.writerow(
+        row.append(param_string)
+        if params is not None:
+            row.append("{}.csv".format(func))
+            csv_writer(
+                table.functions[func]["body"], func, dir_name, activation=True
+            )
+        results = table.functions[func]["result"]
+        result_string = ""
+        if results is not None:
+            for result in results[:-1]:
+                result_string += "{};".format(resolve_dtype(result.dtype))
+            if len(results) > 0:
+                result_string += "{}".format(
+                    resolve_dtype(results[len(results) - 1].dtype)
+                )
+        row.append(result_string)
+        writer.writerow(row)
+
+    writer.writerow([])
+    writer.writerow(["#METHODS"])
+    writer.writerow(
+        [
+            "name",
+            "reciever",
+            "[ParamName_type]",
+            "symbol_table",
+            "[ReturnType]",
+        ]
+    )
+    for method in table.methods:
+        row = ["{}_{}".format(method[0], method[1])]
+        params = table.methods[method]["params"]
+        param_string = ";".join(
             [
-                "name",
-                "reciever",
-                "[ParamName_type]",
-                "symbol_table",
-                "[ReturnType]",
+                "{}_{}".format(param.name, resolve_dtype(param.dtype))
+                for param in params
             ]
         )
-        for method in table.methods:
-            row = ["{}_{}".format(method[0], method[1])]
-            params = table.methods[method]["params"]
-            param_string = ";".join(
-                [
-                    "{}_{}".format(param.name, resolve_dtype(param.dtype))
-                    for param in params
-                ]
-            )
 
-            row.append(param_string)
-            row.append("{}_{}.csv".format(method[0], method[1]))
-            csv_writer(
-                table.methods[method]["body"],
-                "{}_{}".format(method[0], method[1]),
-                dir_name,
-                activation=True,
-            )
-            results = table.methods[method]["result"]
-            result_string = ""
-            if results is not None:
-                for result in results[:-1]:
-                    result_string += "{};".format(resolve_dtype(result.dtype))
-                if len(results) > 0:
-                    result_string += "{}".format(
-                        resolve_dtype(results[len(results) - 1].dtype)
-                    )
-            row.append(result_string)
-            writer.writerow(row)
+        row.append(param_string)
+        row.append("{}_{}.csv".format(method[0], method[1]))
+        csv_writer(
+            table.methods[method]["body"],
+            "{}_{}".format(method[0], method[1]),
+            dir_name,
+            activation=True,
+        )
+        results = table.methods[method]["result"]
+        result_string = ""
+        if results is not None:
+            for result in results[:-1]:
+                result_string += "{};".format(resolve_dtype(result.dtype))
+            if len(results) > 0:
+                result_string += "{}".format(
+                    resolve_dtype(results[len(results) - 1].dtype)
+                )
+        row.append(result_string)
+        writer.writerow(row)
 
-        writer.writerow([])
-        writer.writerow(["#STRUCTURES"])
-        writer.writerow(["struct name", "[VarName_dtype_tag]"])
-        for struct_name in table.structures:
-            struct = table.structures[struct_name]
-            row = [struct_name]
-            var = struct.vars
-            tags = struct.tags
-            string = ""
-            for item1, item2 in zip(var[:-1], tags[:-1]):
-                string += "{}_{}_{};".format(
-                    item1[0], resolve_dtype(item1[1].dtype), item2[1]
-                )
-            if len(var) > 0:
-                item1 = var[len(var) - 1]
-                item2 = tags[len(tags) - 1]
-                string += "{}_{}_{}".format(
-                    item1[0], resolve_dtype(item1[1].dtype), item2[1]
-                )
-            row.append(string)
-            writer.writerow(row)
+    writer.writerow([])
+    writer.writerow(["#STRUCTURES"])
+    writer.writerow(["struct name", "[VarName_dtype_tag]"])
+    for struct_name in table.structures:
+        struct = table.structures[struct_name]
+        row = [struct_name]
+        var = struct.vars
+        tags = struct.tags
+        string = ""
+        for item1, item2 in zip(var[:-1], tags[:-1]):
+            string += "{}_{}_{};".format(
+                item1[0], resolve_dtype(item1[1].dtype), item2[1]
+            )
+        if len(var) > 0:
+            item1 = var[len(var) - 1]
+            item2 = tags[len(tags) - 1]
+            string += "{}_{}_{}".format(
+                item1[0], resolve_dtype(item1[1].dtype), item2[1]
+            )
+        row.append(string)
+        writer.writerow(row)
 
     file.close()
 

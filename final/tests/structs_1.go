@@ -18,7 +18,8 @@ func fact(i int) int {
 
 func main() {
 	var s mystruct1 = mystruct1{mystruct{2} }
+	var t mystruct1 = mystruct1{mystruct{7} }
 	s.val.val = 5
-	println(fact(s.val.val))
+	println(fact(s.val.val), fact(t.val.val))
 	// fact(2)
 }

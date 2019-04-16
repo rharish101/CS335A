@@ -399,6 +399,7 @@ class SymbTable:
                     self.variables[name] = dtype
 
             if self.use == "function" or self.use == "method":
+                dtype = deepcopy(dtype)
                 self.activation_record.append((name, dtype))
                 dtype_size = self.get_size(dtype)
                 dtype.activation_offset = (

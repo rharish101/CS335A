@@ -984,7 +984,9 @@ def symbol_table(
                 prefix=prefix,
             )
             local_ir += lhs_code
-            table.insert_var(lhs_name, lhs_dtype, use="intermediate")
+            table.insert_var(
+                lhs_name, GoPointType(lhs_dtype.final_type), use="intermediate"
+            )
             rhs_dtype, rhs_code = symbol_table(
                 item.rhs,
                 table,
@@ -995,6 +997,9 @@ def symbol_table(
                 prefix=prefix,
             )
             local_ir += rhs_code
+            local_ir += "{} = {} * {}\n".format(
+                rhs_name, rhs_name, table.get_size(lhs_dtype.dtype)
+            )
             table.insert_var(rhs_name, rhs_dtype, use="intermediate")
             local_ir += "{} = {} + {}\n".format(store_loc, lhs_name, rhs_name)
 
@@ -1716,18 +1721,22 @@ def symbol_table(
                         prefix=prefix,
                     )
                     lines = rhs_code.strip().split("\n")
-                    for i,curr_line in enumerate(lines):
+                    for i, curr_line in enumerate(lines):
                         if i == len(lines) - 1:
-                            final_assign.append(curr_line.strip().split("=")[0])
+                            final_assign.append(
+                                curr_line.strip().split("=")[0]
+                            )
                             ir_code += "final_{}_{} = {}\n".format(
                                 depth_num, ctr, curr_line.strip().split("=")[1]
                             )
-                            var_name = "final_{}_{}".format(depth_num,ctr)
-                            table.insert_var(var_name, dtype2, use="intermediate")
+                            var_name = "final_{}_{}".format(depth_num, ctr)
+                            table.insert_var(
+                                var_name, dtype2, use="intermediate"
+                            )
                             break
                         ir_code += curr_line
                         ir_code += "\n"
-                    #ir_code += rhs_code
+                    # ir_code += rhs_code
                     if type(dtype2) is list:
                         if len(dtype2) == 0:
                             raise GoException(
@@ -1741,9 +1750,9 @@ def symbol_table(
                     table.type_check(dtype1, dtype2, "assignment")
 
                     DTYPE = None
-                    ctr = ctr+1
+                    ctr = ctr + 1
 
-                for i,curr_line in enumerate(final_assign):
+                for i, curr_line in enumerate(final_assign):
                     ir_code += "{} = final_{}_{}\n".format(
                         curr_line, depth_num, i
                     )

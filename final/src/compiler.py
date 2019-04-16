@@ -359,10 +359,17 @@ def ir2mips(table, ir_code, verbose=False):
             table = orig_table
             is_main = False
 
+        elif "=" in line and "allocate" in line:
+            lhs = line.split(" = ")[0].strip()
+            mips += " " * indent + "li $a0, 100\n"
+            mips += " " * indent + "li $v0, 9\n"
+            mips += " " * indent + "syscall\n"
+            source = get_addr(lhs, "$v0")
+            mips += " " * indent + "sw $v0, {}\n".format(source)
+
         elif "=" in line and "= call " not in line:
             lhs = line.split(" = ")[0].strip()
             lhs_dtype = get_type(lhs)
-
             rhs = line.split(" = ")[1].strip().split()
             if len(rhs) == 1:
                 indices = [0]

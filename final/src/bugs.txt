@@ -10,3 +10,4 @@
 17. Address of struct not working
 18. accessing fields of structs not working in the structs.go, i.e in the case of accessing strings 
 
+19. wrong values of fields in structs , check linked list test case in new_tests 

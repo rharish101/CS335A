@@ -66,7 +66,7 @@ def ir2mips(table, ir_code, verbose=False):
         for var in collection:
             if package != "":
                 package += "."
-            mips += " " * 4 + package + var + ": "
+            mips += " " * 4 + "__global_" + package + var + ": "
             dtype = collection[var]
             global_vars[package + var] = dtype
             size = table.get_size(dtype)
@@ -176,7 +176,7 @@ def ir2mips(table, ir_code, verbose=False):
             mips += " " * indent + "lw {}, {}\n".format(reg, source)
             return "({})".format(reg)
         elif var in global_vars:
-            mips += " " * indent + "la {}, {}\n".format(reg, var)
+            mips += " " * indent + "la {}, __global_{}\n".format(reg, var)
             return "({})".format(reg)
         else:
             for item in table.activation_record:
@@ -197,7 +197,7 @@ def ir2mips(table, ir_code, verbose=False):
             source = get_addr(var[1:], reg)
             mips += " " * indent + "lw {}, {}\n".format(reg, source)
         elif var in global_vars:
-            mips += " " * indent + "la {}, {}\n".format(reg, var)
+            mips += " " * indent + "la {}, __global_{}\n".format(reg, var)
         else:
             for item in table.activation_record:
                 if item[0] == var:

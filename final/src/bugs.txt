@@ -1,7 +1,6 @@
 1. b,b = temp(2,3)
    Storing values from multiple returns into variables
 
-10. switch_2.go not working
 15. Global Array
     -- Still mips code with error (new_test 9)
     -- same issue in 10 and 15

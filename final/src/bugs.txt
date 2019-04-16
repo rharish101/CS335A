@@ -1,10 +1,12 @@
 1. b,b = temp(2,3)
    Storing values from multiple returns into variables
-6. var a,b = 0,0 not working
 
 10. switch_2.go not working
 15. Global Array
     -- Still mips code with error (new_test 9)
     -- same issue in 10 and 15
 16. methods.go not working, call for v.add() looks for a function v.add instead of add() in the 3ac
+
 17. Address of struct not working
+18. accessing fields of structs not working in the structs.go, i.e in the case of accessing strings 
+

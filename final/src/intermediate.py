@@ -1630,6 +1630,14 @@ def symbol_table(
                     # can have only struct fields, variables, array on the LHS.
                     dtype1 = None
                     if isinstance(var, GoPrimaryExpr):
+                        symbol_table(
+                            var.rhs,
+                            table,
+                            name,
+                            block_type,
+                            scope_label=scope_label,
+                            prefix=prefix,
+                        )
                         left = var
                         depth = 0
                         indexes = []

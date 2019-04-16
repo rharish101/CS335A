@@ -291,7 +291,6 @@ def ir2mips(table, ir_code, verbose=False):
                         "add $t2, $t0, $fp",
                         "l.d $f12, ($t2)",
                         "addi $t0, $t0, 4",
-                        "addi $t1, $t1, -4",
                         "j __println_end",
                         "__println_string:",
                         "add $t2, $t0, $fp",
@@ -330,14 +329,11 @@ def ir2mips(table, ir_code, verbose=False):
                         "__scanln_float:",
                         "li $t4, 2",
                         "bne $t3, $t4, __scanln_double",
-                        "add $t4, $t0, $fp",
-                        "s.s $f0, ($t4)",
+                        "s.s $f0, ($t2)",
                         "j __scanln_end",
                         "__scanln_double:",
-                        "add $t4, $t0, $fp",
-                        "s.d $f0, ($t4)",
+                        "s.d $f0, ($t2)",
                         "addi $t0, $t0, 4",
-                        "addi $t1, $t1, -4",
                         "__scanln_end:",
                         "addi $t0, $t0, 4",
                         "addi $t1, $t1, -4",
@@ -611,36 +607,31 @@ def ir2mips(table, ir_code, verbose=False):
 
             elif len(rhs) == 2:
                 suffixes = []
-                regs = []
                 for item_dtype in [lhs_dtype, rhs_dtype]:
                     if (
                         hasattr(item_dtype, "name")
                         and "float" in item_dtype.name
                     ):
-                        regs.append("$f0")
                         if table.get_size(item_dtype) > 4:
                             suffixes.append(".d")
                         else:
                             suffixes.append(".s")
                     else:
                         suffixes.append(".w")
-                        regs.append("$t0")
                 # Ignoring uint/int casts
                 if suffixes[0] != suffixes[1]:
                     if suffixes[1] == ".w":
-                        mips += " " * indent + "mtc1{} {}, {}\n".format(
-                            ".d" if suffixes[0] == ".d" else "",
-                            regs[1],
-                            regs[0],
+                        if suffixes[0] == ".d":
+                            mips += " " * indent + "li $t1, 0\n"
+                        mips += " " * indent + "mtc1{} $t0, $f0\n".format(
+                            ".d" if suffixes[0] == ".d" else ""
                         )
                     mips += " " * indent + "cvt{}{} $f0, $f0\n".format(
                         *suffixes
                     )
                     if suffixes[0] == ".w":
-                        mips += " " * indent + "mfc1{} {}, {}\n".format(
-                            ".d" if suffixes[1] == ".d" else "",
-                            regs[0],
-                            regs[1],
+                        mips += " " * indent + "mfc1{} $t0, $f0\n".format(
+                            ".d" if suffixes[1] == ".d" else ""
                         )
 
             if "[" not in lhs:  # No indexing in LHS

@@ -1611,6 +1611,7 @@ def symbol_table(
             else:
                 final_assign = []
                 ctr = 0
+                final_names = []
                 for i, (var, expr) in enumerate(zip(lhs, rhs)):
                     logging.info('assign: "{}" : "{}"'.format(var, expr))
                     # can have only struct fields, variables, array on the LHS.
@@ -1726,10 +1727,12 @@ def symbol_table(
                             final_assign.append(
                                 curr_line.strip().split("=")[0]
                             )
-                            ir_code += "final_{}_{} = {}\n".format(
-                                depth_num, ctr, curr_line.strip().split("=")[1]
+                            var_name = "__final{}_{}".format(ctr, depth_num)
+                            final_names.append(var_name)
+                            ir_code += "{} = {}\n".format(
+                                var_name,
+                                curr_line.strip().split("=")[1].strip(),
                             )
-                            var_name = "final_{}_{}".format(depth_num, ctr)
                             table.insert_var(
                                 var_name, dtype2, use="intermediate"
                             )
@@ -1753,8 +1756,8 @@ def symbol_table(
                     ctr = ctr + 1
 
                 for i, curr_line in enumerate(final_assign):
-                    ir_code += "{} = final_{}_{}\n".format(
-                        curr_line, depth_num, i
+                    ir_code += "{} = {}\n".format(
+                        curr_line.strip(), final_names[i]
                     )
 
         elif isinstance(tree, GoShortDecl):

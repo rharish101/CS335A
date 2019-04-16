@@ -22,6 +22,10 @@ func main() {
 	var y *int
 	y = &x[1]
 
+	var w int = 3
+	*(&w) = 5
+	println(w)
+
 	// a := 2
 	// b := &a
 

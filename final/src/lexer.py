@@ -181,6 +181,7 @@ def t_STRING(t):
 
     # Keep track of last token for semicolon insertion on newlines
     t.lexer.last = True
+    t.value = t.value.encode("utf8").decode("unicode_escape")
     return t
 
 

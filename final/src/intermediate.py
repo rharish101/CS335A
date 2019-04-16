@@ -176,7 +176,7 @@ class SymbTable:
             return False
 
     def lookup(self, name):
-        if name in self.variables:
+        if name in self.variables or name in self.intermediates:
             return True
         elif self.parent is not None:
             return self.parent.lookup(name)
@@ -879,12 +879,15 @@ def symbol_table(
         if store_loc == "":
             pass
         elif isinstance(dtype, GoArray):
-            for arr_index in range(
-                0, table.get_size(dtype), table.get_size(dtype.dtype)
-            ):
+            elem_size = table.get_size(dtype.dtype)
+            for arr_index in range(0, table.get_size(dtype), elem_size):
                 arr_elem = GoPrimaryExpr(
                     item,
-                    GoIndex(GoBasicLit(arr_index, GoType("int", True, 1))),
+                    GoIndex(
+                        GoBasicLit(
+                            arr_index // elem_size, GoType("int", True, 1)
+                        )
+                    ),
                 )
                 local_ir += symbol_table(
                     arr_elem,
@@ -2980,10 +2983,22 @@ def symbol_table(
                 ir_code += addr_handler(
                     tree.expr, DTYPE, store_var, start=start
                 )
+
+            elif tree.op == "*" and (
+                isinstance(opd_dtype.dtype, GoArray)
+                or isinstance(opd_dtype, GoStruct)
+            ):
+                ir_code += opd_code
+                table.insert_var(opd_name, opd_dtype, use="intermediate")
+                table.intermediates[opd_name] = opd_dtype.dtype
+                ir_code += string_handler(opd_name, opd_dtype.dtype, store_var)
+                table.intermediates[opd_name] = opd_dtype
+
             elif tree.op != "-":
                 ir_code += opd_code
                 table.insert_var(opd_name, opd_dtype, use="intermediate")
                 ir_code += "{} = {} {}\n".format(store_var, tree.op, opd_name)
+
             else:
                 ir_code += opd_code
                 table.insert_var(opd_name, opd_dtype, use="intermediate")

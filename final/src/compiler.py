@@ -552,6 +552,7 @@ def ir2mips(table, ir_code, verbose=False):
                         " " * indent
                         + "__branch_{}: or $t0, $t2, $0\n".format(branch_count)
                     )
+                    branch_count += 1
 
                 elif rhs[1] == "&&":  # bool only
                     # Set result to 0 in $t2 (to preserve $t0) by default.
@@ -569,6 +570,7 @@ def ir2mips(table, ir_code, verbose=False):
                         " " * indent
                         + "__branch_{}: or $t0, $t2, $0\n".format(branch_count)
                     )
+                    branch_count += 1
 
                 elif rhs[1] in ["==", "!=", "<", "<=", ">", ">="]:
                     # float only; int already handled

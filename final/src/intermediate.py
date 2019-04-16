@@ -1521,9 +1521,13 @@ def symbol_table(
                             lhs_name = "__index_lhs{}_{}".format(
                                 ind_cnt, inter_count
                             )
+                            if isinstance(lhs_dtype, GoArray):
+                                inter_type = lhs_dtype.final_type
+                            else:
+                                inter_type = lhs_dtype.dtype
                             table.insert_var(
                                 lhs_name,
-                                GoPointType(lhs_dtype.final_type),
+                                GoPointType(inter_type),
                                 "intermediate",
                             )
                             lhs_loc = _get_loc(curr.lhs, ind_cnt + 1)
@@ -1555,7 +1559,6 @@ def symbol_table(
                         elif isinstance(curr.expr, GoUnaryExpr):
                             if curr.expr.op == "*":
                                 return "*" + _get_loc(curr.expr, ind_cnt)
-                                loc_lhs += "*"
                             else:
                                 _get_loc(curr.expr, ind_cnt)
                                 return _get_loc(curr.expr.expr, ind_cnt)
@@ -1674,8 +1677,15 @@ def symbol_table(
                         else:
                             indexes.append(0)
 
-                        dtype1 = table.get_type(left.lhs)
-                        if (
+                        dtype1 = symbol_table(
+                            left.lhs,
+                            table,
+                            name,
+                            block_type,
+                            scope_label=scope_label,
+                            prefix=prefix,
+                        )[0]
+                        if isinstance(dtype1, GoArray) and (
                             dtype1.length.item <= indexes[len(indexes) - 1]
                             or indexes[len(indexes) - 1] < 0
                         ):
@@ -2403,26 +2413,6 @@ def symbol_table(
                 else:
                     indexes.append(0)
 
-                dtype1 = table.get_type(left.lhs)
-                if (
-                    dtype1.length.item <= indexes[len(indexes) - 1]
-                    or indexes[len(indexes) - 1] < 0
-                ):
-                    pass
-                    # raise GoException("Error : Index Out of bound")
-                indexes.pop()
-                dtype1 = dtype1.dtype
-                while depth > 0:
-                    if (
-                        dtype1.length.item <= indexes[len(indexes) - 1]
-                        or indexes[len(indexes) - 1] < 0
-                    ):
-                        pass
-                        # raise GoException("Error : Index Out of bound")
-                    indexes.pop()
-                    dtype1 = dtype1.dtype
-                    depth = depth - 1
-
                 lhs_name = "__indlhs_{}".format(inter_count)
                 if type(lhs) is not str:
                     lhs_dtype, lhs_code = symbol_table(
@@ -2441,10 +2431,12 @@ def symbol_table(
                 if isinstance(lhs, GoPrimaryExpr):
                     #     if isinstance(lhs.dtype,GoArray) and isinstance(lhs.dtype.dtype,GoArray)
                     #         tree.dtype = lhs.dtype.dtype
-                    tree.dtype = lhs.dtype.dtype
+                    tree.dtype = lhs_dtype.dtype
                     DTYPE = tree.dtype
                     # print(tree.dtype.name)
                     # print("HERE")
+                else:
+                    DTYPE = lhs_dtype.dtype
 
                 ir_code += lhs_code
                 if isinstance(lhs_dtype, GoArray):
@@ -3066,14 +3058,14 @@ def symbol_table(
                     )
                     table.intermediates[opd_name] = opd_dtype
                 else:
-                    ir_code += "{} = {} {}\n".format(
+                    ir_code += "{} = {}{}\n".format(
                         store_var, tree.op, opd_name
                     )
 
             elif tree.op != "-":
                 ir_code += opd_code
                 table.insert_var(opd_name, opd_dtype, use="intermediate")
-                ir_code += "{} = {} {}\n".format(store_var, tree.op, opd_name)
+                ir_code += "{} = {}{}\n".format(store_var, tree.op, opd_name)
 
             else:
                 ir_code += opd_code
@@ -3176,6 +3168,7 @@ def symbol_table(
                 ir_code += "return {}\n".format(return_name)
 
     except GoException as go_exp:
+        raise ValueError(go_exp)
         if not hasattr(tree, "lineno"):
             raise GoException(go_exp)  # Will be handled by the caller
         go_traceback(tree)

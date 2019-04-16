@@ -99,7 +99,7 @@ def ir2mips(table, ir_code, verbose=False):
         """Get the type of the variable."""
         """Infer the type from the given string operand and return it."""
         if var.startswith("*"):
-            return GoPointType(get_type(var[1:]))
+            return get_type(var[1:], kind=kind).dtype
         elif "[" not in var:
             # Check if it is in this table or in a child scope's table
             if var in global_vars:
@@ -120,13 +120,8 @@ def ir2mips(table, ir_code, verbose=False):
                         pass
                 raise GoException(ex)
 
-        root = re.search(r"[\w_]+", var).group()
-        if root in global_vars:
-            dtype = global_vars[root]
-        else:
-            for record in table.activation_record:
-                if record[0] == root:
-                    dtype = record[1]
+        root = var.split("[")[0]
+        dtype = get_type(root, kind=kind)
 
         remaining = var[var.index("[") :]
         while remaining != "":
@@ -692,6 +687,7 @@ def ir2mips(table, ir_code, verbose=False):
 
             elif re.match(r".*\[.+\[", lhs) is None:  # Single indexing in LHS
                 before_dtype = get_type(lhs.split("[")[0])
+                print(lhs, lhs.split("[")[0], before_dtype)
                 if isinstance(before_dtype, GoArray) or isinstance(
                     before_dtype, GoStruct
                 ):

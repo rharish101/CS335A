@@ -1077,6 +1077,8 @@ def symbol_table(
                 )
             elif type(tree.item) is bool:
                 ir_code = "{} = {}\n".format(store_var, int(tree.item))
+            elif hasattr(tree.dtype, "name") and tree.dtype.name == "rune":
+                ir_code = "{} = {}\n".format(store_var, ord(tree.item[1:-1]))
             else:
                 ir_code = "{} = {}\n".format(store_var, tree.item)
 

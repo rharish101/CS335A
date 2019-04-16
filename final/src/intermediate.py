@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
 """IR generation for Go."""
 from lexer import lexer
 from parser import parser
 from go_classes import *
-from argparse import ArgumentParser
 from copy import deepcopy
 import csv
 import subprocess
@@ -3457,31 +3455,3 @@ def get_csv(table, dir_name):
                     ["awk", '{gsub(/"/,"")};1', csv_file], stdout=out_file
                 )
             subprocess.run(["mv", out_file, csv_file])
-
-
-if __name__ == "__main__":
-    argparser = ArgumentParser(description="IR generator for Go")
-    argparser.add_argument("input", type=str, help="input file")
-    argparser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default=None,
-        help="output directory name for csv and txt files",
-    )
-    argparser.add_argument(
-        "-v", "--verbose", action="store_true", help="enable debug output"
-    )
-    args = argparser.parse_args()
-    if args.output is None:
-        # Output directory name is source filename (w/o extension)
-        args.output = ".".join(args.input.split("/")[-1].split(".")[:-1])
-    if args.output[-1] != "/":
-        args.output += "/"
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.INFO)
-    table, ir_code = process_code(args.input)
-    get_csv(table, args.output)
-    with open(args.output + "3ac.txt", "w") as ir_file:
-        ir_file.write(ir_code)

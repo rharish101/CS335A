@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Compiler for Go to MIPS."""
 from go_classes import *
-from intermediate import process_code, inbuilt_funcs, GoException
+from intermediate import process_code, inbuilt_funcs, GoException, get_csv
 from argparse import ArgumentParser
-import logging
 import re
 from math import ceil
 
@@ -916,16 +915,15 @@ if __name__ == "__main__":
         "-v", "--verbose", action="store_true", help="enable debug output"
     )
     args = argparser.parse_args()
+
+    output_dir = ".".join(args.input.split("/")[-1].split(".")[:-1]) + "/"
     if args.output is None:
         # Output name is source filename (w/o extension) + ".s"
-        args.output = (
-            ".".join(args.input.split("/")[-1].split(".")[:-1]) + ".s"
-        )
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.INFO)
+        args.output = output_dir[:-1] + ".s"
 
     table, ir_code = process_code(args.input)
+    if args.verbose:
+        get_csv(table, output_dir)
     mips = ir2mips(table, ir_code, verbose=args.verbose)
     with open(args.output, "w") as out_file:
         out_file.write(mips)

@@ -3,22 +3,18 @@ package main
 import "fmt"
 
 func callMyFunc() bool {
-	//println("This should not print\n")
-	println(0)
-	return bool(1)
+	println("This should not print\n")
+	return true
 }
 
 func main() {
 	a := 0
 	if (a >= 0 || callMyFunc()) {
-		//println("This should print in first line\n")
-		println(1)
+		println("This should print in first line\n")
 	}
 	if (a > 0 && callMyFunc()) {
-		//println("This should not print in second line\n")
-		println(2)
+		println("This should not print in second line\n")
 	} else {
-		//println("This should print in second line\n")
-		println(3)
+		println("This should print in second line\n")
 	}
 }

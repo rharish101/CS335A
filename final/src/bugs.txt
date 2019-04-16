@@ -1,6 +1,5 @@
 1. b,b = temp(2,3)
    Storing values from multiple returns into variables
-2. Accessing fields of structs
 6. var a,b = 0,0 not working
 7. switch_1.go not working
 9. handling of rune literals ??

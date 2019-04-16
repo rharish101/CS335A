@@ -74,7 +74,7 @@ def ir2mips(table, ir_code, verbose=False):
             size = table.get_size(dtype)
             mips += ".space {}\n".format(size)
     mips += " " * 4 + ".align 2\n"
-    mips += " " * 4 + '__println_comma: .asciiz " "\n'
+    mips += " " * 4 + '__println_space: .asciiz " "\n'
     mips += " " * 4 + ".align 2\n"
     mips += " " * 4 + '__println_newline: .asciiz "\\n"\n'
     mips += " " * 4 + ".align 2\n"
@@ -299,7 +299,7 @@ def ir2mips(table, ir_code, verbose=False):
                         "syscall",
                         "addi $t0, $t0, 4",
                         "addi $t1, $t1, -4",
-                        "la $a0, __println_comma",
+                        "la $a0, __println_space",
                         "li $v0, 4",
                         "syscall",
                         "j __println_loop",
@@ -444,36 +444,39 @@ def ir2mips(table, ir_code, verbose=False):
 
                 else:
                     # Split the pointer and the index
-                    items = re.search(
-                        r"([\w_]+)\[([^\]]+)\]", rhs[index]
-                    ).groups()
-                    source = get_addr(items[0], "$t{}".format(reg))
-                    if re.fullmatch(r"-?\d+", items[1]) is None:
-                        # The index is a variable
-                        ind_source = get_addr(items[1], "$t{}".format(reg + 1))
-                        mips += " " * indent + "lw $t{}, {}\n".format(
-                            reg, source
+                    items = [
+                        unit
+                        for unit in re.split(r"\[([^\]]+)\]", rhs[index])
+                        if unit != ""
+                    ]
+
+                    store_pointer(items[0], "$t{}".format(reg))
+                    if isinstance(get_type(items[0]), GoPointType):
+                        mips += " " * indent + "lw $t{0:}, ($t{0:})\n".format(
+                            reg
                         )
-                        mips += " " * indent + "lw $t{}, {}\n".format(
-                            reg + 1, ind_source
-                        )
-                        mips += (
-                            " " * indent
-                            + "add $t{0:}, $t{0:}, $t{1:}\n".format(
-                                reg, reg + 1
+
+                    for unit in items[1:]:
+                        if re.fullmatch(r"-?\d+", unit) is None:
+                            # The index is a variable
+                            ind_source = get_addr(unit, "$t{}".format(reg + 1))
+                            mips += " " * indent + "lw $t{}, {}\n".format(
+                                reg + 1, ind_source
                             )
-                        )
-                    else:
-                        # The index is a number
-                        mips += " " * indent + "lw $t{}, {}\n".format(
-                            reg, source
-                        )
-                        mips += (
-                            " " * indent
-                            + "addi $t{0:}, $t{0:}, {1:}\n".format(
-                                reg, items[1]
+                            mips += (
+                                " " * indent
+                                + "add $t{0:}, $t{0:}, $t{1:}\n".format(
+                                    reg, reg + 1
+                                )
                             )
-                        )
+                        else:
+                            # The index is a number
+                            mips += (
+                                " " * indent
+                                + "addi $t{0:}, $t{0:}, {1:}\n".format(
+                                    reg, unit
+                                )
+                            )
 
                     mips += " " * indent + "{} {}, ($t{})\n".format(
                         size2instr(rhs_size, "load", is_float, is_unsigned),

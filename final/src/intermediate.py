@@ -876,6 +876,14 @@ def symbol_table(
 
     logging.info(tree)
 
+    def list2dtype(dtype_list):
+        """Convert list of dtypes into a struct for multiple returns."""
+        field_list = [
+            GoStructField(["__val{}".format(i)], dtype_list[i], "")
+            for i in range(len(dtype_list))
+        ]
+        return GoStruct(field_list)
+
     def string_handler(item, dtype, store_loc, start=0):
         """Handle storing of an "str" item of given dtype into store_loc."""
         global inter_count
@@ -1624,11 +1632,7 @@ def symbol_table(
                 else:
                     ir_code += func_code
 
-                field_list = [
-                    GoStructField(["__val{}".format(i)], func_dtype[i], "")
-                    for i in range(len(func_dtype))
-                ]
-                return_struct = GoStruct(field_list)
+                return_struct = list2dtype(func_dtype)
                 table.insert_var(return_name, return_struct, "intermediate")
 
                 arg_index = 0
@@ -2628,13 +2632,7 @@ def symbol_table(
                         temp_name = "__call_temp_{}".format(inter_count)
 
                         if type(DTYPE) is list:
-                            field_list = [
-                                GoStructField(
-                                    ["__val{}".format(i)], DTYPE[i], ""
-                                )
-                                for i in range(len(DTYPE))
-                            ]
-                            temp_dtype = GoStruct(field_list)
+                            temp_dtype = list2dtype(DTYPE)
                         else:
                             temp_dtype = DTYPE
                         table.insert_var(temp_name, temp_dtype, "intermediate")
@@ -2647,7 +2645,11 @@ def symbol_table(
                         )
                     else:
                         temp_name = "__call_temp_{}".format(inter_count)
-                        table.insert_var(temp_name, DTYPE, "intermediate")
+                        if type(DTYPE) is list:
+                            temp_dtype = list2dtype(DTYPE)
+                        else:
+                            temp_dtype = DTYPE
+                        table.insert_var(temp_name, temp_dtype, "intermediate")
                         ir_code += "{} = call {},{}\n".format(
                             temp_name, func_loc, len(argument_list)
                         )
@@ -3009,7 +3011,6 @@ def symbol_table(
                     ir_code += elem_code
 
                 logging.info("FINAL LIST '{}'".format(type_list))
-                # struct_obj = GoStruct([])
                 if isinstance(tree.dtype, GoType):
                     if unnamed_keys:
                         table.check_struct(struct_name, type_list)
@@ -3140,11 +3141,8 @@ def symbol_table(
 
             return_name = "__retval_{}".format(inter_count)
             if len(results) > 1:
-                field_list = [
-                    GoStructField(["__val{}".format(i)], results[i].dtype, "")
-                    for i in range(len(results))
-                ]
-                return_struct = GoStruct(field_list)
+                dtype_list = [item.dtype for item in results]
+                return_struct = list2dtype(dtype_list)
                 table.insert_var(
                     return_name, return_struct, use="intermediate"
                 )

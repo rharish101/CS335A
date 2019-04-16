@@ -1,4 +1,4 @@
-//shows functions, their activation records and semantic checking on operations using their return types 
+//shows functions, their activation records and semantic checking on operations using their return types
 
 package main
 type int_t uint
@@ -18,8 +18,8 @@ func add(x uint, y uint) uint {
 func temp(x int,y int){
 	var d int_t = 4
 	var b uint = 3
-	// b,b = temp2(b, b)
-	// println(b,b)
+    b,b = temp2(b, b)
+    println(b,b)
 	c := uint(d) + b
 	a := c
 	var z uint = 20

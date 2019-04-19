@@ -40,6 +40,11 @@ func main() {
 			found = true
 			break
 		}
+        if (!(*head).check) {
+            a := 1
+        } else {
+            break
+        }
 		head = (*head).next
 	}
 
